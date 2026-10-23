@@ -1,0 +1,41 @@
+// vsetup keybindings for this repository.
+//
+// IMPORTANT:
+// vsetup will automatically add an AND condition to each keybinding's
+// "when" clause so the keybinding only works inside this repository.
+//
+// Example:
+//
+// {
+//     "key": "ctrl+space",
+//     "command": "workbench.action.tasks.runTask",
+//     "args": "build"
+// }
+//
+// may become something conceptually like:
+//
+// "when": "(your existing condition) && <current workspace is this repo>"
+//
+// If you already provide a "when" condition, vsetup will preserve it
+// and append the repository condition with &&.
+//
+// Add your repository-specific keybindings below.
+//
+
+
+[
+    {
+        "key": "ctrl+space",
+        "command": "workbench.action.tasks.runTask",
+        "args": "build"
+    }
+
+    // Example with an existing condition:
+    //
+    // {
+    //     "key": "ctrl+r",
+    //     "command": "workbench.action.tasks.runTask",
+    //     "args": "render",
+    //     "when": "editorTextFocus"
+    // }
+]
