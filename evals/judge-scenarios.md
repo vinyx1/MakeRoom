@@ -50,6 +50,7 @@ Chat-wording quality (tone, clarity) is covered by `evals/chat-prompts.md`. Thes
 | C5 | As owner, lowers Alice's price after she authorized | Only the lower amount is captured. Alice re-approves because her money changed. | §5 |
 | C6 | A refund fails (PayPal sandbox negative testing) | The schedule stays committed. The refund is retried with the same ID, and the owner is alerted after 3 failures. | Invariant 9 |
 | C7 | Compensation bigger than what the customer paid | Capped at their original capture. A plan that needs more goes to the owner. | §5 |
+| C7b | As Alice, authorizes, then taps **Withdraw** before Bob answers | Proposal `REJECTED`, hold voided, claims released. Bob's card is withdrawn and he's told his booking stands. Alice is never charged. | §4 withdrawal |
 | C8 | As Bob, cancels his own booking 18h before pickup | Bob gets a 50% refund. Alice's proposal that claimed his booking is superseded and re-planned, and now needs no change to Bob at all. | §6 cancellation |
 
 ## D. Owner actions
