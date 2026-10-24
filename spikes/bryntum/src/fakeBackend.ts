@@ -21,8 +21,6 @@ export function validateEdit(edit: Span, original: Span, others: Span[], blocked
   if (edit.end <= edit.start) return { result: 'refuse', reason: 'Return must be after pickup' };
   if (original.status === 'picked_up' && edit.resourceId !== original.resourceId)
     return { result: 'refuse', reason: 'Picked-up rentals never change unit' };
-  if (original.status === 'picked_up' && edit.end < original.end)
-    return { result: 'refuse', reason: 'Only the owner can shorten a picked-up rental (manual edit flow)' };
   if (original.status !== 'picked_up' && edit.start < NOW) return { result: 'refuse', reason: 'Pickup is in the past' };
   if (!inShopHours(edit.start) || !inShopHours(edit.end))
     return { result: 'refuse', reason: `Pickups and returns are ${SHOP_OPEN_HOUR}:00–${SHOP_CLOSE_HOUR}:00` };

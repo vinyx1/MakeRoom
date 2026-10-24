@@ -1,0 +1,12 @@
+html, body, #root { margin: 0; height: 100%; font-family: system-ui, sans-serif; }
+.page { display: flex; flex-direction: column; height: 100vh; }
+header { display: flex; gap: 8px; align-items: center; padding: 8px; border-bottom: 1px solid #ddd; }
+.scheduler { flex: 1; min-height: 0; }
+.log { height: 150px; margin: 0; padding: 8px; overflow: auto; background: #111; color: #9f9; font-size: 12px; }
+
+.b-sch-event.draft { background: #fde2e2 !important; border: 2px solid #d33 !important; color: #800 !important; }
+.draft-body { display: flex; gap: 6px; align-items: center; font-size: 11px; overflow: hidden; }
+.resolve-btn { font-size: 11px; padding: 1px 6px; cursor: pointer; }
+.b-sch-event.ghost { opacity: 0.45; border: 2px dashed #333 !important; background: transparent !important; color: #222 !important; }
+.b-sch-event.picked-up { font-weight: 600; }
+.unassigned-row { background: #fff7e0; }
