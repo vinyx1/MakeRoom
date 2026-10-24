@@ -67,7 +67,7 @@ The agent talks to customers directly as the shop's AI assistant and acts alone 
 Money, booking-state and condition triggers are checked by the backend; the judgment triggers go through an `escalate_to_owner` tool. When the owner answers a fact question, the agent offers to save it as a fact so the question isn't asked again.
 ## Bryntum's role
 
-Bryntum must do real work, not just display a calendar: event buffers for turnaround, resource time ranges for unavailability (bookings are `manuallyScheduled`, so Bryntum never moves them), ghost/preview events for proposals (applied and rolled back via state tracking), red drafts for owner edits that conflict, and a **Resolve with agent** action on each conflict. The backend stays the source of truth; Bryntum syncs from it.
+Bryntum must do real work, not just display a calendar: event buffers for turnaround, resource time ranges for unavailability (bookings are `manuallyScheduled`, so Bryntum never moves them), ghost/preview events for proposals (applied and rolled back via state tracking), red drafts for owner edits that conflict, and a **Resolve with agent** action on each conflict. The backend stays the source of truth; Bryntum syncs from it. Set `manuallyScheduled: true` in the one function that maps bookings to Bryntum events, and in dev mode log loudly if a Bryntum event's times ever differ from the server's.
 
 ## Judge mode
 
