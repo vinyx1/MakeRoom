@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BryntumSchedulerPro } from '@bryntum/schedulerpro-react';
 import { EventModel, StringHelper } from '@bryntum/schedulerpro';
 import { assignments, events, NOW, resources, resourceTimeRanges, VIEW_END, VIEW_START } from './seed';
@@ -27,6 +27,7 @@ export default function App() {
   }, []);
 
   const scheduler = () => (ref.current as any)?.instance;
+  useEffect(() => { (window as any).sched = scheduler(); }); // spike-only handle for automated checks
 
   // Everything the fake backend validates against: real bookings only.
   const snapshot = (): { spans: Span[]; blocked: any[] } => {
