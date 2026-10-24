@@ -336,8 +336,8 @@ Append-only: `at` (shop clock), `actor` (`agent`, `owner`, `customer:{id}`, `sys
 | Resources | `units`, plus one virtual **Unassigned** resource for bookings with `unit_id` null |
 | Events | `bookings` with status `confirmed` / `picked_up` (picked-up drawn locked: no drag to another resource) |
 | Event buffer (postamble) | `buffer_ends_at − ends_at` |
-| Resource time ranges / calendars | `unit_unavailability`; open `condition_notes` as an icon on the resource |
-| Ghost events | `revision_changes` of the proposal's active revisions, rendered read-only with a ghost style; not part of the booking store |
-| Red drafts | `owner_drafts` |
-| Writes | Owner drags are intercepted before Bryntum commits them locally and sent to the backend; the response (accepted, draft, or refused with reason) updates the store. Bryntum never saves to the DB on its own. |
+| Resource time ranges | `unit_unavailability`, display only; open `condition_notes` as an icon on the resource. Not Pro resource calendars: every booking event is `manuallyScheduled`, so Bryntum's engine never moves one. |
+| Ghost events | `revision_changes` of the proposal's active revisions, added to Bryntum's event store as read-only events with `kind: 'ghost'`. Never written to `bookings`. |
+| Red drafts | `owner_drafts`, as events with `kind: 'draft'` and a Resolve with agent button |
+| Writes | Owner drags and resizes are intercepted with `beforeEventDropFinalize` / `beforeEventResizeFinalize` (async finalize) and sent to the backend; the response (accepted, draft, or refused with reason) finalizes or cancels the change. Bryntum never saves to the DB on its own. Details and gotchas: `spikes/bryntum/FINDINGS.md`. |
 | Live updates | SSE events from `activity_log` and booking changes patch the store |

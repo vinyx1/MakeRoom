@@ -12,7 +12,7 @@ The signature scenario (Scenario 1) in `demo script.md` is the spec. Every featu
 
 ## Status
 
-Planning → spikes. The stack below is the working choice; days 1–3 spikes (Bryntum render + event buffers, PayPal order → authorize → capture/void + partial refund on a prior capture, Claude tool loop) validate it before the data model is written on day 4. The PayPal spike must also answer how to seed prepaid sandbox captures for each visitor's shop without a buyer clicking through. Fallback: seeded bookings carry simulated captures, and refunds against them are simulated and labelled as such in the feed.
+Planning → spikes. Bryntum spike done: all 9 questions pass; read `spikes/bryntum/FINDINGS.md` before writing any Bryntum code. The stack below is the working choice; days 1–3 spikes (Bryntum render + event buffers, PayPal order → authorize → capture/void + partial refund on a prior capture, Claude tool loop) validate it before the data model is written on day 4. The PayPal spike must also answer how to seed prepaid sandbox captures for each visitor's shop without a buyer clicking through. Fallback: seeded bookings carry simulated captures, and refunds against them are simulated and labelled as such in the feed.
 
 | Layer | Choice |
 |---|---|
@@ -67,7 +67,7 @@ The agent talks to customers directly as the shop's AI assistant and acts alone 
 Money, booking-state and condition triggers are checked by the backend; the judgment triggers go through an `escalate_to_owner` tool. When the owner answers a fact question, the agent offers to save it as a fact so the question isn't asked again.
 ## Bryntum's role
 
-Bryntum must do real work, not just display a calendar: event buffers for turnaround, resource calendars for unavailability, ghost/preview events for proposals (applied and rolled back via state tracking), red drafts for owner edits that conflict, and a **Resolve with agent** action on each conflict. The backend stays the source of truth; Bryntum syncs from it.
+Bryntum must do real work, not just display a calendar: event buffers for turnaround, resource time ranges for unavailability (bookings are `manuallyScheduled`, so Bryntum never moves them), ghost/preview events for proposals (applied and rolled back via state tracking), red drafts for owner edits that conflict, and a **Resolve with agent** action on each conflict. The backend stays the source of truth; Bryntum syncs from it.
 
 ## Judge mode
 
