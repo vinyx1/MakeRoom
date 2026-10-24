@@ -93,18 +93,17 @@ export default function App() {
       resourceTimeRanges,
       timeRanges: [{ id: 'now', name: 'Now (demo)', startDate: NOW }],
     },
-    features: {
-      eventBuffer: { showDuration: true },
-      resourceTimeRanges: true,
-      timeRanges: true,
-      eventDrag: { constrainDragToTimeline: true },
-      eventEdit: false,
-      taskEdit: false,
-      eventMenu: false,
-      scheduleMenu: false,
-      cellEdit: false,
-      dependencies: false,
-    },
+    // The React wrapper takes one `<name>Feature` prop per feature, not a `features` object.
+    eventBufferFeature: { showDuration: true },
+    resourceTimeRangesFeature: true,
+    timeRangesFeature: true,
+    eventDragFeature: { constrainDragToTimeline: true },
+    eventDragCreateFeature: false,
+    taskEditFeature: false,
+    eventMenuFeature: false,
+    scheduleMenuFeature: false,
+    cellEditFeature: false,
+    dependenciesFeature: false,
     eventRenderer({ eventRecord, renderData }: any) {
       const name = StringHelper.encodeHtml(eventRecord.name);
       if (eventRecord.kind === 'draft') {
