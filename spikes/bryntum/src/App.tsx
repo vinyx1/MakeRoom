@@ -167,13 +167,14 @@ export default function App() {
     const stm = s.project.stm;
     stm.enable();
     stm.startTransaction('preview');
-    s.eventStore.getById('bob').startDate = d(29, 14);
+    const eve = s.eventStore.getById('eve');
+    eve.startDate = d(29, 18);
     await s.project.commitAsync();
-    say(`STM: applied preview, Bob starts ${s.eventStore.getById('bob').startDate.toLocaleString()}`);
+    say(`STM: applied preview, Eve starts ${eve.startDate.toLocaleString()}`);
     await delay(800);
     stm.rejectTransaction();
     await s.project.commitAsync();
-    say(`STM: rejected, Bob starts ${s.eventStore.getById('bob').startDate.toLocaleString()}`);
+    say(`STM: rejected, Eve starts ${eve.startDate.toLocaleString()}`);
   };
 
   // Q9: changes arriving from outside (SSE stand-in), no reload.
