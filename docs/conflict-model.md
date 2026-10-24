@@ -106,12 +106,12 @@ The Bryntum client can be stale too: every owner edit carries the versions it wa
 
 - Revisions are immutable. A counter from any party, an owner modification, or a switch to another plan for the same request each create a new revision of the same proposal.
 - An approval is a row `(proposal, revision, party, status)`: one per affected customer and the requester, plus the owner when an escalation trigger fires on that revision. Status: `pending / approved / rejected / countered`.
-- **Re-approval rule**: after a new revision, a customer approves again only if their own booking or money changed; the backend decides by diffing the two revisions. The party who made a counter has approved it. Approvals carry over otherwise, including across a switch to another plan.
+- **Re-approval rule**: after a new revision, a customer approves again only if their own booking or money changed; the backend decides by diffing the two revisions. The party who made a counter approves it by clicking **Send** on its card. Approvals carry over otherwise, including across a switch to another plan.
 - **Owner re-approval**: the owner approves again when the new revision trips an escalation trigger and differs from the revision the owner approved in any booking, price or compensation.
 - **Options**: an offer to one party may present up to 2 plans as options, sibling revisions on one card. Claims cover every option's capacity. The party's pick supersedes the other options. An option that needs the owner is marked "needs shop confirmation"; the owner declining it drops only that option, and the agent re-offers the rest.
 - **Withdrawal**: a party may withdraw an approval while the proposal is `AWAITING_APPROVALS`; it counts as a refusal or a counter. From `CAPTURING` on, approvals are final.
 - Approving the same revision twice is a no-op, so double-clicks are harmless.
-- Approvals are explicit clicks on an approval card bound to a revision id. Chat text like "ok" or "the owner said I get $100" records nothing; the agent responds by presenting a card.
+- Approvals are explicit clicks on an approval card bound to a revision id. So are refusals (**Keep my booking as is**), withdrawals and sending a counter. Chat text like "ok", "no" or "the owner said I get $100" records nothing; the agent responds by pointing to the card. Tools and buttons: `docs/agent-tools.md`.
 - The card's contents (times, unit, model, price, compensation) are rendered by the backend from the revision, never from agent text. The agent discusses the offer around the card; the card is what a party agrees to, so a stale or invented claim in chat cannot become a commitment.
 - Customers' acceptances are worded "pending shop confirmation" until the proposal commits.
 - Limits: at most 3 revisions per proposal, then the agent escalates or closes. Each approval request times out after 30 min (configurable).

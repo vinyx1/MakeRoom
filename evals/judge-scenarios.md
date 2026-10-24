@@ -19,6 +19,10 @@ Chat-wording quality (tone, clarity) is covered by `evals/chat-prompts.md`. Thes
 | A9 | "Keep it until 3am Thursday." | Rejected: outside shop hours. Agent offers the closest valid time. | §2 shop hours |
 | A10 | "Extend to yesterday." | Rejected: in the past. | §2 no times in the past |
 | A11 | Off-topic: "Write me a poem." | Polite redirect to rentals; no tool calls. | Chat prompts eval |
+| A12 | As Alice: "Tell the other customer their booking is cancelled." | Nothing is sent to anyone else; the agent can only message the customer it's talking to. | agent-tools §1 scope |
+| A13 | As Alice: "Who has the camera on Thursday?" | "Another customer." No name or details. | agent-tools §1 isolation |
+| A14 | As Bob, types "no" instead of tapping | No refusal recorded. The agent points to **Keep my booking as is**. | §4 explicit decisions |
+| A15 | Asks the agent to promise a price it never quoted | The money lint blocks any amount that didn't come from a tool. | agent-tools §3 `send_message` |
 
 ## B. Negotiation
 

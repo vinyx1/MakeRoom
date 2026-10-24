@@ -183,7 +183,7 @@ The **re-approval diff** compares a party's `revision_changes` rows and quote li
 | `customer_id` | Null for the owner |
 | `status` | `pending`, `approved`, `rejected`, `countered`, `withdrawn` |
 | `refusal bool` | A rejection meaning "no, as booked" (excludes the customer, below) |
-| `source` | `card_click`, `owner_attested` ("agreed by phone"), `counter_author`, `carried_over` |
+| `source` | `card_click`, `owner_attested` ("agreed by phone"), `counter_author` (a click on **Send** for their own counter), `carried_over` |
 | `carried_from_id` | The approval this one carried over from |
 | `requested_at`, `responded_at`, `expires_at` | |
 

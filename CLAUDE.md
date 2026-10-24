@@ -8,6 +8,8 @@ The signature scenario (Scenario 1) in `demo script.md` is the spec. Every featu
 
 **Before writing schema, migrations, or queries, read `docs/data-model.md`.** It holds every table, the database constraints, and where each invariant lives.
 
+**Before writing agent tools, prompts, or the tool loop, read `docs/agent-tools.md`.** It holds turn scopes, every tool's checks, and what no tool can do.
+
 ## Status
 
 Planning → spikes. The stack below is the working choice; days 1–3 spikes (Bryntum render + event buffers, PayPal order → authorize → capture/void + partial refund on a prior capture, Claude tool loop) validate it before the data model is written on day 4. The PayPal spike must also answer how to seed prepaid sandbox captures for each visitor's shop without a buyer clicking through. Fallback: seeded bookings carry simulated captures, and refunds against them are simulated and labelled as such in the feed.

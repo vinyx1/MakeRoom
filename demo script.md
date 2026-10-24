@@ -33,7 +33,7 @@ Facts: `CRANE4-1.balances_r5_rf2470 = unknown`. Shop hours 9am–9pm. All bookin
 **Situation:** a customer with a camera already out wants to keep it longer, but the next renter is booked on that same unit.
 
 1. **Chat (Alice):** "Shoot ran over. Can I keep the camera until Thursday at 10am?"
-2. The agent calls `check_extension`. On the Bryntum schedule, Alice's bar grows as a ghost event. With the 4h turnaround buffer, A7IV-1 isn't free until Thu 2pm, which overlaps Bob's booking. The conflict lights up red.
+2. The agent calls `request_change`. On the Bryntum schedule, Alice's bar grows as a ghost event. With the 4h turnaround buffer, A7IV-1 isn't free until Thu 2pm, which overlaps Bob's booking. The conflict lights up red.
 3. **Activity feed:** the optimizer runs, and the feed lists the alternatives it rejected and why:
    - Move Alice to another unit → *pruned: picked-up rentals never change unit*
    - Move Bob to A7IV-2 → *pruned: overlaps Charlie*
@@ -69,7 +69,7 @@ Facts: `CRANE4-1.balances_r5_rf2470 = unknown`. Shop hours 9am–9pm. All bookin
 
 **Situation:** a customer refuses a proposed change. Nothing about their booking moves, and the agent falls back to another plan.
 
-1. Same starting point as Scenario 1, up to Alice's authorization. Then Bob replies: "No, I really need it at 9am, and I want the A7 IV, not the R."
+1. Same starting point as Scenario 1, up to Alice's authorization. Then Bob replies: "No, I really need it at 9am, and I want the A7 IV, not the R." The agent records both as constraints and points him to the card, and Bob taps **Keep my booking as is**.
 2. Bob's ghost event rolls back in Bryntum, and his booking is byte-for-byte unchanged (show its version number in the inspector). Bob is now excluded from changes needing his approval.
 3. The agent tries the next plan as revision 2: upgrade Charlie to the A7R V so Bob can swap to A7IV-2 (same model, notice only). Charlie declines.
 4. No plans are left, so the agent offers Alice the closest option: "I can't do Thursday, but you can keep it until 9pm tonight, closing time, for $15."
@@ -99,7 +99,7 @@ Facts: `CRANE4-1.balances_r5_rf2470 = unknown`. Shop hours 9am–9pm. All bookin
 
 **Situation:** a conflict can only be fixed with generous compensation, and the affected customer is angry.
 
-1. The best plan needs $80 of compensation for Frank. The agent tries `offer_compensation($80)`. The tool **rejects it**: "exceeds $50 per-customer limit; escalation required." The rejection is shown in the activity feed.
+1. Frank demands $80 to move. The agent passes it on with `revise_terms`. The backend **won't let it through as an offer**: over the $50 cap, so the revision goes to the owner as needing confirmation. The feed shows "Agent asked for $80 → over $50 cap → sent to owner."
 2. Frank writes: "This is the second time. I want to talk to a person." The agent calls `escalate_to_owner` with the reason "upset customer, asked for a person" and a short summary of the situation and options.
 3. The conversation is marked handed off, so the agent stops messaging Frank and drafts replies for the owner instead. **Owner** reads the summary, sets compensation to $60, and replies to Frank in the same chat thread.
 
