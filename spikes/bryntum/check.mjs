@@ -1,5 +1,6 @@
 import { chromium } from 'playwright-core';
 
+// Usage: npm run dev (port 5180) in one terminal, then npm run check. Writes PNGs to the given folder.
 const OUT = process.argv[2];
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });

@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --port 5173 --strictPort",
+    "dev": "vite --port 5180 --strictPort",
     "build": "tsc --noEmit && vite build",
-    "check": "node check.mjs ."
+    "check": "node check.mjs /tmp"
   },
   "dependencies": {
     "@bryntum/schedulerpro": "npm:@bryntum/schedulerpro-trial@^7.3.7",
