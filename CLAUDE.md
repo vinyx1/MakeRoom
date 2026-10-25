@@ -12,7 +12,7 @@ The signature scenario (Scenario 1) in `demo script.md` is the spec. Every featu
 
 ## Status
 
-Planning → spikes. Bryntum spike done: all 9 questions pass; read `spikes/bryntum/FINDINGS.md` before writing any Bryntum code. The stack below is the working choice; days 1–3 spikes (Bryntum render + event buffers, PayPal order → authorize → capture/void + partial refund on a prior capture, Claude tool loop) validate it before the data model is written on day 4. The PayPal spike must also answer how to seed prepaid sandbox captures for each visitor's shop without a buyer clicking through. Fallback: seeded bookings carry simulated captures, and refunds against them are simulated and labelled as such in the feed.
+Planning → spikes. Bryntum spike done: all 9 questions pass; read `spikes/bryntum/FINDINGS.md` before writing any Bryntum code. **Next: the PayPal spike**, planned in `spikes/paypal/PLAN.md`; it waits on the user's sandbox app. **Before the repo goes public**, rewrite git history to remove `spikes/bryntum/node_modules` (auto-committed and pushed on 2026-10-24; contains Bryntum's commercial trial code) and force-push, with the user's go-ahead. The stack below is the working choice; days 1–3 spikes (Bryntum render + event buffers, PayPal order → authorize → capture/void + partial refund on a prior capture, Claude tool loop) validate it before the data model is written on day 4. The PayPal spike must also answer how to seed prepaid sandbox captures for each visitor's shop without a buyer clicking through. Fallback: seeded bookings carry simulated captures, and refunds against them are simulated and labelled as such in the feed.
 
 | Layer | Choice |
 |---|---|
