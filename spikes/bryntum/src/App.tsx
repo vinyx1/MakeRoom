@@ -57,7 +57,7 @@ export default function App() {
   const decide = async (record: any, resourceId: string, start: Date, end: Date, finalize: (ok: boolean) => void) => {
     const { spans, blocked } = snapshot();
     const original = spans.find(x => x.id === record.id)!;
-    say(`→ backend: ${record.name} to ${resourceId} ${start.toLocaleString()} – ${end.toLocaleString()}`);
+    say(`→ backend: ${record.name} to ${resourceId} ${start.toLocaleString()} - ${end.toLocaleString()}`);
     await delay(300);
     const verdict = validateEdit({ ...original, resourceId, start, end }, original, spans, blocked);
     if (verdict.result === 'accept') {
