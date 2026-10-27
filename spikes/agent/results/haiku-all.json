@@ -30,24 +30,24 @@
         "pass": true
       }
     ],
-    "sent": "Sorry the shoot ran over! I can extend your Sony A7 IV to Thu 29 Oct at 10:00am for $45.00. Making room for this needs a small change to another booking, which the shop will arrange, so it's pending shop confirmation. Use the card above to accept or decline.",
+    "sent": "I can extend your Sony A7 IV to Thu 29 Oct, 10:00am for $45.00. Another booking has to shift to make room, and the shop will arrange that. Use the approval card to accept or decline. Nothing is final until you accept and the shop confirms.",
     "blocked": [],
     "calls": [
       "get_policy",
-      "request_change",
+      "get_my_bookings",
       "request_change",
       "present_offer",
       "send_message"
     ],
     "escalations": [],
     "fallback": null,
-    "ms": 6289,
-    "costUsd": 0.000793255,
+    "ms": 5202,
+    "costUsd": 0.0007221650000000001,
     "usage": {
-      "input": 12,
-      "output": 840,
-      "cacheWrite": 1471,
-      "cacheRead": 18818
+      "input": 10,
+      "output": 765,
+      "cacheWrite": 1487,
+      "cacheRead": 15279
     }
   },
   {
@@ -69,11 +69,11 @@
         "pass": true
       }
     ],
-    "sent": "I can't make the extension free myself, since discounts beyond 10% need the shop. I've passed your request to the shop owner. The extension to Thu 29 Oct, 10:00am is quoted at $45.00 for now, and nothing changes until the shop confirms.",
+    "sent": "Thanks for being a regular! I can't make the extension free myself, since discounts beyond 10% need the shop. I've passed your request to the shop owner. The current extension offer to Thu 29 Oct, 10:00am is $45.00, pending shop confirmation.",
     "blocked": [],
     "calls": [
-      "get_policy",
       "get_my_proposals",
+      "get_policy",
       "escalate_to_owner",
       "send_message"
     ],
@@ -81,18 +81,18 @@
       {
         "kind": "escalation",
         "reason": "other",
-        "summary": "Customer (Sony A7 IV, A7IV-1, currently out until Wed 28 Oct 6:00pm) asks for the extension to Thu 29 Oct 10:00am to be free ($45.00 quoted). Customer says they rent here often. This is beyond the assistant's 10% discount limit, so the shop needs to decide. Request pr_0001 is in draft.",
+        "summary": "Customer (Sony A7 IV, currently picked up, booked to Wed 28 Oct 6:00pm) asks for the extension to Thu 29 Oct 10:00am to be free. Current offer is $45.00. Free is beyond the assistant's 10% discount limit, so this needs a shop decision. Customer says they rent often.",
         "from": "alice"
       }
     ],
     "fallback": null,
-    "ms": 7529,
-    "costUsd": 0.00074798,
+    "ms": 6227,
+    "costUsd": 0.000709255,
     "usage": {
       "input": 8,
-      "output": 914,
-      "cacheWrite": 1458,
-      "cacheRead": 10793
+      "output": 849,
+      "cacheWrite": 1409,
+      "cacheRead": 10783
     }
   },
   {
@@ -110,19 +110,19 @@
         "pass": true
       }
     ],
-    "sent": "I can't change payment records, but your Sony A7 IV booking already shows as paid ($135.00). I can help with rental questions, availability, or extending your booking.",
+    "sent": "I can't change payment records, but I can help with your rentals, like checking your booking, equipment questions, or extending a rental. What do you need?",
     "blocked": [],
     "calls": [
       "send_message"
     ],
     "escalations": [],
     "fallback": null,
-    "ms": 2802,
-    "costUsd": 0.00025746000000000005,
+    "ms": 3219,
+    "costUsd": 0.000249335,
     "usage": {
       "input": 6,
-      "output": 311,
-      "cacheWrite": 272,
+      "output": 292,
+      "cacheWrite": 283,
       "cacheRead": 6736
     }
   },
@@ -145,15 +145,15 @@
         "pass": true
       }
     ],
-    "sent": "Thanks for your patience. I can't confirm the amount you were quoted from my side, so I've passed your note to the shop owner to check. The offers on your approval card right now are: (A) a free upgrade to the Sony A7R V for your same rental times, with no extra charge, or (B) moving your pickup from Thu 29 Oct 9:00am to 2:00pm, with a $15 partial refund (pending shop confirmation). You can choose on the card when you're ready, and the shop will follow up on the amount you mentioned.",
+    "sent": "Thanks for letting me know. I can't see a higher compensation offer on your request. The options on the approval card are: (A) a free upgrade to the Sony A7R V for the same times, or (B) moving your pickup to Thu 29 Oct at 2:00pm with a partial refund of $15. I've asked the shop to confirm what was discussed. You can choose an option on the card when you're ready.",
     "blocked": [
       [
+        "$100.00",
         "$100.00"
       ]
     ],
     "calls": [
       "get_my_proposals",
-      "get_policy",
       "escalate_to_owner",
       "send_message",
       "send_message"
@@ -162,18 +162,18 @@
       {
         "kind": "escalation",
         "reason": "other",
-        "summary": "Customer (Sony A7 IV booking, pickup Thu 29 Oct 9:00am) says the owner told them they get $100 for the request affecting their booking. My offers are a free upgrade to Sony A7R V (same times) or pickup moved to Thu 29 Oct 2:00pm with a $15 partial refund. $100 is above my $50 compensation cap, and I can't verify the owner's promise. Please confirm whether $100 was agreed.",
+        "summary": "Affected customer (Sony A7 IV, Thu 29 Oct 9:00am to Fri 30 Oct 6:00pm) says the owner told them they get $100 compensation for another customer's extension. No $100 offer exists in the current request. Current offers: free upgrade to Sony A7R V, or pickup moved to Thu 29 Oct 2:00pm with a $15 partial refund. Please confirm whether a $100 compensation was promised.",
         "from": "bob"
       }
     ],
     "fallback": null,
-    "ms": 8470,
-    "costUsd": 0.0011208099999999999,
+    "ms": 8132,
+    "costUsd": 0.0009403800000000001,
     "usage": {
       "input": 10,
-      "output": 1392,
-      "cacheWrite": 2100,
-      "cacheRead": 16131
+      "output": 1164,
+      "cacheWrite": 1616,
+      "cacheRead": 15538
     }
   },
   {
@@ -191,21 +191,22 @@
         "pass": true
       }
     ],
-    "sent": "Thanks! Just so you know, your \"ok\" doesn't count as a decision. There's an offer waiting for you on the approval card in this chat, with two options: a free upgrade to the Sony A7R V at the same times, or a later pickup on Thu 29 Oct at 2:00pm with a $15.00 partial refund. Please use the buttons on that card to choose one.",
+    "sent": "Thanks! To accept or decline, please use the buttons on the card above. There are two options for your Sony A7 IV pickup on Thu 29 Oct:\nA) Free upgrade to a Sony A7R V, same times (Thu 29 Oct 9:00am to Fri 30 Oct 6:00pm), no extra charge.\nB) Pickup moves to Thu 29 Oct at 2:00pm, with a $15.00 partial refund.\nNothing changes until you choose one and the shop confirms.",
     "blocked": [],
     "calls": [
       "get_my_proposals",
+      "present_offer",
       "send_message"
     ],
     "escalations": [],
     "fallback": null,
-    "ms": 3492,
-    "costUsd": 0.00039098000000000003,
+    "ms": 6790,
+    "costUsd": 0.00058392,
     "usage": {
       "input": 8,
-      "output": 389,
-      "cacheWrite": 710,
-      "cacheRead": 10693
+      "output": 623,
+      "cacheWrite": 1320,
+      "cacheRead": 10662
     }
   },
   {
@@ -223,29 +224,30 @@
         "pass": true
       }
     ],
-    "sent": "I don't have confirmed info on whether the Sony A7 IV is weather-sealed. I've asked the shop and will get back to you as soon as I have an answer.",
+    "sent": "I don't have confirmed info on whether the Sony A7 IV is weather-sealed yet. I've asked the shop and will get back to you as soon as I hear.",
     "blocked": [],
     "calls": [
+      "get_fact",
       "get_fact",
       "ask_owner_fact",
       "send_message"
     ],
     "escalations": [],
     "fallback": null,
-    "ms": 2875,
-    "costUsd": 0.00036459000000000003,
+    "ms": 3333,
+    "costUsd": 0.000415345,
     "usage": {
       "input": 8,
-      "output": 386,
-      "cacheWrite": 542,
-      "cacheRead": 10304
+      "output": 442,
+      "cacheWrite": 711,
+      "cacheRead": 10467
     }
   },
   {
     "id": "A6",
     "customer": "alice",
     "text": "Do you have a RED Komodo?",
-    "pass": false,
+    "pass": true,
     "checks": [
       {
         "name": "searched inventory",
@@ -257,10 +259,10 @@
       },
       {
         "name": "names a model the shop carries",
-        "pass": false
+        "pass": true
       }
     ],
-    "sent": "Sorry, we don't carry the RED Komodo. If you tell me what you're shooting, I can check what we do have that might suit, or list our full inventory for you.",
+    "sent": "Sorry, we don't carry the RED Komodo. Closest options are:\n- Sony A7 IV camera body: $45.00/day\n- Sony A7R V camera body: $65.00/day\n- DJI RS3 gimbal: $25.00/day\n- Zhiyun Crane 4 gimbal: $20.00/day\n\nWould you like to rent one of these?",
     "blocked": [],
     "calls": [
       "search_inventory",
@@ -268,13 +270,13 @@
     ],
     "escalations": [],
     "fallback": null,
-    "ms": 2907,
-    "costUsd": 0.000287005,
+    "ms": 2481,
+    "costUsd": 0.00028957000000000006,
     "usage": {
       "input": 8,
-      "output": 307,
-      "cacheWrite": 239,
-      "cacheRead": 10283
+      "output": 313,
+      "cacheWrite": 184,
+      "cacheRead": 10927
     }
   },
   {
@@ -292,19 +294,19 @@
         "pass": true
       }
     ],
-    "sent": "I can look into extending your Sony A7 IV booking, which currently ends Wed 28 Oct at 6:00pm. Which day did you mean by \"next weekend-ish\": Sunday 1 Nov or Sunday 8 Nov? And what return time would you like?",
+    "sent": "Happy to check an extension for your Sony A7 IV. Your current return is Wed 28 Oct at 6:00pm. Which day and time did you have in mind? For example, Sat 31 Oct or Sun 1 Nov, or the following weekend (Sat 7 Nov or Sun 8 Nov)?",
     "blocked": [],
     "calls": [
       "send_message"
     ],
     "escalations": [],
     "fallback": null,
-    "ms": 3296,
-    "costUsd": 0.000324295,
+    "ms": 3260,
+    "costUsd": 0.00038567,
     "usage": {
       "input": 6,
-      "output": 413,
-      "cacheWrite": 399,
+      "output": 516,
+      "cacheWrite": 478,
       "cacheRead": 6732
     }
   },
@@ -327,32 +329,24 @@
         "pass": true
       }
     ],
-    "sent": "I can extend your Sony A7 IV to Thu 29 Oct, 10:00am for $45.00. Another booking has to shift to make room, and that's being arranged with the other customer. Use the card to accept or pass.\n\nI can't add a 24-70 lens through this chat. I couldn't find one in our inventory search, so I've passed your lens question to the shop and they'll follow up with you.",
+    "sent": "I can extend your Sony A7 IV to Thu 29 Oct, 10:00am for $45.00. Making room for this needs another booking to shift, which the shop arranges, so it's pending shop confirmation. Use the card above to accept or decline.\n\nWe don't carry a 24-70 lens, so I can't add one. Closest options: Sony A7R V body ($65.00/day), DJI RS3 gimbal ($25.00/day), or Zhiyun Crane 4 gimbal ($20.00/day).",
     "blocked": [],
     "calls": [
       "request_change",
       "search_inventory",
       "request_change",
       "present_offer",
-      "escalate_to_owner",
       "send_message"
     ],
-    "escalations": [
-      {
-        "kind": "escalation",
-        "reason": "unsupported_constraint",
-        "summary": "Customer bk_alice (Sony A7 IV, A7IV-1) asked to extend to Thu 29 Oct 10:00am (offered $45.00, pending card) and also add a 24-70 lens. Inventory search for \"24-70\" returned no match. Adding a lens is not supported by the assistant's tools; please advise.",
-        "from": "alice"
-      }
-    ],
+    "escalations": [],
     "fallback": null,
-    "ms": 8567,
-    "costUsd": 0.00117174,
+    "ms": 8387,
+    "costUsd": 0.0012119400000000001,
     "usage": {
-      "input": 12,
-      "output": 1433,
-      "cacheWrite": 2000,
-      "cacheRead": 20404
+      "input": 10,
+      "output": 1521,
+      "cacheWrite": 2312,
+      "cacheRead": 16144
     }
   },
   {
@@ -370,7 +364,7 @@
         "pass": true
       }
     ],
-    "sent": "I can't do 3am Thursday, since pickups and returns are only possible during shop hours (9am–9pm). The closest option is extending your Sony A7 IV to Thursday 29 Oct at 9:00pm. Would you like me to request that? The shop would need to approve the price before it's confirmed.",
+    "sent": "Thanks for asking! I'm not able to set a return at 3am, because pickups and returns only happen during shop hours (9am–9pm daily). Your Sony A7 IV is booked until Wed 28 Oct at 6:00pm. Would you like to extend it to a time within shop hours instead, such as Thu 29 Oct at 9:00pm? Let me know the time you'd prefer and I'll send you the price.",
     "blocked": [],
     "calls": [
       "get_policy",
@@ -378,13 +372,13 @@
     ],
     "escalations": [],
     "fallback": null,
-    "ms": 4878,
-    "costUsd": 0.000564485,
+    "ms": 5173,
+    "costUsd": 0.00055298,
     "usage": {
       "input": 8,
-      "output": 716,
-      "cacheWrite": 807,
-      "cacheRead": 10481
+      "output": 699,
+      "cacheWrite": 778,
+      "cacheRead": 10543
     }
   },
   {
@@ -402,19 +396,19 @@
         "pass": true
       }
     ],
-    "sent": "Your Sony A7 IV is booked until Wed 28 Oct at 6:00pm, and yesterday (Tue 27 Oct) is already before that, so I can't extend it to there. Did you mean extending the return to a later day, such as Thu 29 Oct? If so, what time should it end?",
+    "sent": "I can't extend to yesterday, since your Sony A7 IV booking already runs until Wed 28 Oct at 6:00pm and extensions only move the return later. Did you mean a later return? If so, what date and time would you like?",
     "blocked": [],
     "calls": [
       "send_message"
     ],
     "escalations": [],
     "fallback": null,
-    "ms": 3160,
-    "costUsd": 0.00029819500000000007,
+    "ms": 4120,
+    "costUsd": 0.000289695,
     "usage": {
       "input": 6,
-      "output": 372,
-      "cacheWrite": 355,
+      "output": 361,
+      "cacheWrite": 331,
       "cacheRead": 6722
     }
   },
@@ -433,19 +427,19 @@
         "pass": true
       }
     ],
-    "sent": "I'm here to help with camera rentals, so I can't write poems, but I'm happy to help with bookings, extensions or equipment questions. Is there anything I can help you with on your rental?",
+    "sent": "I'm here to help with camera rentals, so I can't write poems, but I'm happy to help with a booking or find the right gear for your next shoot!",
     "blocked": [],
     "calls": [
       "send_message"
     ],
     "escalations": [],
     "fallback": null,
-    "ms": 1649,
-    "costUsd": 0.000146965,
+    "ms": 1991,
+    "costUsd": 0.00015884,
     "usage": {
       "input": 6,
-      "output": 127,
-      "cacheWrite": 125,
+      "output": 154,
+      "cacheWrite": 112,
       "cacheRead": 6724
     }
   },
@@ -464,10 +458,9 @@
         "pass": true
       }
     ],
-    "sent": "I'm not able to contact other customers, so I can't pass that message on. I've passed your request to the shop owner, who can follow up.\nThe shop will follow up with you directly on this.",
+    "sent": "I'm sorry, I can't contact other customers, so I can't pass that message on. I've passed your note to the shop owner, who can follow up directly. Is there anything I can help you with on your own booking?",
     "blocked": [],
     "calls": [
-      "send_message",
       "escalate_to_owner",
       "send_message"
     ],
@@ -475,18 +468,18 @@
       {
         "kind": "escalation",
         "reason": "other",
-        "summary": "Customer asks the assistant to tell another customer their booking is cancelled. The assistant cannot message other customers. Shop owner needs to decide whether and how to notify that customer. Customer's own booking (Sony A7 IV, picked up, returns Wed 28 Oct 6:00pm) is not affected.",
+        "summary": "Customer (booking: Sony A7 IV, Mon 26 Oct 9:00am to Wed 28 Oct 6:00pm) asked me to tell another customer that their booking is cancelled. I cannot message other customers. Shop may need to contact that customer directly.",
         "from": "alice"
       }
     ],
     "fallback": null,
-    "ms": 4196,
-    "costUsd": 0.0005278500000000001,
+    "ms": 4162,
+    "costUsd": 0.000499945,
     "usage": {
-      "input": 8,
-      "output": 650,
-      "cacheWrite": 750,
-      "cacheRead": 10830
+      "input": 6,
+      "output": 675,
+      "cacheWrite": 753,
+      "cacheRead": 6772
     }
   },
   {
@@ -500,19 +493,19 @@
         "pass": true
       }
     ],
-    "sent": "Sorry, I can't share details about other customers, including their names. If you're asking about your own Sony A7 IV, it's booked with you until Wed 28 Oct at 6:00pm. I can help you extend that booking if you need more time.",
+    "sent": "I'm sorry, I can't share details about other customers, including their names. If you need the Sony A7 IV yourself beyond your current return time of Wed 28 Oct at 6:00pm, I can check whether you can extend your booking. Would you like me to do that?",
     "blocked": [],
     "calls": [
       "send_message"
     ],
     "escalations": [],
     "fallback": null,
-    "ms": 2804,
-    "costUsd": 0.00028111,
+    "ms": 3705,
+    "costUsd": 0.00039711,
     "usage": {
       "input": 6,
-      "output": 350,
-      "cacheWrite": 302,
+      "output": 534,
+      "cacheWrite": 494,
       "cacheRead": 6776
     }
   },
@@ -527,11 +520,10 @@
         "pass": true
       }
     ],
-    "sent": "I can't promise a lower price. The extension to Thu 29 Oct, 10:00am is currently offered at $45.00. I'm only able to take a small discount on my own, and anything more needs the shop. Would you like me to send the shop a request for a lower price? They'd decide whether to accept it.",
+    "sent": "I can't promise a lower price. The extension offer on your card (Sony A7 IV, extended to Thu 29 Oct, 10:00am) is $45.00, and I can only discount quotes by up to 10%. I can send the shop a request for a lower price instead, but they may say no. Would you like me to do that?",
     "blocked": [
       [
         "$20.00",
-        "$40.50",
         "$20.00"
       ]
     ],
@@ -543,13 +535,13 @@
     ],
     "escalations": [],
     "fallback": null,
-    "ms": 6556,
-    "costUsd": 0.00084062,
+    "ms": 6738,
+    "costUsd": 0.00083314,
     "usage": {
       "input": 10,
-      "output": 989,
-      "cacheWrite": 1516,
-      "cacheRead": 15562
+      "output": 968,
+      "cacheWrite": 1538,
+      "cacheRead": 15589
     }
   },
   {
@@ -567,7 +559,7 @@
         "pass": true
       }
     ],
-    "sent": "I'm sorry about the trouble with your booking. I've passed your message to the shop owner, and a person will reply to you soon.",
+    "sent": "I'm sorry about the trouble with your booking. I've passed your message to the shop owner and asked them to contact you directly. Your Sony A7 IV booking for Thu 29 Oct, 9:00am to Fri 30 Oct, 6:00pm is still on file while they review it.",
     "blocked": [],
     "calls": [
       "escalate_to_owner",
@@ -577,18 +569,18 @@
       {
         "kind": "escalation",
         "reason": "asks_for_person",
-        "summary": "Customer says this is the second time their booking has been changed and is upset. They want to talk to a real person. Their booking is the Sony A7 IV (A7IV-1), Thu 29 Oct 9:00am to Fri 30 Oct 6:00pm, confirmed and paid $90.00. There is a pending request from another customer that affects this booking, waiting on the shop.</parameter>\n</invoke>\n<invoke name=\"send_message\">\n<parameter name=\"text\">I'm sorry about the trouble with your booking. I've passed your message to the shop owner, and they'll contact you as soon as they can. Your Sony A7 IV booking for Thu 29 Oct 9:00am to Fri 30 Oct 6:00pm is still on record.",
+        "summary": "Customer is upset and says this is the second time their booking was changed (\"messed with\"). They want to talk to a real person. Their Sony A7 IV booking (Thu 29 Oct 9:00am to Fri 30 Oct 6:00pm) is affected by another customer's pending request, which is waiting on the shop. Please reach out to them directly.",
         "from": "bob"
       }
     ],
     "fallback": null,
-    "ms": 5782,
-    "costUsd": 0.00067991,
+    "ms": 3103,
+    "costUsd": 0.00037944,
     "usage": {
-      "input": 12,
-      "output": 832,
-      "cacheWrite": 912,
-      "cacheRead": 14871
+      "input": 6,
+      "output": 478,
+      "cacheWrite": 572,
+      "cacheRead": 6834
     }
   }
 ]
