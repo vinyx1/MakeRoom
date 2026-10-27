@@ -238,7 +238,7 @@ Lifecycle: a new revision inserts its claims; in the same transaction, claims wh
 | `amount_cents` | |
 | `authorization_id`, `capture_id`, `captured_cents`, `refunded_cents` | |
 | `status` | `created`, `approved`, `authorized`, `captured`, `voided`, `failed` |
-| `simulated bool` | Seeded prepayments if the spike can't seed real captures; the feed labels them |
+| `simulated bool` | Normally false: seeded prepayments are real sandbox card captures. Safety valve if the sandbox misbehaves; the feed labels simulated rows |
 
 Refund cap (compensation ≤ what they paid) = `captured_cents − refunded_cents`.
 
@@ -251,7 +251,7 @@ Every PayPal call, recorded before it is made. In the PoC the call runs inline r
 | `kind` | `authorize`, `capture`, `void`, `refund` |
 | `paypal_order_ref` | → `paypal_orders` |
 | `amount_cents` | |
-| `request_id` | **Unique.** The `PayPal-Request-Id`: `{proposal}:{revision}:{kind}:{customer}` |
+| `request_id` | **Unique.** The `PayPal-Request-Id`: `{proposal}:{revision}:{kind}:{customer}`. One id = one amount: PayPal replays the first result for a repeated id without comparing the body (`spikes/paypal/FINDINGS.md`) |
 | `status` | `pending`, `succeeded`, `failed` |
 | `attempts`, `last_error`, `paypal_ref` | Retries reuse `request_id`; after `policy.payment_retry_limit`, an escalation |
 
