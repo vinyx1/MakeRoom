@@ -2,7 +2,7 @@
 
 Throwaway experiments that check a library or API can do what the design needs before the real build relies on it. Each folder has a `FINDINGS.md` with the results; read that first. The code here is not the app.
 
-Both need Node 24+ (the PayPal spike runs `.ts` files directly) and Google Chrome.
+All need Node 24+ (the PayPal spike runs `.ts` files directly) and Google Chrome.
 
 ## Bryntum (`bryntum/`)
 
