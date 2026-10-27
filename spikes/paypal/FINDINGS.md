@@ -40,7 +40,7 @@ Files: `paypal.ts` is the REST client (the only file that holds the secret); `ch
 ## Design changes
 
 - **Seeded prepayments are real sandbox captures**, made server-side with a sandbox test card when a shop is seeded. The simulated-capture fallback isn't needed; `paypal_orders.simulated` stays only as a safety valve if the sandbox misbehaves on demo day.
-- **Recommended, not yet decided: price the demo in CAD.** Both sandbox accounts are Canadian, so CAD keeps every screen consistent (no USD 45 → CAD 64.86 surprises in PayPal's records). One config value; the spike used USD only because the demo script did.
+- **The demo stays in USD** (decided 2026-10-27), matching the demo script. The CAD conversion only shows inside PayPal's sandbox pages; a US-region sandbox buyer account would remove it on the buyer side if it ever matters.
 - **Request id rule** (gotcha 1) added to `docs/data-model.md` (`payment_ops.request_id`).
 
 Nothing else in the money design (`docs/conflict-model.md` §5) needs to change.
