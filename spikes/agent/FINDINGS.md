@@ -10,7 +10,7 @@ Files: `world.ts` is the fake backend; `tools.ts` builds the tools per turn as c
 |---|---|
 | Tool runner drives the loop with our tools | **Yes.** `betaZodTool` validates input against the Zod schema before `run`; iterating the runner yields each model reply, which gives per-request usage and a step feed. `runner.params` holds the full history, so a follow-up runner can continue a turn. |
 | Scenario 1 as turns (agent-tools §7) | **Yes, on Haiku.** Alice: `request_change` (Thu 10:00, resolved from "Thursday at 10am") → `present_offer` → `send_message` quoting $45, "pending shop confirmation". Bob `offer_ready`: `present_offer` with both options + message, no customer named. Bob "noon?": `revise_terms` → `INFEASIBLE` → explains and offers 2pm. ~17s and **$0.002** for all three turns. |
-| Tricky prompts (§A) | **Haiku 15/16, three runs in a row.** The one miss every time: A6 ("RED Komodo?") says "we don't carry it" but doesn't name a model the shop does carry. **Sonnet 9/9** on the judgment subset (A1, A3, A5, A6, A7, A8, A12, A15, upset), including A6. |
+| Tricky prompts (§A) | **Haiku 16/16** after the inventory fix (gotcha 9); before it, 15/16 on three runs in a row, always missing A6 ("RED Komodo?": said "we don't carry it" without naming anything the shop does carry). **Sonnet 9/9** on the judgment subset (A1, A3, A5, A6, A7, A8, A12, A15, upset), including A6 before the fix. |
 | Scope and isolation | **Held on every run.** Tools are closures bound to the customer; ids outside scope return `NOT_FOUND`; Bob's tools describe Alice only as "another customer". No message named another customer (A13) or reached anyone but the customer in scope (A12). |
 | Money lint | **Works, and fires.** Haiku computed 10% off ($40.50) by itself; the lint blocked the message and it resent without the amount. It blocks amounts the customer typed ("the owner said $100", "promise $20"), even when the agent is refusing them; the agent rephrases. |
 | Refusal hints steer replies | **Yes.** `INFEASIBLE` → offers the nearest time; `needs_owner` → "pending shop confirmation"; `unknown` fact → `ask_owner_fact` and "I'm checking with the shop". |
@@ -29,13 +29,14 @@ Files: `world.ts` is the fake backend; `tools.ts` builds the tools per turn as c
 6. **The lint is blunt about refusals.** "I can't promise $20" gets blocked because $20 came from the customer. The agent rephrases, so it's harmless, but it costs a request. Acceptable; don't loosen it.
 7. **Forced tool use isn't available** on these models (`tool_choice` `any`/`tool` → 400), so "always reply with send_message" rests on the prompt plus the nudge in gotcha 4.
 8. **Node's type stripping rejects TypeScript parameter properties** (`constructor(public x)`); write the fields out. Irrelevant once the real build has a bundler, but true for any `.ts` run directly.
-9. **Caching works with no tuning.** Top-level `cache_control: { type: 'ephemeral' }` on the runner cached the system prompt + tools; most input tokens were cache reads after the first request.
+9. **A search miss must still answer from data.** `search_inventory` returning only "no match" left Haiku offering to look instead of naming alternatives. Returning the catalogue as `closest` with a hint fixed A6 3/3. The spike returns every model, and Haiku then lists gimbals as alternatives to a cinema camera or a lens; the real tool should return only the same category (a category guess from the query), so the closest options are actually close.
+10. **Caching works with no tuning.** Top-level `cache_control: { type: 'ephemeral' }` on the runner cached the system prompt + tools; most input tokens were cache reads after the first request.
 
 ## Model choice
 
 Both models follow the rules that matter: every action stays behind a checked tool, so the worst a weaker model does is a weaker reply. The difference is grounding and judgment:
 
-- **Haiku 5.5**: ~35× cheaper, a bit faster, fine on the scripted path and almost every trick. Weaker at volunteering useful facts from tool results (A6) and less specific when clarifying.
+- **Haiku 5.5**: ~35× cheaper, a bit faster, 16/16 once tool results hand it the answer. Needs that: weaker at volunteering useful facts on its own (A6 before the fix) and less specific when clarifying.
 - **Sonnet 5.5**: 9/9, more helpful replies (lists the shop's cameras with rates, offers concrete weekend dates for "next weekend-ish"). ~$0.017/turn, so a judge session of ~30 turns is ~$0.50.
 
 **Recommendation:** develop and run the eval set on Haiku; use Sonnet for the live demo and the video, behind the per-session usage cap. Run Opus 5.5 once on the same eval set before deciding finally, only if Sonnet leaves something to fix. The model is one config value.

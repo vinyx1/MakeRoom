@@ -63,7 +63,7 @@ Codes: `NOT_FOUND`, `OUTSIDE_SHOP_HOURS`, `IN_PAST`, `INFEASIBLE`, `OVER_LIMIT`,
 Returns the customer's bookings: id, model, unit label, times, status (`confirmed`, `picked_up`, …), price paid, and whether a proposal currently involves it.
 
 **`search_inventory(query?)`**
-Models the shop carries: id, name, category, daily rate, substitutes. Text match on name and category. Lets the agent say "we don't carry that" and name the closest thing (judge A6) from data.
+Models the shop carries: id, name, category, daily rate, substitutes. Text match on name and category. On a miss it returns the closest models in the same category, so "we don't carry that, but we have…" comes from data. Lets the agent say "we don't carry that" and name the closest thing (judge A6) from data.
 
 **`check_availability(model_id, start, end)`**
 Free and busy windows for the model across its units, accounting for buffers, unavailability, claims and shop hours. Busy windows are anonymous. Read-only: it reserves nothing.
