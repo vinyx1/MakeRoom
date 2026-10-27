@@ -13,7 +13,12 @@ export class Turn {
   toolCalls: { name: string; input: unknown; result: any; ms: number }[] = [];
   allowedCents = new Set<number>(); // every dollar amount the agent has seen from tools, context or policy
   offersPresented = 0;
-  constructor(public customer: string, public onStep: (line: string) => void) {}
+  customer: string;
+  onStep: (line: string) => void;
+  constructor(customer: string, onStep: (line: string) => void) {
+    this.customer = customer;
+    this.onStep = onStep;
+  }
 
   allow(text: string) {
     for (const c of amountsIn(text)) this.allowedCents.add(c);
