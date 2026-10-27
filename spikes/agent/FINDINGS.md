@@ -50,4 +50,4 @@ Both models follow the rules that matter: every action stays behind a checked to
 ## Design changes
 
 - `docs/agent-tools.md`: `request_change` gives the requester **one offer** (its options are attached to the card by the backend); upgrade benefits are described, not priced, to the affected customer; the lint harvests amounts from tool results, context and policy, **never from the customer's message**; a turn with no delivered message gets **one nudge** before the template fallback; ids never appear in messages.
-- `CLAUDE.md` stack: agent model defaults to Sonnet 5.5 for the live demo, Haiku 5.5 for development and evals (pending a final check).
+- `CLAUDE.md` status: the live-demo model is an open decision; the stack row still names Opus 5.5 until it's made.
