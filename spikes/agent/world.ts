@@ -125,12 +125,24 @@ export class World {
   view(r: Revision, customer: string) {
     const p = this.proposals.find(x => x.id === r.proposalId)!;
     const mine = p.requester === customer;
+    const status = r.status === 'needs_owner' ? 'offered (needs shop confirmation)' : 'offered';
+    if (mine) {
+      // Options differ only in how another customer is accommodated; the requester sees one set of terms.
+      return {
+        revision_id: r.id, status, your_change: r.summary.split(';')[0],
+        your_price: { cents: r.requesterPriceCents, display: usd(r.requesterPriceCents), status: 'offered' },
+        needs_shop_confirmation: r.needsOwner.length > 0,
+        note: r.affected ? 'Another booking has to change to make room; that is arranged with the other customer, not chosen by you.' : undefined,
+      };
+    }
+    const a = r.affected!;
     return {
-      revision_id: r.id, option: r.option, status: r.status === 'needs_owner' ? 'offered (needs shop confirmation)' : 'offered',
+      revision_id: r.id, option: r.option, status, context: "Another customer's rental extension needs your booking's unit.",
+      your_change: a.change,
+      ...(a.compensationKind === 'refund'
+        ? { your_refund: { cents: a.compensationCents, display: usd(a.compensationCents), status: 'offered', note: 'Partial refund on what you already paid' } }
+        : { your_benefit: 'Free upgrade at no extra charge. No money changes hands; do not describe it as a dollar amount.' }),
       needs_shop_confirmation: r.needsOwner.length > 0,
-      ...(mine
-        ? { your_change: r.summary.split(';')[0], your_price: { cents: r.requesterPriceCents, display: usd(r.requesterPriceCents), status: 'offered' }, other_bookings_affected: !!r.affected }
-        : { context: "Another customer's rental extension needs your booking's unit.", your_change: r.affected?.change, your_compensation: r.affected && { cents: r.affected.compensationCents, display: usd(r.affected.compensationCents), kind: r.affected.compensationKind, status: 'offered' } }),
     };
   }
 

@@ -185,8 +185,9 @@ export function makeTools(world: World, turn: Turn) {
         turn.offersPresented++;
         const role = p.requester === me ? 'requester' : 'affected';
         world.events.push({ kind: 'card_posted', to: me, revisionIds: revision_ids, role });
+        const shows = revs.map(r => world.view(r!, me));
         return ok({ card: 'posted', buttons: role === 'requester' ? ['Accept and authorize with PayPal', 'Not now'] : [...revs.map(r => `Accept option ${r!.option ?? ''}`.trim()), 'Keep my booking as is'],
-          shows: revs.map(r => world.view(r!, me)) });
+          shows: role === 'requester' ? shows[0] : shows });
       },
     }),
 
