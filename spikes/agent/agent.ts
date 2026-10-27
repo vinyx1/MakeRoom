@@ -48,7 +48,7 @@ ${event}`;
 export type TurnResult = {
   model: ModelName; ms: number; requests: number; toolCalls: Turn['toolCalls'];
   usage: { input: number; output: number; cacheWrite: number; cacheRead: number }; costUsd: number;
-  stopReason: string | null; finalText: string; fallback: string | null;
+  stopReason: string | null; finalText: string; fallback: string | null; nudged: boolean;
 };
 
 export async function runTurn(opts: {
@@ -63,7 +63,7 @@ export async function runTurn(opts: {
     ? `Customer message: ${JSON.stringify(opts.event.text)}`
     : `Event offer_ready: request ${opts.event.proposalId} has options waiting for this customer's decision. Present them with present_offer and explain them with send_message.`;
   const prompt = context(opts.world, opts.customer, eventText);
-  turn.allow(prompt);
+  turn.allow(prompt.split('</context>')[0]); // the customer's own words never make an amount citable
   turn.allow('$50'); // compensation cap from policy is always citable
 
   const runner = client.beta.messages.toolRunner({
@@ -89,9 +89,31 @@ export async function runTurn(opts: {
     step(`model reply #${requests}: stop=${message.stop_reason}, out=${message.usage.output_tokens} tok`);
   }
 
+  let nudged = false;
+  const delivered = () => turn.toolCalls.some(c => c.name === 'send_message' && c.result.ok);
+  if (!delivered() && last && last.stop_reason === 'end_turn') {
+    // Plain reply text is discarded; give the model one chance to send it through send_message (and the money lint).
+    nudged = true;
+    step('no send_message: nudging once');
+    const retry = client.beta.messages.toolRunner({
+      ...runner.params,
+      max_iterations: 3,
+      messages: [...runner.params.messages, { role: 'user', content: 'Your reply was not delivered: the customer only sees messages sent with send_message. Send it with send_message now.' }],
+    });
+    for await (const message of retry) {
+      requests++;
+      last = message;
+      usage.input += message.usage.input_tokens;
+      usage.output += message.usage.output_tokens;
+      usage.cacheWrite += message.usage.cache_creation_input_tokens ?? 0;
+      usage.cacheRead += message.usage.cache_read_input_tokens ?? 0;
+      step(`model reply #${requests} (nudge): stop=${message.stop_reason}`);
+    }
+  }
+
   // The agent is never on the critical path: a turn that didn't do its job gets a template from the backend.
   let fallback: string | null = null;
-  const sent = turn.toolCalls.some(c => c.name === 'send_message' && c.result.ok);
+  const sent = delivered();
   if (opts.event.kind === 'offer_ready' && turn.offersPresented === 0) {
     const p = opts.world.proposals.find(x => x.id === (opts.event as any).proposalId)!;
     opts.world.events.push({ kind: 'card_posted', to: opts.customer, revisionIds: p.revisions.map(r => r.id), role: 'affected' });
@@ -106,5 +128,5 @@ export async function runTurn(opts: {
   const [inPrice, outPrice] = PRICE[model];
   const costUsd = (usage.input * inPrice + usage.cacheWrite * inPrice * 1.25 + usage.cacheRead * inPrice * 0.1 + usage.output * outPrice) / 1e6;
   const finalText = last?.content.filter(b => b.type === 'text').map(b => (b as Anthropic.Beta.BetaTextBlock).text).join('\n') ?? '';
-  return { model, ms: Date.now() - t0, requests, toolCalls: turn.toolCalls, usage, costUsd, stopReason: last?.stop_reason ?? null, finalText, fallback };
+  return { model, ms: Date.now() - t0, requests, toolCalls: turn.toolCalls, usage, costUsd, stopReason: last?.stop_reason ?? null, finalText, fallback, nudged };
 }

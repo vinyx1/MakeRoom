@@ -118,7 +118,8 @@ export class World {
     this.proposals.push(p);
     this.events.push({ kind: 'proposal_created', id: p.id });
     const kind = p.revisions.length === 1 && !p.revisions[0].affected ? 'fits' : 'needs_other_changes';
-    return { ok: true, proposal_id: p.id, result: kind, state: 'DRAFT', revisions: p.revisions.map(r => this.view(r, customer)), hint: 'Call present_offer with these revision ids so the customer can accept and authorize payment, then explain it with send_message.' } as const;
+    // Options differ only for the other customer, so the requester gets one offer; the backend attaches the siblings to the card.
+    return { ok: true, proposal_id: p.id, result: kind, state: 'DRAFT', offer: this.view(p.revisions[0], customer), hint: 'Call present_offer with this revision id so the customer can accept and authorize payment, then explain it with send_message.' } as const;
   }
 
   /** A revision as one customer may see it: no other customer's identity. */

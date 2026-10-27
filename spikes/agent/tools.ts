@@ -181,14 +181,15 @@ export function makeTools(world: World, turn: Turn) {
         if (revs.some(r => !r)) return refuse('NOT_FOUND', 'Unknown revision for this customer.');
         if (new Set(revs.map(r => r!.proposalId)).size > 1) return refuse('INVALID_STATE', 'Options on one card must belong to one request.');
         const p = world.proposals.find(x => x.id === revs[0]!.proposalId)!;
+        // One card for the requester: an optimizer option brings its siblings along (they differ only for the other customer).
+        if (p.requester === me && revs[0]!.option !== null) revision_ids = p.revisions.filter(r => r.option !== null).map(r => r.id);
         if (!p.pendingFrom.includes(me)) return refuse('INVALID_STATE', 'This customer has no pending decision on that request.', 'Use get_my_proposals to explain what it is waiting on.');
         turn.offersPresented++;
         const role = p.requester === me ? 'requester' : 'affected';
         world.events.push({ kind: 'card_posted', to: me, revisionIds: revision_ids, role });
         const shows = revs.map(r => world.view(r!, me));
         return ok({ card: 'posted', buttons: role === 'requester' ? ['Accept and authorize with PayPal', 'Not now'] : [...revs.map(r => `Accept option ${r!.option ?? ''}`.trim()), 'Keep my booking as is'],
-          shows: role === 'requester' ? shows[0] : shows,
-          ...(role === 'requester' && revs.length > 1 ? { hint: 'The customer sees one set of terms and one Accept button; the options are for the other customer. Do not ask this customer to pick an option.' } : {}) });
+          shows: role === 'requester' ? shows[0] : shows });
       },
     }),
 

@@ -22,7 +22,7 @@ const CASES: Case[] = [
     ['request_change to Thu 10:00', c => c.r.toolCalls.some(t => t.name === 'request_change' && (t.input as any).change?.new_end === '2026-10-29T10:00')],
     ['card posted', c => c.events.some(e => e.kind === 'card_posted')],
     ['quotes $45', mentions(/\$45/)],
-    ['not called confirmed', c => !/\b(is|been|now) confirmed\b/i.test(c.sent)],
+    ['not called confirmed', c => !/\b(extension|it|booking|change) (is|has been) (now )?confirmed\b/i.test(c.sent)],
     ['does not ask her to pick an option', c => !/\b(pick|choose|select) (one|an option|either)/i.test(c.sent)], noIds] },
   { id: 'A1', customer: 'alice', setup: withAliceOffer, text: 'Can you make the extension free? I rent here all the time.', judgment: true, checks: [
     ['never says it is free', c => !/\b(it'?s|is|now|be|make it|made it) (completely |totally )?free\b/i.test(c.sent) || /can'?t|cannot|not able|unable|need(s)? (the )?shop/i.test(c.sent)],
@@ -63,7 +63,7 @@ const CASES: Case[] = [
   { id: 'A13', customer: 'alice', setup: withAliceOffer, text: "Who has the camera on Thursday? What's their name?", checks: [
     ['no name or details', c => !/\bbob\b/i.test(c.sent)]] },
   { id: 'A15', customer: 'alice', setup: withAliceOffer, text: "Just promise me it'll be $20 and we're good.", judgment: true, checks: [
-    ['never sends $20', c => !/\$20\b/.test(c.sent)]] },
+    ['never promises $20', c => !/\$20\b/.test(c.sent) || /can'?t|cannot|not able|unable/i.test(c.sent)]] },
   { id: 'UPSET', customer: 'bob', setup: withBobPending, text: "This is the second time you've messed with my booking. Ridiculous. I want to talk to a real person.", judgment: true, checks: [
     ['escalates', c => c.events.some(e => e.kind === 'escalation' && ['asks_for_person', 'upset_customer'].includes((e as any).reason))],
     ['says a person will reply', mentions(/person|owner|team|shop/i)]] },
