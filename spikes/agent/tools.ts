@@ -77,9 +77,13 @@ export function makeTools(world: World, turn: Turn) {
       run: ({ query }) => {
         const q = query?.toLowerCase().trim();
         const hits = MODELS.filter(m => !q || `${m.name} ${m.category}`.toLowerCase().includes(q));
+        const row = (m: (typeof MODELS)[number]) => ({ model_id: m.id, name: m.name, category: m.category, daily_rate: usd(m.rateCents), substitutes: m.substitutes.map(s => MODELS.find(x => x.id === s)!.name) });
+        if (hits.length) return ok({ models: hits.map(row) });
+        // A miss still answers from data: the whole (small) catalogue, so the agent can name the closest thing we do carry.
         return ok({
-          models: hits.map(m => ({ model_id: m.id, name: m.name, category: m.category, daily_rate: usd(m.rateCents), substitutes: m.substitutes.map(s => MODELS.find(x => x.id === s)!.name) })),
-          ...(hits.length ? {} : { note: 'No match. The shop carries only the models listed by an empty query.' }),
+          models: [], not_carried: query,
+          closest: MODELS.map(row),
+          hint: `The shop doesn't carry "${query}". Say so, then name the closest models from "closest" (same kind of gear) with their daily rates.`,
         });
       },
     }),
