@@ -18,7 +18,8 @@ export function display(t: string) {
   const d = parse(t);
   const h = d.getUTCHours(), m = d.getUTCMinutes();
   const hh = h % 12 === 0 ? 12 : h % 12;
-  return `${DAY_NAMES[d.getUTCDay()]} ${d.getUTCDate()} Oct, ${hh}:${String(m).padStart(2, '0')}${h < 12 ? 'am' : 'pm'}`.replace(' Oct', d.getUTCMonth() === 10 ? ' Nov' : ' Oct');
+  const month = ['Oct', 'Nov'][d.getUTCMonth() - 9];
+  return `${DAY_NAMES[d.getUTCDay()]} ${d.getUTCDate()} ${month}, ${hh}:${String(m).padStart(2, '0')}${h < 12 ? 'am' : 'pm'}`;
 }
 export const usd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 export const time = (t: string) => ({ iso: t, display: display(t) });
