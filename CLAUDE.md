@@ -69,6 +69,15 @@ Money, booking-state and condition triggers are checked by the backend; the judg
 
 Bryntum must do real work, not just display a calendar: event buffers for turnaround, resource time ranges for unavailability (bookings are `manuallyScheduled`, so Bryntum never moves them), ghost/preview events for proposals (applied and rolled back via state tracking), red drafts for owner edits that conflict, and a **Resolve with agent** action on each conflict. The backend stays the source of truth; Bryntum syncs from it. Set `manuallyScheduled: true` in the one function that maps bookings to Bryntum events, and in dev mode log loudly if a Bryntum event's times ever differ from the server's.
 
+### If time permits (after Scenario 1 works)
+
+Optional Bryntum depth, all read-only views over backend data, behind a toggle, dropped if unreliable. None of it may change a booking or turn the engine on for real bookings.
+
+- **Play rejected alternatives on the schedule:** clicking a pruned alternative in the feed shows it as ghosts with the broken rule lit up (the overlapping buffer, the maintenance block). Cheap if the optimizer's pruned alternatives are stored as structured data (proposed changes, rule broken, conflicting booking), not just a sentence.
+- **Resource utilization view** under the schedule (native Scheduler Pro widget): per-unit load and revenue, before and after a plan.
+- **Planned vs actual** for extensions and late returns, instead of hand-made ghost styling.
+- **Engine what-if:** a separate read-only scheduler instance where the Scheduler Pro engine computes load or conflicts for a proposed plan; the backend keeps the final say.
+
 ## Judge mode
 
 Judges may try the live deployment, often several at once and alone. These are build requirements, not polish:
