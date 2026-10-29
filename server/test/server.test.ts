@@ -132,7 +132,7 @@ describe('Scenario 1 over HTTP', () => {
     const done = await v.post(`/api/proposals/${proposalId}/revisions/${planB}/owner`, { decision: 'approve' });
     expect(done.body.status).toBe('committed');
     const after = await owner(v);
-    expect(after.booking('Bob').startsAt).toBe(at('Thu', 14).replace('Z', '.000Z'));
+    expect(new Date(after.booking('Bob').startsAt)).toEqual(new Date(at('Thu', 14)));
     expect(after.view.proposals).toEqual([]);
     expect(after.view.escalations).toEqual([]);
   });
