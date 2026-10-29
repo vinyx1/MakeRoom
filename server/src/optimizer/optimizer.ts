@@ -312,6 +312,11 @@ const comparePlans = (a: Plan, b: Plan) =>
  * When an extension can't be done, the latest return before it that needs no one else to move ("I can't do
  * Thursday, but you can keep it until 9pm tonight"). Same unit, same pickup.
  */
+/** The closest thing to the request that needs no other booking changed (an extension cut short), or null. */
+export function nearestAlternative(snapshot: Snapshot, request: Request): Plan | null {
+  return nearestExtension(indexSnapshot(snapshot), request);
+}
+
 function nearestExtension(idx: Index, request: Request): Plan | null {
   if (request.kind !== 'extend') return null;
   const b = idx.bookings.get(request.bookingId);

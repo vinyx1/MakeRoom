@@ -367,21 +367,8 @@ export async function requesterAccept(db: Db, gateway: PaymentGateway, shopId: s
     const expiresAt = new Date(now.getTime() + snapshot.shop.policy.approval_timeout_minutes * 60_000);
     await tx.update(s.proposals).set({ state: t.to, expiresAt, version: sql`${s.proposals.version} + 1` }).where(eq(s.proposals.id, p.id));
 
-    const offers = new Map<string, string[]>();
-    for (const r of valid) {
-      const parties = [...new Set(rows.get(r.id)!.filter((c) => c.requiresApproval && c.partyCustomerId !== p.requesterCustomerId).map((c) => c.partyCustomerId))];
-      if (parties.length)
-        await tx.insert(s.approvals).values(parties.map((customerId) => ({
-          shopId, revisionId: r.id, proposalId: p.id, role: 'affected' as const, customerId, requestedAt: now, expiresAt,
-        })));
-      // Outside the envelope: the owner reviews before any customer sees it (invariant 6). An owner-resolved
-      // request was reviewed already, while it was a draft.
-      if (r.envelopeTrips.length && !(await ownerApproved(tx, r.id))) await ensureOwnerApproval(tx, idx, p, r, rows.get(r.id)!, 'plan_review', now);
-      else for (const c of parties) offers.set(c, [...(offers.get(c) ?? []), r.id]);
-    }
     await logActivity(tx, { shopId, at: now, actor: `customer:${input.customerId}`, kind: 'requester_accepted', proposalId: p.id, payload: { revisionIds: valid.map((r) => r.id) } });
-    for (const [customerId, revisionIds] of offers)
-      await logActivity(tx, { shopId, at: now, actor: 'system', kind: 'offer_ready', proposalId: p.id, payload: { customerId, revisionIds, role: 'affected' } });
+    const offers = await openOffers(tx, idx, p, valid, rows, now, expiresAt);
 
     // Nobody else to ask (the request fits as is, or only same-model swaps): straight to capture.
     if (valid.length === 1 && (await allApproved(tx, valid[0]!))) {
@@ -844,6 +831,26 @@ async function waitingOn(tx: Tx, rev: Revision): Promise<('owner' | 'affected')[
   for (const a of rows) if (a.status === 'pending' && a.role !== 'requester') out.add(a.role);
   if (rev.needsOwner && !rows.some((a) => a.role === 'owner')) out.add('owner');
   return [...out];
+}
+
+/**
+ * Asks each affected party about the revisions that change their booking, once claims are held. A revision outside
+ * the envelope goes to the owner first (invariant 6); an owner-resolved one was reviewed while it was a draft.
+ */
+async function openOffers(tx: Tx, idx: Index, p: Proposal, revs: Revision[], rows: Map<string, RevisionChange[]>, now: Date, expiresAt: Date) {
+  const offers = new Map<string, string[]>();
+  for (const r of revs) {
+    const parties = [...new Set(rows.get(r.id)!.filter((c) => c.requiresApproval && c.partyCustomerId !== p.requesterCustomerId).map((c) => c.partyCustomerId))];
+    if (parties.length)
+      await tx.insert(s.approvals).values(parties.map((customerId) => ({
+        shopId: p.shopId, revisionId: r.id, proposalId: p.id, role: 'affected' as const, customerId, requestedAt: now, expiresAt,
+      })));
+    if (r.envelopeTrips.length && !(await ownerApproved(tx, r.id))) await ensureOwnerApproval(tx, idx, p, r, rows.get(r.id)!, 'plan_review', now);
+    else for (const c of parties) offers.set(c, [...(offers.get(c) ?? []), r.id]);
+  }
+  for (const [customerId, revisionIds] of offers)
+    await logActivity(tx, { shopId: p.shopId, at: now, actor: 'system', kind: 'offer_ready', proposalId: p.id, payload: { customerId, revisionIds, role: 'affected' } });
+  return offers;
 }
 
 /** Tells affected parties still pending which options they can pick now. */
