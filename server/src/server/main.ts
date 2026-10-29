@@ -1,13 +1,10 @@
 // Starts the API: `npm start` (or `npm run dev` to restart on changes). Needs Postgres (`docker compose up -d`,
 // then `npm run db:migrate`) and the PayPal sandbox credentials in server/.env.
 
-import { existsSync } from 'node:fs';
+import '../env.ts';
 import { createDb } from '../db/client.ts';
 import { payPalGateway } from '../payments/paypal.ts';
 import { buildApp, sweepExpiries } from './app.ts';
-
-const envFile = new URL('../../.env', import.meta.url).pathname;
-if (existsSync(envFile)) process.loadEnvFile(envFile);
 
 const { db, pool } = createDb();
 const gateway = payPalGateway();
