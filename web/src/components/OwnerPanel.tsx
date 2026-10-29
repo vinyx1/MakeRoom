@@ -261,6 +261,12 @@ function FeedLine({ a, owner }: { a: Activity; owner: OwnerView }) {
       return line('ok', <>{name(a.actor.replace('customer:', ''))} chose {p.option ? `option ${p.option}` : 'the offer'}</>);
     case 'auto_reply':
       return line('dim', <>{name(p.customerId)} (scripted) answered: “{p.text}”</>);
+    case 'affected_refused':
+      return line('warn', <>{name(p.customerId)} kept their booking as is{p.withdrew ? ' (withdrew their pick)' : ''}</>);
+    case 'fallback_planned':
+      return line('opt', <>Next plan: asking another customer instead</>);
+    case 'alternative_offered':
+      return line('opt', <>No plans left: offering the closest alternative{p.holdReleased ? ', hold released' : ''}</>);
     case 'owner_approved':
       return line('ok', <>Owner approved</>);
     case 'owner_declined':

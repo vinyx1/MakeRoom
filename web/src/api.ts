@@ -90,7 +90,7 @@ export type OwnerView = {
 };
 
 export type CardOption = { revisionId: string; option: string | null; lines: string[]; needsShop: boolean; isAlternative: boolean };
-export type CustomerCard = { proposalId: string; role: 'requester' | 'affected'; chargeCents: number; options: CardOption[]; expiresAt: string | null };
+export type CustomerCard = { proposalId: string; role: 'requester' | 'affected'; chargeCents: number; heldCents: number; options: CardOption[]; expiresAt: string | null };
 export type CustomerView = { customer: { id: string; name: string }; now: string; messages: Message[]; handedOff: boolean; cards: CustomerCard[] };
 
 export type Config = {
@@ -130,6 +130,8 @@ export const api = {
   accept: (proposalId: string, customerId: string) => call<Outcome>('POST', `/api/proposals/${proposalId}/accept`, { customerId }),
   pick: (proposalId: string, revisionId: string, customerId: string) =>
     call<Outcome>('POST', `/api/proposals/${proposalId}/revisions/${revisionId}/accept`, { customerId }),
+  keep: (proposalId: string, customerId: string) => call<Outcome>('POST', `/api/proposals/${proposalId}/keep`, { customerId }),
+  cancel: (proposalId: string, customerId: string) => call<Outcome>('POST', `/api/proposals/${proposalId}/cancel`, { customerId }),
   ownerDecision: (proposalId: string, revisionId: string, decision: 'approve' | 'decline', factAnswers?: Record<string, 'yes' | 'no'>) =>
     call<Outcome & { saveableFacts?: { factId: string; value: 'yes' | 'no'; label: string }[] }>(
       'POST', `/api/proposals/${proposalId}/revisions/${revisionId}/owner`, { decision, ...(factAnswers ? { factAnswers } : {}) },

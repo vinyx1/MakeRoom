@@ -47,6 +47,16 @@ function describe(o: Outcome): Omit<Toast, 'id'> {
     case 'already_accepted':
     case 'already_decided':
       return { kind: 'ok', text: 'Already done.' };
+    case 'kept':
+      return {
+        kind: 'ok',
+        text: {
+          other_options: 'Booking kept as is. The other options stay open.',
+          fallback: 'Booking kept as is. The assistant is trying another plan.',
+          alternative: 'Booking kept as is. The requester gets the closest alternative.',
+          ended: 'Booking kept as is. The request is closed and its payment hold released.',
+        }[o.next as string] ?? 'Booking kept as is.',
+      };
     case 'resolved':
       return { kind: 'ok', text: 'The assistant found a plan: review it under Owner.' };
     case 'repriced':
