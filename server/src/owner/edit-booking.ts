@@ -15,12 +15,12 @@ import type { Db, Tx } from '../db/client.ts';
 import { loadSnapshot } from '../db/load-snapshot.ts';
 import { allowOwnerShorten, withShopLock } from '../db/lock.ts';
 import * as s from '../db/schema.ts';
-import { type OptimizeResult, optimize } from '../optimizer/optimizer.ts';
 import { type Placement, occupancy, overlaps } from '../optimizer/snapshot.ts';
 import { type Violation, validate } from '../optimizer/validator.ts';
 import type { PaymentGateway } from '../payments/gateway.ts';
 import { runPaymentOp } from '../payments/ops.ts';
 import { type StoredRequest, loadRequest } from '../proposals/request.ts';
+import { type RequestChangeResult, requestChange } from '../proposals/flow.ts';
 import { ACTIVE_STATES } from '../proposals/state-machine.ts';
 import { endProposal } from '../proposals/store.ts';
 
@@ -47,7 +47,7 @@ export type OwnerEditResult =
   | { status: 'stale'; currentVersion: number };
 
 /** A proposal the override cancelled, and the requester's request planned again against the new schedule. */
-export type Replanned = { proposalId: string; requesterCustomerId: string | null; replan: OptimizeResult | null };
+export type Replanned = { proposalId: string; requesterCustomerId: string | null; replan: RequestChangeResult | null };
 
 type Locked =
   | Exclude<OwnerEditResult, { status: 'applied' }>
@@ -61,11 +61,21 @@ export async function ownerEditBooking(db: Db, gateway: PaymentGateway, shopId: 
   const paymentOps = [];
   for (const id of locked.opIds) paymentOps.push(await runPaymentOp(db, gateway, id));
 
+  // Owner wins, and the requester is re-planned against the new schedule (docs/conflict-model.md §6): their
+  // request becomes a fresh offer, and the card reaches them through the agent.
   const cancelled: Replanned[] = [];
   for (const p of locked.cancelled) {
-    const snapshot = await db.transaction((tx) => loadSnapshot(tx, shopId));
-    const request = loadRequest(p.request as StoredRequest);
-    cancelled.push({ proposalId: p.id, requesterCustomerId: p.requesterCustomerId, replan: p.requesterCustomerId ? optimize(snapshot, request) : null });
+    if (!p.requesterCustomerId) {
+      cancelled.push({ proposalId: p.id, requesterCustomerId: null, replan: null });
+      continue;
+    }
+    const replan = await requestChange(db, shopId, { customerId: p.requesterCustomerId, request: loadRequest(p.request as StoredRequest) });
+    if (replan.status === 'offered')
+      await logActivity(db, {
+        shopId, at: replan.proposal.createdAt, actor: 'system', kind: 'offer_ready', proposalId: replan.proposal.id,
+        payload: { customerId: p.requesterCustomerId, revisionIds: replan.revisions.map((r) => r.id), role: 'requester', replanOf: p.id },
+      });
+    cancelled.push({ proposalId: p.id, requesterCustomerId: p.requesterCustomerId, replan });
   }
   return { status: 'applied', booking: locked.booking, cancelled, paymentOps };
 }
