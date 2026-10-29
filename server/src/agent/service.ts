@@ -8,7 +8,7 @@ import type { Db } from '../db/client.ts';
 import * as s from '../db/schema.ts';
 import { type AgentConfig, type AgentEvent, type TurnReport, conversationOf, runTurn } from './turn.ts';
 
-const TRIGGERS = ['offer_ready', 'proposal_update', 'proposal_ended', 'fact_answered'] as const;
+const TRIGGERS = ['offer_ready', 'proposal_update', 'proposal_ended', 'fact_answered', 'affected_refused'] as const;
 
 export function createAgentService(
   db: Db,
@@ -99,13 +99,17 @@ export function createAgentService(
       return [[payload.customerId as string, {
         kind: 'offer_ready', proposalId, revisionIds: payload.revisionIds as string[],
         role: payload.role === 'requester' ? 'requester' : 'affected', replanOf: (payload.replanOf as string) ?? null, repriced: !!payload.repriced,
+        fallback: !!payload.fallback, holdReleased: !!payload.holdReleased,
       }]];
+    if (row.kind === 'affected_refused') return [[payload.customerId as string, { kind: 'kept_booking', proposalId }]];
     if (row.kind === 'proposal_update')
       return [[payload.customerId as string, { kind: 'proposal_update', proposalId, outcome: 'COMMITTED' }]];
-    // An ended request reaches its requester and everyone who was asked about it.
+    // An ended request reaches its requester and everyone who was asked about it, except those who kept their
+    // booking: they were told already.
     const [p] = await db.select().from(s.proposals).where(eq(s.proposals.id, proposalId));
     const asked = await db.selectDistinct({ customerId: s.approvals.customerId }).from(s.approvals).where(eq(s.approvals.proposalId, proposalId));
-    const parties = new Set([p?.requesterCustomerId, ...asked.map((a) => a.customerId)].filter((x): x is string => !!x));
+    const kept = new Set((await db.select().from(s.proposalExclusions).where(eq(s.proposalExclusions.proposalId, proposalId))).map((e) => e.customerId));
+    const parties = new Set([p?.requesterCustomerId, ...asked.map((a) => a.customerId)].filter((x): x is string => !!x && (x === p?.requesterCustomerId || !kept.has(x))));
     const event: AgentEvent = { kind: 'proposal_update', proposalId, outcome: payload.to as 'REJECTED', reason: (payload.reason as string) ?? null };
     return [...parties].map((c) => [c, event]);
   }

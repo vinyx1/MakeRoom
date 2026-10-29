@@ -817,9 +817,10 @@ async function offerToRequesterIfReviewed(tx: Tx, p: Proposal, now: Date, extra:
   for (const r of live) if (r.needsOwner && !(await ownerApproved(tx, r.id))) return;
   // An alternative after a refusal says so when it reaches the requester, even if the owner reviewed it first.
   const fallback = extra.fallback ?? live.some((r) => r.origin === 'alternative' && r.seq > 1);
+  const holdReleased = extra.holdReleased ?? (fallback && (await currentOrder(tx, p.id))?.status !== 'authorized');
   await logActivity(tx, {
     shopId: p.shopId, at: now, actor: 'system', kind: 'offer_ready', proposalId: p.id,
-    payload: { customerId: p.requesterCustomerId, revisionIds: live.map((r) => r.id), role: 'requester', ...(fallback ? { fallback: true, holdReleased: !!extra.holdReleased } : {}) },
+    payload: { customerId: p.requesterCustomerId, revisionIds: live.map((r) => r.id), role: 'requester', ...(fallback ? { fallback: true, holdReleased } : {}) },
   });
 }
 

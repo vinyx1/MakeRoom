@@ -21,7 +21,13 @@ export type AgentEvent =
    * A card for this customer: as an affected party (another customer's request needs their decision), or as the
    * requester of an offer the backend made (the owner arranged it by phone, or re-planned it after a change).
    */
-  | { kind: 'offer_ready'; proposalId: string; revisionIds: string[]; role: 'affected' | 'requester'; replanOf?: string | null; repriced?: boolean }
+  | {
+      kind: 'offer_ready'; proposalId: string; revisionIds: string[]; role: 'affected' | 'requester'; replanOf?: string | null; repriced?: boolean;
+      /** The closest alternative after the other customers kept their bookings; `holdReleased` when it costs nothing. */
+      fallback?: boolean; holdReleased?: boolean;
+    }
+  /** This customer tapped Keep my booking as is: confirm nothing changes for them. */
+  | { kind: 'kept_booking'; proposalId: string }
   /** The owner answered an equipment question this customer asked. */
   | { kind: 'owner_answered'; factId: string; value: 'yes' | 'no' }
   /** A request this customer is part of was committed or ended. */
@@ -248,6 +254,8 @@ async function describeEvent(tx: Tx, idx: Index, customerId: string, event: Agen
       const [p] = await tx.select().from(s.proposals).where(eq(s.proposals.id, event.proposalId));
       const why = event.repriced
         ? 'The shop has changed the price of their request; the new terms are on a fresh card (the earlier card no longer applies).'
+        : event.fallback
+        ? `The other customer couldn't change their booking, so the exact change they asked for isn't possible. The card has the closest the shop can do instead: say plainly it is an alternative, not what they asked for. ${event.holdReleased ? 'It costs nothing extra, so their earlier payment hold has been released.' : 'Their existing payment hold covers it, so accepting needs no new payment.'} If they don't want it, Cancel my request on the card keeps their original booking.`
         : event.replanOf
         ? 'The shop changed the schedule while their earlier request was pending, so that request was cancelled and its payment hold released. The shop has made them a fresh offer for the same change.'
         : p?.source === 'owner_resolve'
@@ -257,6 +265,8 @@ async function describeEvent(tx: Tx, idx: Index, customerId: string, event: Agen
     }
     return `Event offer_ready: another customer's request (${turn.ids.of('rq', event.proposalId)}) needs this customer's decision. Present options ${JSON.stringify(ids)} with present_offer, then explain them briefly with send_message. Never name the other customer.`;
   }
+  if (event.kind === 'kept_booking')
+    return `Event kept_booking: the customer tapped Keep my booking as is on another customer's request (${turn.ids.of('rq', event.proposalId)}). Their booking stays exactly as it was; nothing is charged or refunded. Confirm that in one short message and thank them.`;
   if (event.kind === 'owner_answered') {
     const [fact] = await tx.select().from(s.facts).where(eq(s.facts.id, event.factId));
     const subject = fact?.unitId ? idx.unitLabel(fact.unitId) : (fact?.modelId ? idx.models.get(fact.modelId)?.name : '') ?? '';
@@ -267,6 +277,10 @@ async function describeEvent(tx: Tx, idx: Index, customerId: string, event: Agen
 
 /** Backend-written facts about a committed or ended request, from this customer's side. Their amounts are citable. */
 async function eventFacts(tx: Tx, idx: Index, customerId: string, event: AgentEvent): Promise<string> {
+  if (event.kind === 'offer_ready' && event.holdReleased) {
+    const [order] = await tx.select().from(s.paypalOrders).where(and(eq(s.paypalOrders.proposalId, event.proposalId), eq(s.paypalOrders.customerId, customerId)));
+    return order ? `Released payment hold: ${usd(order.amountCents)}` : '';
+  }
   if (event.kind !== 'proposal_update') return '';
   const t = shopTime(idx);
   const [p] = await tx.select().from(s.proposals).where(eq(s.proposals.id, event.proposalId));
@@ -343,8 +357,11 @@ async function templateFor(tx: Tx, shopId: string, customerId: string, event: Ag
   if (event.kind === 'customer_message') return TEMPLATE_REPLY;
   if (event.kind === 'offer_ready')
     return event.role === 'requester'
-      ? 'The shop has set up your change. Please review it on the card and accept to authorize the payment; nothing is charged until everything is confirmed.'
-      : "Another customer's request affects your booking. Your options are on the card below; nothing changes unless you accept one.";
+      ? event.fallback
+        ? `The other customer needs their booking, so I can't do exactly what you asked. The closest I can offer is on the card below${event.holdReleased ? ', and your payment hold has been released' : ''}. If you'd rather not, your original booking stays as it is.`
+        : 'The shop has set up your change. Please review it on the card and accept to authorize the payment; nothing is charged until everything is confirmed.'
+      : "Another customer's request affects your booking. Your options are on the card below; nothing changes unless you accept one, and you can tap Keep my booking as is.";
+  if (event.kind === 'kept_booking') return 'Got it: your booking stays exactly as it is. Thanks for letting us know!';
   if (event.kind === 'owner_answered') return `The shop has answered your question: ${event.value === 'yes' ? 'yes' : 'no'}.`;
   const idx = indexSnapshot(await loadSnapshot(tx, shopId));
   if (event.outcome !== 'COMMITTED') {
