@@ -27,7 +27,7 @@ import { type Plan, type Pruned, type Request, optimize } from '../optimizer/opt
 import { type Index, indexSnapshot } from '../optimizer/snapshot.ts';
 import { type Violation, validate } from '../optimizer/validator.ts';
 import type { PaymentGateway } from '../payments/gateway.ts';
-import { enqueueOp, runPaymentOp } from '../payments/ops.ts';
+import { compactId, enqueueOp, runPaymentOp } from '../payments/ops.ts';
 import { storeRequest } from './request.ts';
 import { ACTIVE_STATES, transition } from './state-machine.ts';
 import {
@@ -175,7 +175,7 @@ export async function createRequesterOrder(
   const created = await gateway.createOrder({
     intent: 'AUTHORIZE', amountCents: revision.quote.chargeCents, testCard: input.testCard,
     // A new id per attempt: a failed order's id would replay the failed order.
-    requestId: `${proposal.id}:${revision.id}:order:${input.customerId}:${prep.attempt}`,
+    requestId: `order:${compactId(proposal.id)}:${compactId(revision.id)}:${compactId(input.customerId)}:${prep.attempt}`,
     description: `RentFlow: ${revision.quote.lines.map((l) => l.label).join(', ')}`,
   });
   if (!created.ok) return { status: 'payment_failed', error: created.error };

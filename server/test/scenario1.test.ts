@@ -324,10 +324,8 @@ describe.skipIf(!process.env.PAYPAL_CLIENT_ID)('PayPal sandbox: Scenario 1 for r
     const offered = await requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) } });
     if (offered.status !== 'offered') throw new Error(JSON.stringify(offered));
     // The test card authorizes on create, standing in for the buyer's click in the PayPal popup.
-    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice, testCard: true });
-    const orderResult = await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
-    const accepted = await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
-    expect([orderResult, accepted]).toEqual([]);
+    expect((await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice, testCard: true })).status).toBe('ok');
+    expect((await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice })).status).toBe('awaiting_approvals');
     const planB = offered.revisions.find((r) => r.optionLabel === 'B')!;
     await affectedAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: bob.customerId, revisionId: planB.id });
     const done = await ownerDecision(db, gateway, d.shop.id, { proposalId: offered.proposal.id, revisionId: planB.id, decision: 'approve' });
@@ -338,4 +336,13 @@ describe.skipIf(!process.env.PAYPAL_CLIENT_ID)('PayPal sandbox: Scenario 1 for r
     const bobCapture = await client.call('GET', `/v2/payments/captures/${(await load.orderOf(bob.id)).captureId}`);
     expect(bobCapture.body.status).toBe('PARTIALLY_REFUNDED');
   }, 90_000);
+});
+
+describe('PayPal request ids', () => {
+  it('fit PayPal’s 108-character limit and decode back to the proposal', async () => {
+    const { requestId } = await import('../src/payments/ops.ts');
+    const id = requestId(randomUUID(), randomUUID(), 'authorize', randomUUID());
+    expect(id.length).toBeLessThanOrEqual(108);
+    expect(id).toMatch(/^authorize:[\w-]{22}:[\w-]{22}:[\w-]{22}$/);
+  });
 });

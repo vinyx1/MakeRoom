@@ -11,6 +11,7 @@ import * as s from '../src/db/schema.ts';
 import { seedShop } from '../src/db/seed.ts';
 import { ownerEditBooking } from '../src/owner/edit-booking.ts';
 import type { GatewayResult } from '../src/payments/gateway.ts';
+import { requestId } from '../src/payments/ops.ts';
 import { createPayPalClient, payPalGateway } from '../src/payments/paypal.ts';
 import { storeRequest } from '../src/proposals/request.ts';
 import { fakeGateway } from './fake-gateway.ts';
@@ -113,7 +114,7 @@ describe('Scenario 6: the owner drags Bob while Alice waits', () => {
     expect(await reload.activeClaims(proposal.id)).toEqual([]);
 
     // Her $45 authorization was voided once, with the deterministic request id.
-    expect(gateway.calls).toEqual([{ method: 'voidAuthorization', id: order.authorizationId, requestId: `${proposal.id}:${order.revisionId}:void:${order.customerId}` }]);
+    expect(gateway.calls).toEqual([{ method: 'voidAuthorization', id: order.authorizationId, requestId: requestId(proposal.id, order.revisionId, 'void', order.customerId) }]);
     expect(result.paymentOps[0]!.status).toBe('succeeded');
     expect((await reload.order(order.id)).status).toBe('voided');
 

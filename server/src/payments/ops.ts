@@ -14,9 +14,20 @@ import type { GatewayResult, PaymentGateway } from './gateway.ts';
 type Order = typeof paypalOrders.$inferSelect;
 type OpKind = (typeof paymentOps.$inferSelect)['kind'];
 
-/** `{proposal}:{revision}:{kind}:{customer}`. Revisions are immutable, so the amount behind an id never changes. */
+/** A UUID as 22 base64url characters. PayPal-Request-Id allows at most 108 characters; three plain UUIDs
+ * plus the kind are 118, which PayPal answers with a 500 (checked against the sandbox, 2026-10-29). */
+export const compactId = (id: string | null) => (id ? Buffer.from(id.replaceAll('-', ''), 'hex').toString('base64url') : 'none');
+
+const expandId = (s: string | undefined) => {
+  if (!s || s === 'none') return null;
+  const hex = Buffer.from(s, 'base64url').toString('hex');
+  return hex.length === 32 ? `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}` : null;
+};
+
+/** `{kind}:{proposal}:{revision}:{customer}`, at most 78 characters. Revisions are immutable, so the amount behind
+ * an id never changes. */
 export const requestId = (proposalId: string | null, revisionId: string | null, kind: OpKind, customerId: string) =>
-  `${proposalId ?? 'none'}:${revisionId ?? 'none'}:${kind}:${customerId}`;
+  `${kind}:${compactId(proposalId)}:${compactId(revisionId)}:${compactId(customerId)}`;
 
 /** Records an op; returns its id. Recording the same request id twice returns the existing op. */
 export async function enqueueOp(
@@ -133,6 +144,5 @@ export async function runPaymentOp(db: Db, gateway: PaymentGateway, opId: string
   });
 }
 
-const UUID = /^[0-9a-f-]{36}$/;
-const proposalOf = (id: string) => (UUID.test(id.split(':')[0]!) ? id.split(':')[0]! : null);
-const revisionOf = (id: string) => (UUID.test(id.split(':')[1]!) ? id.split(':')[1]! : null);
+const proposalOf = (requestId: string) => expandId(requestId.split(':')[1]);
+const revisionOf = (requestId: string) => expandId(requestId.split(':')[2]);
