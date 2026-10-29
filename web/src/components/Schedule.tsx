@@ -98,7 +98,7 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft }: Props) {
           place(
             {
               id: `ghost-${r.id}-${c.id}`, kind: 'ghost', manuallyScheduled: true, draggable: false, resizable: false,
-              name: extension ? `${who} keeps it` : `${plan}${who} → ${unitOf(c.newUnitId)}`,
+              name: extension ? `${who} +${hoursBetween(c.before!.endsAt, c.newEndsAt)}h` : `${plan}${who}`,
               startDate: extension ? c.before!.endsAt : c.newStartsAt, endDate: c.newEndsAt,
               postamble: `${hoursBetween(c.newEndsAt, c.newBufferEndsAt)}h`,
               tip: `Proposed (${p.state === 'DRAFT' ? 'not yet accepted' : 'waiting for approvals'})\n${plan}${who}: ${modelOf(c.newModelId)} on ${unitOf(c.newUnitId)}\n${t(c.newStartsAt)} → ${t(c.newEndsAt)}`,
@@ -150,6 +150,9 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft }: Props) {
       viewPreset: 'dayAndWeek',
       weekStartDay: 1, // Monday, like the demo week
       autoAdjustTimeAxis: false,
+      // Drags and resizes land on whole hours, so an owner edit doesn't miss shop hours by a few minutes.
+      timeResolution: { unit: 'hour', increment: 1 },
+      snap: true,
       forceFit: true,
       rowHeight: 42,
       barMargin: 5,

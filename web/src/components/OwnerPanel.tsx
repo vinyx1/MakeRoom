@@ -212,6 +212,8 @@ function FeedLine({ a, owner }: { a: Activity; owner: OwnerView }) {
       return line('ok', <>Committed: the schedule is updated</>);
     case 'proposal_ended':
       return line('warn', <>Request {String(p.to).toLowerCase()}: {p.reason}</>);
+    case 'proposal_update':
+      return line('dim', <>Telling {name(p.customerId)} the outcome</>);
     case 'booking_edited':
       return line('', <>Owner changed a booking{p.overrode?.length ? ' (override)' : ''}</>);
     case 'draft_saved':

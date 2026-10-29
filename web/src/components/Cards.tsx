@@ -63,9 +63,11 @@ function RequesterCard({ card, customerId, config, onOutcome }: CardProps) {
             </div>
           )}
           {config.testCardEnabled && (
-            <button className="link" disabled={busy} onClick={payWithTestCard}>
-              Development: pay with the sandbox test card
-            </button>
+            <div>
+              <button className="link" disabled={busy} onClick={payWithTestCard}>
+                Development: pay with the sandbox test card
+              </button>
+            </div>
           )}
         </>
       ) : (
@@ -73,9 +75,11 @@ function RequesterCard({ card, customerId, config, onOutcome }: CardProps) {
           Accept
         </button>
       )}
-      <button className="link muted" onClick={() => setHidden(true)}>
-        Not now
-      </button>
+      <div>
+        <button className="link muted" onClick={() => setHidden(true)}>
+          Not now
+        </button>
+      </div>
     </div>
   );
 }
