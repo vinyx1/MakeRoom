@@ -1,6 +1,5 @@
 // Owner triggers and the plausibility envelope (CLAUDE.md "Agent autonomy", docs/conflict-model.md §2).
-// Covers the booking-state, fact and condition checks. The money checks (compensation cap, discount band,
-// compensation vs the requester's revenue, negative net revenue) need the quote and belong to the quote module.
+// Covers the booking-state, fact and condition checks. The money checks live with the quote (src/quote/quote.ts).
 
 import type { PlanChange } from './optimizer.ts';
 import type { Index } from './snapshot.ts';

@@ -6,10 +6,13 @@
 // first depth with any plan wins: that is ranking rule 1 (fewest bookings changed), and it keeps the pruned
 // list to the alternatives that matter at that depth ("Move Bob to A7IV-2 → overlaps Charlie").
 //
-// Not yet: placing unassigned bookings (Scenario 4), compensation-based ranking (rules 4–5 need the quote module),
-// and a nearest alternative for requests other than extensions.
+// Every plan carries its quote (src/quote), which adds the money checks and ranking rules 4–5.
+//
+// Not yet: placing unassigned bookings (Scenario 4), and a nearest alternative for requests other than extensions.
 
+import type { Quote } from '../db/schema.ts';
 import { rentalPriceCents } from '../pricing.ts';
+import { type MoneyTrigger, type MoneyTrip, quotePlan } from '../quote/quote.ts';
 import { type EnvelopeTrip, type OwnerTrigger, assess } from './envelope.ts';
 import { type Booking, type Index, type Placement, type Snapshot, cmp, indexSnapshot, occupancy, overlaps, placementOf } from './snapshot.ts';
 import { HOUR_MS, earliestOpenAtOrAfter, formatShopTime, latestOpenAtOrBefore } from './time.ts';
@@ -50,9 +53,11 @@ export type Plan = {
   key: string;
   /** The requester's change first, then the others in the order they were moved. */
   changes: PlanChange[];
-  rank: { bookingsChanged: number; disruptionHours: number; approvalsNeeded: number };
-  ownerTriggers: OwnerTrigger[];
-  envelopeTrips: EnvelopeTrip[];
+  rank: { bookingsChanged: number; disruptionHours: number; approvalsNeeded: number; compensationCents: number; netRevenueCents: number };
+  /** At the rate card with no discount; a counter or owner change re-quotes. */
+  quote: Quote;
+  ownerTriggers: (OwnerTrigger | MoneyTrigger)[];
+  envelopeTrips: (EnvelopeTrip | MoneyTrip)[];
   needsOwner: boolean;
   factDependencies: FactDependency[];
   /** Gives the requester something other than they asked for (labelled on the card). */
@@ -269,7 +274,10 @@ function addPlan(
   if (plans.has(key)) return;
 
   const others = planChanges.filter((c) => !c.isRequester);
-  const { ownerTriggers, envelopeTrips } = assess(idx, planChanges, v.factDependencies, v.conditionNoteUnitIds);
+  const assessed = assess(idx, planChanges, v.factDependencies, v.conditionNoteUnitIds);
+  const priced = quotePlan(idx, planChanges);
+  const ownerTriggers = [...assessed.ownerTriggers, ...priced.ownerTriggers];
+  const envelopeTrips = [...assessed.envelopeTrips, ...priced.envelopeTrips];
   plans.set(key, {
     key,
     changes: planChanges,
@@ -279,7 +287,10 @@ function addPlan(
         others.reduce((sum, c) => sum + c.hoursShifted, 0) +
         others.filter((c) => c.kind === 'model_change').length * idx.policy.model_change_penalty_hours,
       approvalsNeeded: new Set(others.filter((c) => c.requiresApproval).map((c) => c.customerId)).size,
+      compensationCents: priced.compensationCents,
+      netRevenueCents: priced.quote.netRevenueCents,
     },
+    quote: priced.quote,
     ownerTriggers,
     envelopeTrips,
     needsOwner: ownerTriggers.length > 0 || envelopeTrips.length > 0,
@@ -288,11 +299,13 @@ function addPlan(
   });
 }
 
-/** Ranking rules 1–3 of docs/conflict-model.md §2, then the plan key so ties break the same way every time. */
+/** Ranking rules 1–5 of docs/conflict-model.md §2, then the plan key so ties break the same way every time. */
 const comparePlans = (a: Plan, b: Plan) =>
   a.rank.bookingsChanged - b.rank.bookingsChanged ||
   a.rank.disruptionHours - b.rank.disruptionHours ||
   a.rank.approvalsNeeded - b.rank.approvalsNeeded ||
+  a.rank.compensationCents - b.rank.compensationCents ||
+  Number(a.rank.netRevenueCents < 0) - Number(b.rank.netRevenueCents < 0) ||
   cmp(a.key, b.key);
 
 /**
