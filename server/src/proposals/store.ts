@@ -47,9 +47,9 @@ export async function insertRevision(
     })
     .returning();
 
+  const bookingIds = plan.changes.flatMap((c) => (c.bookingId ? [c.bookingId] : []));
   const bookings = new Map(
-    (await tx.select().from(s.bookings).where(inArray(s.bookings.id, plan.changes.flatMap((c) => (c.bookingId ? [c.bookingId] : [])).concat(['00000000-0000-0000-0000-000000000000']))))
-      .map((b) => [b.id, b]),
+    (bookingIds.length ? await tx.select().from(s.bookings).where(inArray(s.bookings.id, bookingIds)) : []).map((b) => [b.id, b]),
   );
   const changes = await tx
     .insert(s.revisionChanges)
@@ -124,6 +124,7 @@ export async function placeClaims(tx: Tx, proposal: Proposal, revisionId: string
 }
 
 export async function releaseClaims(tx: Tx, where: { proposalId: string; revisionIds?: string[] }, at: Date) {
+  if (where.revisionIds && !where.revisionIds.length) return;
   await tx
     .update(s.claims)
     .set({ releasedAt: at })
@@ -131,7 +132,7 @@ export async function releaseClaims(tx: Tx, where: { proposalId: string; revisio
       and(
         eq(s.claims.proposalId, where.proposalId),
         isNull(s.claims.releasedAt),
-        ...(where.revisionIds ? [inArray(s.claims.revisionId, where.revisionIds.length ? where.revisionIds : ['00000000-0000-0000-0000-000000000000'])] : []),
+        ...(where.revisionIds ? [inArray(s.claims.revisionId, where.revisionIds)] : []),
       ),
     );
 }
@@ -171,7 +172,9 @@ export async function endProposal(tx: Tx, proposal: Proposal, event: ProposalEve
 }
 
 /** Creates the owner's pending approval on a revision, with its escalation card, once. */
-export async function ensureOwnerApproval(tx: Tx, idx: Index, revision: Revision, rows: RevisionChange[], kind: 'approval' | 'plan_review', at: Date) {
+export async function ensureOwnerApproval(
+  tx: Tx, idx: Index, proposal: Proposal, revision: Revision, rows: RevisionChange[], kind: 'approval' | 'plan_review', at: Date,
+) {
   const inserted = await tx
     .insert(s.approvals)
     .values({ shopId: revision.shopId, revisionId: revision.id, proposalId: revision.proposalId, role: 'owner', requestedAt: at })
@@ -180,16 +183,16 @@ export async function ensureOwnerApproval(tx: Tx, idx: Index, revision: Revision
   if (!inserted.length) return;
   await tx.insert(s.escalations).values({
     shopId: revision.shopId, kind, proposalId: revision.proposalId, revisionId: revision.id,
-    reasons: [...revision.ownerTriggers, ...revision.envelopeTrips], summary: ownerSummary(idx, revision, rows), at,
+    reasons: [...revision.ownerTriggers, ...revision.envelopeTrips], summary: ownerSummary(idx, proposal, revision, rows), at,
   });
 }
 
 /** "Bob's booking shortened by 5h, $15 refund. Net +$30." Rendered from the revision, never from agent text. */
-export function ownerSummary(idx: Index, revision: Revision, rows: RevisionChange[]) {
+export function ownerSummary(idx: Index, proposal: Proposal, revision: Revision, rows: RevisionChange[]) {
   const usd = (cents: number) => `$${(Math.abs(cents) / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
   const t = (d: Date) => formatShopTime(d, idx.snap.shop);
   const parts = rows
-    .filter((c) => c.before && c.partyCustomerId !== revision.createdByCustomerId)
+    .filter((c) => c.before && c.partyCustomerId !== proposal.requesterCustomerId)
     .flatMap((c) => {
       const name = idx.customerName(c.partyCustomerId);
       const before = c.before!;
