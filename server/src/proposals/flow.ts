@@ -345,7 +345,9 @@ export async function affectedAccept(
     if (!isStillValid(idx, p, rows)) return { result: { status: 'stale', reason: 'the schedule changed; this option no longer works' } as DecisionResult };
 
     await tx.update(s.approvals).set({ status: 'approved', source: 'card_click', respondedAt: now }).where(eq(s.approvals.id, approval.id));
-    await selectRevision(tx, p, rev, now);
+    // A pick that still needs the shop isn't final: the other options stay open in case the owner declines
+    // this one (judge B8). Otherwise the pick supersedes them now.
+    if (!rev.needsOwner || (await ownerApproved(tx, rev.id))) await selectRevision(tx, p, rev, now);
     await logActivity(tx, {
       shopId, at: now, actor: `customer:${input.customerId}`, kind: 'affected_accepted', proposalId: p.id, revisionId: rev.id,
       payload: { option: rev.optionLabel },
