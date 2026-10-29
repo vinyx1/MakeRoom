@@ -1,0 +1,232 @@
+// The owner's column: what needs a decision (cards rendered by the backend), red drafts, and the live activity feed.
+
+import { useState } from 'react';
+import { type Activity, type Escalation, type Fact, type Outcome, type OwnerView, api } from '../api';
+import { shopTime, usd } from '../live';
+
+type Props = { owner: OwnerView; activity: Activity[]; onOutcome: (o: Outcome) => void; onOpenChat: (customerId: string) => void };
+
+type SaveOffer = { factId: string; value: 'yes' | 'no'; label: string };
+
+export function OwnerPanel({ owner, activity, onOutcome, onOpenChat }: Props) {
+  const [saveOffers, setSaveOffers] = useState<SaveOffer[]>([]);
+  const nameOf = (id: string | null | undefined) => owner.customers.find((c) => c.id === id)?.name ?? 'A customer';
+  const zone = owner.shop.timezone;
+  const waiting = owner.escalations.length + owner.drafts.length + saveOffers.length;
+
+  return (
+    <section className="pane owner">
+      <header className="pane-head">
+        <span className="pane-title">Owner</span>
+        <span className={`count ${waiting ? 'hot' : ''}`}>{waiting ? `${waiting} need${waiting === 1 ? 's' : ''} you` : 'All clear'}</span>
+      </header>
+      <div className="owner-body">
+        <div className="inbox">
+          {saveOffers.map((f) => (
+            <div className="ocard save" key={f.factId}>
+              <div>
+                Save <b>{f.label}: {f.value}</b> as a fact, so the assistant doesn't ask again?
+              </div>
+              <div className="row">
+                <button
+                  className="primary"
+                  onClick={async () => {
+                    onOutcome(await api.saveFact(f.factId, f.value));
+                    setSaveOffers((s) => s.filter((x) => x.factId !== f.factId));
+                  }}
+                >
+                  Save as fact
+                </button>
+                <button className="link muted" onClick={() => setSaveOffers((s) => s.filter((x) => x.factId !== f.factId))}>
+                  Not now
+                </button>
+              </div>
+            </div>
+          ))}
+          {owner.escalations.map((e) => (
+            <OwnerCard
+              key={e.id}
+              escalation={e}
+              owner={owner}
+              onOutcome={(o) => {
+                onOutcome(o);
+                if (o.saveableFacts?.length) setSaveOffers((s) => [...s, ...o.saveableFacts.filter((f: SaveOffer) => !s.some((x) => x.factId === f.factId))]);
+              }}
+              onOpenChat={onOpenChat}
+            />
+          ))}
+          {owner.drafts.map((d) => {
+            const b = owner.bookings.find((x) => x.id === d.bookingId);
+            return (
+              <div className="ocard draft" key={d.id}>
+                <div>
+                  <b>Red draft:</b> {nameOf(b?.customerId)}'s booking → {d.proposed.startsAt && shopTime(d.proposed.startsAt, zone)} – {d.proposed.endsAt && shopTime(d.proposed.endsAt, zone)} conflicts with another booking.
+                </div>
+                <div className="row">
+                  <button className="primary" onClick={async () => onOutcome(await api.resolveDraft(d.id))}>
+                    Resolve with agent
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+          {!waiting && <div className="muted small">Nothing needs you right now. Drag a booking on the schedule to change it.</div>}
+        </div>
+
+        <div className="feed">
+          <div className="feed-title">Activity</div>
+          {activity.map((a) => (
+            <FeedLine key={a.seq} a={a} owner={owner} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function OwnerCard({ escalation: e, owner, onOutcome, onOpenChat }: { escalation: Escalation; owner: OwnerView; onOutcome: (o: Outcome) => void; onOpenChat: (id: string) => void }) {
+  const [answers, setAnswers] = useState<Record<string, 'yes' | 'no'>>({});
+  const [busy, setBusy] = useState(false);
+  const revision = owner.proposals.flatMap((p) => p.revisions).find((r) => r.id === e.revisionId);
+  const questions: Fact[] = (revision?.factDependencies ?? []).map((id) => owner.facts.find((f) => f.id === id)!).filter((f) => f && f.value !== 'yes');
+  const customerOfThread = owner.conversations.find((c) => c.id === e.conversationId)?.customerId;
+  const act = async (fn: () => Promise<Outcome>) => {
+    setBusy(true);
+    try {
+      onOutcome(await fn());
+    } catch (err) {
+      onOutcome({ status: 'error', reason: (err as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  };
+  // The backend's summary ends with the fact question ("Needs a fact: …?"); it gets Yes/No buttons of its own.
+  const [summary, question] = e.summary.split(' Needs a fact: ');
+
+  return (
+    <div className={`ocard ${e.kind}`}>
+      <div className="ocard-kind">{LABEL[e.kind] ?? e.kind}</div>
+      <div>{summary}</div>
+      {questions.length > 0 && (
+        <div className="fact-q">
+          <div className="fact-q-text">Needs a fact: {question ?? questions.map((f) => `${f.label ?? f.key}?`).join(' ')}</div>
+          {questions.map((f) => (
+            <div className="row" key={f.id}>
+              {questions.length > 1 && <span className="small">{f.label ?? f.key}?</span>}
+              {(['yes', 'no'] as const).map((v) => (
+                <button key={v} className={answers[f.id] === v ? 'chip on' : 'chip'} onClick={() => setAnswers((a) => ({ ...a, [f.id]: v }))}>
+                  {v === 'yes' ? 'Yes' : 'No'}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="row">
+        {e.revisionId && e.proposalId && (
+          <>
+            <button
+              className="primary"
+              disabled={busy || questions.some((f) => !answers[f.id])}
+              onClick={() => act(() => api.ownerDecision(e.proposalId!, e.revisionId!, 'approve', questions.length ? answers : undefined))}
+            >
+              Approve
+            </button>
+            <button disabled={busy} onClick={() => act(() => api.ownerDecision(e.proposalId!, e.revisionId!, 'decline'))}>
+              Decline
+            </button>
+          </>
+        )}
+        {e.kind === 'fact_question' && e.factId && (
+          <>
+            <button className="primary" disabled={busy} onClick={() => act(() => api.saveFact(e.factId!, 'yes'))}>
+              Yes
+            </button>
+            <button disabled={busy} onClick={() => act(() => api.saveFact(e.factId!, 'no'))}>
+              No
+            </button>
+            <span className="muted small">Saved as a fact; the customer is told.</span>
+          </>
+        )}
+        {customerOfThread && (e.kind === 'handoff' || e.kind === 'customer_issue') && (
+          <button onClick={() => onOpenChat(customerOfThread)}>Open the chat</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const LABEL: Record<string, string> = {
+  approval: 'Approval needed',
+  plan_review: 'Review this plan',
+  fact_question: 'Customer question',
+  handoff: 'Handed to you',
+  customer_issue: 'Needs a person',
+  payment_failure: 'Payment problem',
+};
+
+function FeedLine({ a, owner }: { a: Activity; owner: OwnerView }) {
+  const p = a.payload ?? {};
+  const name = (id: string | undefined) => owner.customers.find((c) => c.id === id)?.name ?? 'A customer';
+  const at = shopTime(a.at, owner.shop.timezone, 'h:mm');
+  const line = (cls: string, text: React.ReactNode, sub?: string[]) => (
+    <div className={`fl ${cls}`}>
+      <span className="fl-at">{at}</span> {text}
+      {sub && sub.length > 0 && (
+        <ul>
+          {sub.map((x) => (
+            <li key={x}>{x}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+  switch (a.kind) {
+    case 'customer_message':
+      return line('cust', <>{name(p.customerId)}: “{p.text}”</>);
+    case 'agent_step':
+      return line('agent', <>Assistant ({name(p.customerId)}) → {p.tool}{p.ok ? '' : ` ✗ ${p.code}`}</>);
+    case 'agent_turn':
+      return line('dim', <>Turn for {name(p.customerId)}: {(p.ms / 1000).toFixed(1)}s, ${Number(p.costUsd).toFixed(3)}{p.fallback ? ` · ${p.fallback}` : ''}</>);
+    case 'agent_message_blocked':
+      return line('warn', <>Blocked a message to {name(p.customerId)}: {p.amounts.join(', ')} didn't come from a tool</>);
+    case 'optimizer_run':
+      return line('opt', <>Optimizer: {p.plans.length} plan{p.plans.length === 1 ? '' : 's'}{p.pruned.length ? `, ruled out ${p.pruned.length}` : ''}</>, p.pruned.map((x: { message: string }) => `✗ ${x.message}`));
+    case 'proposal_created':
+      return line('', <>Request created{p.source === 'owner_resolve' ? ' by Resolve with agent' : ''}</>);
+    case 'offer_ready':
+      return line('', <>Offer sent to {name(p.customerId)}</>);
+    case 'requester_accepted':
+      return line('ok', <>{name(a.actor.replace('customer:', ''))} accepted</>);
+    case 'affected_accepted':
+      return line('ok', <>{name(a.actor.replace('customer:', ''))} chose {p.option ? `option ${p.option}` : 'the offer'}</>);
+    case 'auto_reply':
+      return line('dim', <>{name(p.customerId)} (scripted) answered: “{p.text}”</>);
+    case 'owner_approved':
+      return line('ok', <>Owner approved</>);
+    case 'owner_declined':
+      return line('warn', <>Owner declined</>);
+    case 'all_approved':
+      return line('', <>Everyone agreed; capturing the payment</>);
+    case 'proposal_committed':
+      return line('ok', <>Committed: the schedule is updated</>);
+    case 'proposal_ended':
+      return line('warn', <>Request {String(p.to).toLowerCase()}: {p.reason}</>);
+    case 'booking_edited':
+      return line('', <>Owner changed a booking{p.overrode?.length ? ' (override)' : ''}</>);
+    case 'draft_saved':
+      return line('warn', <>Owner edit kept as a red draft: {(p.violations ?? []).join('; ')}</>);
+    case 'fact_saved':
+      return line('ok', <>Fact saved: {p.label ?? p.key} = {p.value}</>);
+    case 'clock_fast_forwarded':
+      return line('dim', <>Clock moved forward {p.minutes} min</>);
+    case 'prepayments_seeded':
+      return line('dim', <>Demo bookings prepaid in the PayPal sandbox ({p.paid})</>);
+    case 'auto_reply_toggled':
+      return line('dim', <>Auto-reply customers {p.enabled ? 'on' : 'off'}</>);
+    default:
+      if (a.kind.startsWith('payment_'))
+        return line('pay', <>PayPal: {a.kind.replace('payment_', '').replace('_', ' ')}{p.amountCents ? ` ${usd(p.amountCents)}` : ''}</>);
+      return line('dim', <>{a.kind.replaceAll('_', ' ')}</>);
+  }
+}
