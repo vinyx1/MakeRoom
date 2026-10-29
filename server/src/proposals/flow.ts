@@ -36,6 +36,7 @@ import {
   type Revision,
   type RevisionChange,
   allApproved,
+  cloneRevision,
   endProposal,
   ensureOwnerApproval,
   insertRevision,
@@ -546,6 +547,82 @@ export async function ownerDecision(
   await runOps(db, gateway, locked.ops ?? []);
   if (locked.capture) return { ...(await captureAndCommit(db, gateway, shopId, input.proposalId, locked.capture.captureOpId)), saveableFacts: locked.saveableFacts };
   return locked.result!;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// 5b. The owner sets the requester's price (docs/conflict-model.md §4: an owner modification is a new revision)
+
+export type SetPriceResult = { status: 'repriced'; revisions: Revision[]; chargeCents: number } | Refused;
+
+/**
+ * Lowers what the requester pays, before they have paid: each live option becomes a new revision with the owner's
+ * price, the old ones are superseded, and the requester is asked again (their money changed). The owner is the
+ * one who may go past the agent's discount band, so the new price needs no further shop approval for itself.
+ * Not yet: raising a price, or repricing after the requester authorized (judge C4/C5).
+ */
+export function ownerSetPrice(db: Db, shopId: string, input: { proposalId: string; priceCents: number }): Promise<SetPriceResult> {
+  return withShopLock(db, shopId, async (tx) => {
+    const p = await getProposal(tx, shopId, input.proposalId);
+    if (!p) return refused('request not found');
+    if (p.state !== 'DRAFT') return refused('the customer has already paid; changing the price after that isn’t supported yet');
+    const orders = await tx.select().from(s.paypalOrders).where(eq(s.paypalOrders.proposalId, p.id));
+    if (orders.some((o) => o.status === 'authorized' || o.status === 'captured')) return refused('the customer has already paid');
+    const live = await liveRevisions(tx, p.id);
+    if (!live.length) return refused('nothing to reprice');
+    const listCents = live[0]!.quote.lines.reduce((sum, l) => sum + l.amountCents, 0);
+    if (!Number.isInteger(input.priceCents) || input.priceCents < 0) return refused('the price must be zero or more');
+    if (input.priceCents > listCents) return refused(`only lowering the price is supported for now (the rate card says $${(listCents / 100).toFixed(2)})`);
+    if (input.priceCents === live[0]!.quote.chargeCents) return refused('that is already the price');
+
+    const snapshot = await loadSnapshot(tx, shopId);
+    const now = snapshot.now;
+    const seq = p.revisionSeq + 1;
+    const rows = await changesByRevision(tx, live.map((r) => r.id));
+    const revisions: Revision[] = [];
+    for (const base of live) {
+      const compensation = base.quote.compensation.reduce((sum, c) => sum + c.cents, 0);
+      const quote = { ...base.quote, discountCents: listCents - input.priceCents, chargeCents: input.priceCents, netRevenueCents: input.priceCents - compensation };
+      // The owner set this price, so the agent's discount limit doesn't apply; a loss still shows on the card.
+      const ownerTriggers = base.ownerTriggers.filter((t) => t !== 'discount_over_band' && t !== 'negative_net');
+      if (quote.netRevenueCents < 0) ownerTriggers.push('negative_net');
+      const revision = await cloneRevision(tx, { proposal: p, base, rows: rows.get(base.id)!, seq, quote, ownerTriggers, at: now });
+      revisions.push(revision);
+      // A shop review the owner already gave carries over; they set these terms themselves.
+      const [review] = await tx.select().from(s.approvals).where(and(eq(s.approvals.revisionId, base.id), eq(s.approvals.role, 'owner')));
+      if (review?.status === 'approved')
+        await tx.insert(s.approvals).values({
+          shopId, revisionId: revision.id, proposalId: p.id, role: 'owner', status: 'approved', source: 'carried_over', carriedFromId: review.id, requestedAt: now, respondedAt: now,
+        });
+      // The requester's money changed, so they accept again; agreement by phone (owner-attested) carries over.
+      const [requester] = await tx.select().from(s.approvals).where(and(eq(s.approvals.revisionId, base.id), eq(s.approvals.role, 'requester')));
+      await tx.insert(s.approvals).values({
+        shopId, revisionId: revision.id, proposalId: p.id, role: 'requester', customerId: p.requesterCustomerId,
+        ...(requester?.source === 'owner_attested'
+          ? { status: 'approved' as const, source: 'carried_over' as const, carriedFromId: requester.id, respondedAt: now }
+          : { status: 'pending' as const }),
+        requestedAt: now,
+      });
+    }
+    await tx.update(s.revisions).set({ status: 'superseded' }).where(inArray(s.revisions.id, live.map((r) => r.id)));
+    await tx.update(s.escalations).set({ status: 'resolved', resolution: { superseded: true } })
+      .where(and(inArray(s.escalations.revisionId, live.map((r) => r.id)), eq(s.escalations.status, 'open')));
+    // An unpaid order for the old amount must not be paid: one request id means one amount.
+    for (const o of orders) if (o.status === 'created' || o.status === 'approved') await tx.update(s.paypalOrders).set({ status: 'voided' }).where(eq(s.paypalOrders.id, o.id));
+    await tx
+      .update(s.proposals)
+      .set({ revisionSeq: seq, expiresAt: new Date(now.getTime() + snapshot.shop.policy.approval_timeout_minutes * 60_000), version: sql`${s.proposals.version} + 1` })
+      .where(eq(s.proposals.id, p.id));
+    await logActivity(tx, {
+      shopId, at: now, actor: 'owner', kind: 'owner_repriced', proposalId: p.id,
+      payload: { fromCents: live[0]!.quote.chargeCents, toCents: input.priceCents, revisionIds: revisions.map((r) => r.id) },
+    });
+    if (p.requesterCustomerId)
+      await logActivity(tx, {
+        shopId, at: now, actor: 'system', kind: 'offer_ready', proposalId: p.id,
+        payload: { customerId: p.requesterCustomerId, revisionIds: revisions.map((r) => r.id), role: 'requester', repriced: true },
+      });
+    return { status: 'repriced', revisions, chargeCents: input.priceCents };
+  });
 }
 
 /**

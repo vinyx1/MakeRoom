@@ -21,7 +21,7 @@ export type AgentEvent =
    * A card for this customer: as an affected party (another customer's request needs their decision), or as the
    * requester of an offer the backend made (the owner arranged it by phone, or re-planned it after a change).
    */
-  | { kind: 'offer_ready'; proposalId: string; revisionIds: string[]; role: 'affected' | 'requester'; replanOf?: string | null }
+  | { kind: 'offer_ready'; proposalId: string; revisionIds: string[]; role: 'affected' | 'requester'; replanOf?: string | null; repriced?: boolean }
   /** The owner answered an equipment question this customer asked. */
   | { kind: 'owner_answered'; factId: string; value: 'yes' | 'no' }
   /** A request this customer is part of was committed or ended. */
@@ -246,7 +246,9 @@ async function describeEvent(tx: Tx, idx: Index, customerId: string, event: Agen
     const ids = event.revisionIds.map((id) => turn.ids.of('rv', id));
     if (event.role === 'requester') {
       const [p] = await tx.select().from(s.proposals).where(eq(s.proposals.id, event.proposalId));
-      const why = event.replanOf
+      const why = event.repriced
+        ? 'The shop has changed the price of their request; the new terms are on a fresh card (the earlier card no longer applies).'
+        : event.replanOf
         ? 'The shop changed the schedule while their earlier request was pending, so that request was cancelled and its payment hold released. The shop has made them a fresh offer for the same change.'
         : p?.source === 'owner_resolve'
           ? 'The shop arranged this change with them by phone and has made them the offer.'

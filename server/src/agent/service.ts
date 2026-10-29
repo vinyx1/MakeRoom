@@ -98,7 +98,7 @@ export function createAgentService(
     if (row.kind === 'offer_ready')
       return [[payload.customerId as string, {
         kind: 'offer_ready', proposalId, revisionIds: payload.revisionIds as string[],
-        role: payload.role === 'requester' ? 'requester' : 'affected', replanOf: (payload.replanOf as string) ?? null,
+        role: payload.role === 'requester' ? 'requester' : 'affected', replanOf: (payload.replanOf as string) ?? null, repriced: !!payload.repriced,
       }]];
     if (row.kind === 'proposal_update')
       return [[payload.customerId as string, { kind: 'proposal_update', proposalId, outcome: 'COMMITTED' }]];

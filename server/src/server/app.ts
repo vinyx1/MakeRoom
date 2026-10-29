@@ -15,7 +15,7 @@ import type { AgentService } from '../agent/service.ts';
 import { conversationOf } from '../agent/turn.ts';
 import type { PaymentGateway } from '../payments/gateway.ts';
 import { saveFact } from '../owner/facts.ts';
-import { affectedAccept, createRequesterOrder, expireDue, ownerDecision, requestChange, requesterAccept, resolveDraft } from '../proposals/flow.ts';
+import { affectedAccept, createRequesterOrder, expireDue, ownerDecision, ownerSetPrice, requestChange, requesterAccept, resolveDraft } from '../proposals/flow.ts';
 import { resetShop, shopForSession, newSessionToken } from './shops.ts';
 import { customerView, ownerView } from './views.ts';
 
@@ -217,6 +217,13 @@ export function buildApp(opts: AppOptions) {
     const { proposalId, revisionId } = parse(RevisionParams, req.params);
     const { decision, factAnswers } = parse(OwnerDecisionBody, req.body);
     return ownerDecision(db, gateway, req.shop.id, { proposalId, revisionId, decision, factAnswers });
+  });
+
+  // The owner sets what the requester pays, before they've paid (an owner modification: a new revision).
+  app.post('/api/proposals/:proposalId/price', async (req) => {
+    const { proposalId } = parse(ProposalParams, req.params);
+    const { priceCents } = parse(z.object({ priceCents: z.number().int().min(0) }), req.body);
+    return ownerSetPrice(db, req.shop.id, { proposalId, priceCents });
   });
 
   // "Resolve with agent" on a red draft.
