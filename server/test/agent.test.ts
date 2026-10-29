@@ -140,7 +140,7 @@ describe('fallbacks (no model)', () => {
 
   it('the dispatcher reaches Bob when Alice pays, and the backend posts his card itself', async () => {
     const { d, gateway } = await shop();
-    const agent = createAgentService(db, templates);
+    const agent = createAgentService(db, templates, undefined, { shopId: d.shop.id });
     await agent.poll(); // sets the cursor to now
     const alice = d.customer('Alice').id;
     const offered = await requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) } });
@@ -158,7 +158,7 @@ describe('fallbacks (no model)', () => {
 
   it('a committed request reaches each party with the backend’s facts', async () => {
     const { d, gateway } = await shop();
-    const agent = createAgentService(db, templates);
+    const agent = createAgentService(db, templates, undefined, { shopId: d.shop.id });
     await agent.poll();
     const alice = d.customer('Alice').id, bob = d.customer('Bob').id;
     const offered = await requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) } });
@@ -193,7 +193,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('live agent: Scenario 1 through 
 
   it('Alice asks, Bob is offered both plans, both hear the outcome', async () => {
     const { d, gateway } = await shop();
-    const agent = createAgentService(db, config);
+    const agent = createAgentService(db, config, undefined, { shopId: d.shop.id });
     await agent.poll();
     const alice = d.customer('Alice').id, bob = d.customer('Bob').id;
 

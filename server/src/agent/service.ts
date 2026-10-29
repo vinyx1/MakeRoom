@@ -10,7 +10,13 @@ import { type AgentConfig, type AgentEvent, type TurnReport, conversationOf, run
 
 const TRIGGERS = ['offer_ready', 'proposal_update', 'proposal_ended', 'fact_answered'] as const;
 
-export function createAgentService(db: Db, config: AgentConfig, log: (msg: string) => void = () => {}) {
+export function createAgentService(
+  db: Db,
+  config: AgentConfig,
+  log: (msg: string) => void = () => {},
+  /** Only dispatch events of this shop (tests, which share one database across parallel files). */
+  scope: { shopId?: string } = {},
+) {
   const queues = new Map<string, Promise<unknown>>();
   const pending = new Set<Promise<unknown>>();
   let cursor: number | null = null;
@@ -57,7 +63,7 @@ export function createAgentService(db: Db, config: AgentConfig, log: (msg: strin
       const rows = await db
         .select()
         .from(s.activityLog)
-        .where(and(gt(s.activityLog.seq, cursor), inArray(s.activityLog.kind, [...TRIGGERS])))
+        .where(and(gt(s.activityLog.seq, cursor), inArray(s.activityLog.kind, [...TRIGGERS]), ...(scope.shopId ? [eq(s.activityLog.shopId, scope.shopId)] : [])))
         .orderBy(asc(s.activityLog.seq))
         .limit(100);
       for (const row of rows) {

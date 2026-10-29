@@ -32,7 +32,7 @@ async function shop() {
   const gateway = fakeGateway();
   const d = await seedShop(db, { sessionKey: randomUUID() });
   await seedPrepayments(db, gateway, d.shop.id);
-  const agent = createAgentService(db, templates);
+  const agent = createAgentService(db, templates, undefined, { shopId: d.shop.id });
   await agent.poll(); // from now on
   return { d, gateway, agent };
 }
