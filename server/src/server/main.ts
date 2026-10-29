@@ -10,10 +10,10 @@ import { buildApp, sweepExpiries } from './app.ts';
 
 const { db, pool } = createDb();
 const gateway = payPalGateway();
-// The live-demo model is still an open decision (spikes/agent/FINDINGS.md): set AGENT_MODEL to switch.
+// Sonnet 5.5 for the live demo (decided 2026-10-29: Opus 5.5 was ~$0.04/turn); AGENT_MODEL overrides.
 const agent = createAgentService(db, {
   client: process.env.ANTHROPIC_API_KEY ? new Anthropic() : null,
-  model: process.env.AGENT_MODEL ?? 'claude-opus-5-5',
+  model: process.env.AGENT_MODEL ?? 'claude-sonnet-5-5',
   effort: (process.env.AGENT_EFFORT as 'low' | 'medium' | 'high' | undefined) ?? 'medium',
   turnCap: Number(process.env.AGENT_TURN_CAP ?? 60),
 }, (msg) => app.log.info(msg));
