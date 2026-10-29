@@ -1,7 +1,7 @@
 // Proposal persistence: plans become immutable revisions, revisions take claims, proposals end cleanly.
 // Everything here runs inside a `withShopLock` transaction; callers run any returned payment ops after commit.
 
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { logActivity } from '../activity.ts';
 import type { Tx } from '../db/client.ts';
 import * as s from '../db/schema.ts';
@@ -146,7 +146,7 @@ export async function endProposal(tx: Tx, proposal: Proposal, event: ProposalEve
   if (!t.ok) throw new Error(`proposal ${proposal.id}: ${t.reason}`);
   await tx
     .update(s.proposals)
-    .set({ state: t.to, endedReason: reason, expiresAt: null, version: proposal.version + 1 })
+    .set({ state: t.to, endedReason: reason, expiresAt: null, version: sql`${s.proposals.version} + 1` })
     .where(eq(s.proposals.id, proposal.id));
 
   const opIds: string[] = [];

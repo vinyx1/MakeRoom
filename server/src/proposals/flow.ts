@@ -17,7 +17,7 @@
 // Not yet: refusals and fallback plans (Scenario 3), counters and re-approval, withdrawal, telling customers
 // (the agent reads the `offer_ready` / `proposal_update` activity events).
 
-import { and, desc, eq, inArray, ne } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { logActivity } from '../activity.ts';
 import type { Db, Tx } from '../db/client.ts';
 import { loadSnapshot } from '../db/load-snapshot.ts';
@@ -275,7 +275,7 @@ export async function requesterAccept(db: Db, gateway: PaymentGateway, shopId: s
     const t = transition(p.state, 'offer');
     if (!t.ok) throw new Error(t.reason);
     const expiresAt = new Date(now.getTime() + snapshot.shop.policy.approval_timeout_minutes * 60_000);
-    await tx.update(s.proposals).set({ state: t.to, expiresAt, version: p.version + 1 }).where(eq(s.proposals.id, p.id));
+    await tx.update(s.proposals).set({ state: t.to, expiresAt, version: sql`${s.proposals.version} + 1` }).where(eq(s.proposals.id, p.id));
 
     const offers = new Map<string, string[]>();
     for (const r of valid) {
@@ -425,7 +425,7 @@ async function startCapture(tx: Tx, p: Proposal, rev: Revision, now: Date): Prom
   const t = transition(p.state, 'all_approved');
   if (!t.ok) throw new Error(t.reason);
   await selectRevision(tx, p, rev, now);
-  await tx.update(s.proposals).set({ state: t.to, expiresAt: null, version: p.version + 1 }).where(eq(s.proposals.id, p.id));
+  await tx.update(s.proposals).set({ state: t.to, expiresAt: null, version: sql`${s.proposals.version} + 1` }).where(eq(s.proposals.id, p.id));
   await logActivity(tx, { shopId: p.shopId, at: now, actor: 'system', kind: 'all_approved', proposalId: p.id, revisionId: rev.id, payload: {} });
   if (rev.quote.chargeCents <= 0) return null;
   const order = await currentOrder(tx, p.id);
@@ -508,7 +508,7 @@ async function commitLocked(tx: Tx, shopId: string, proposalId: string): Promise
 
   const t = transition(p.state, 'captured_and_revalidated');
   if (!t.ok) throw new Error(t.reason);
-  await tx.update(s.proposals).set({ state: t.to, version: p.version + 1 }).where(eq(s.proposals.id, p.id));
+  await tx.update(s.proposals).set({ state: t.to, version: sql`${s.proposals.version} + 1` }).where(eq(s.proposals.id, p.id));
   await releaseClaims(tx, { proposalId: p.id }, now);
   await tx.update(s.escalations).set({ status: 'resolved', resolution: { committed: true } })
     .where(and(eq(s.escalations.proposalId, p.id), eq(s.escalations.status, 'open')));

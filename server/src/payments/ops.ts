@@ -117,6 +117,8 @@ export async function runPaymentOp(db: Db, gateway: PaymentGateway, opId: string
   return withShopLock(db, op.shopId, async (tx) => {
     const at = shopNow(shop);
     const [failed] = await tx.update(paymentOps).set({ status: 'failed', attempts, lastError }).where(eq(paymentOps.id, op.id)).returning();
+    // A failed authorization leaves the order unusable; the next attempt starts a new order.
+    if (op.kind === 'authorize') await tx.update(paypalOrders).set({ status: 'failed' }).where(eq(paypalOrders.id, order.id));
     await tx.insert(escalations).values({
       shopId: op.shopId, kind: 'payment_failure', proposalId: proposalOf(op.requestId), revisionId: revisionOf(op.requestId),
       reasons: ['payment_failure'],
