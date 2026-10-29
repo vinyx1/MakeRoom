@@ -5,6 +5,8 @@
   "scripts": {
     "start": "node src/server/main.ts",
     "dev": "node --watch src/server/main.ts",
+    "dev:test-card": "DEV_TEST_CARD=1 node --watch src/server/main.ts",
+    "try": "node scripts/try.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node src/db/migrate.ts",
     "db:studio": "drizzle-kit studio",

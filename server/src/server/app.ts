@@ -36,6 +36,11 @@ export type AppOptions = {
   paypalClientId?: string;
   /** Set the cookie's Secure flag (behind HTTPS). */
   secureCookies?: boolean;
+  /**
+   * Development only: lets the order route pay with the sandbox test card, so a terminal client can accept without
+   * the PayPal popup. Never on in production (see main.ts).
+   */
+  allowTestCard?: boolean;
   /** Runs agent turns for chat messages; without it, the chat routes answer 503. */
   agent?: AgentService;
   /** How often the SSE stream checks for new activity. */
@@ -135,10 +140,11 @@ export function buildApp(opts: AppOptions) {
   });
 
   // The PayPal button's createOrder: returns the order id the button approves.
-  app.post('/api/proposals/:proposalId/order', async (req) => {
+  app.post('/api/proposals/:proposalId/order', async (req, reply) => {
     const { proposalId } = parse(ProposalParams, req.params);
-    const { customerId } = parse(CustomerBody, req.body);
-    return createRequesterOrder(db, gateway, req.shop.id, { proposalId, customerId });
+    const { customerId, testCard } = parse(CustomerBody.extend({ testCard: z.boolean().optional() }), req.body);
+    if (testCard && !opts.allowTestCard) return reply.code(403).send({ error: 'test_card_disabled' });
+    return createRequesterOrder(db, gateway, req.shop.id, { proposalId, customerId, testCard });
   });
 
   // The PayPal button's onApprove, or Accept when nothing is owed.

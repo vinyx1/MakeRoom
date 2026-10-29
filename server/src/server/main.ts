@@ -23,6 +23,8 @@ const app = buildApp({
   agent,
   paypalClientId: process.env.PAYPAL_CLIENT_ID,
   secureCookies: process.env.NODE_ENV === 'production',
+  // `npm run dev:test-card`: pay with the sandbox test card from a terminal client (scripts/try.ts).
+  allowTestCard: process.env.DEV_TEST_CARD === '1' && process.env.NODE_ENV !== 'production',
   logger: true,
 });
 

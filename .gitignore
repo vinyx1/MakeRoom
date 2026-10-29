@@ -3,3 +3,6 @@ dist/
 .env
 .env.*
 .DS_Store
+
+# Session of the terminal tester (scripts/try.ts)
+server/.try-session
