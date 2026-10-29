@@ -1,0 +1,78 @@
+// Approval cards, rendered from the stored revision at view time (docs/conflict-model.md §4). The card is what a
+// customer agrees to, so its words come from here, never from agent text. Other customers stay anonymous.
+
+import type { Index } from '../optimizer/snapshot.ts';
+import { formatShopTime } from '../optimizer/time.ts';
+import { type Revision, type RevisionChange, afterOf } from './store.ts';
+
+export type CardRole = 'requester' | 'affected';
+
+export type CardOption = {
+  revisionId: string;
+  /** 'A' / 'B' when the card offers options. */
+  option: string | null;
+  lines: string[];
+  /** Shown as "needs shop confirmation" until the owner approves. */
+  needsShop: boolean;
+  isAlternative: boolean;
+};
+
+const usd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+
+export function renderOption(
+  idx: Index,
+  revision: Revision,
+  rows: RevisionChange[],
+  customerId: string,
+  role: CardRole,
+  ownerApproved: boolean,
+): CardOption {
+  const t = (d: Date) => formatShopTime(d, idx.snap.shop);
+  const mine = rows.filter((c) => c.partyCustomerId === customerId);
+  const lines: string[] = [];
+
+  for (const c of mine) {
+    const after = afterOf(c);
+    const model = idx.models.get(after.modelId)?.name ?? 'the equipment';
+    const before = c.before;
+    if (role === 'requester') {
+      if (c.kind === 'new_booking') lines.push(`${model}, ${t(after.startsAt)} → ${t(after.endsAt)}`);
+      else if (c.kind === 'extension') lines.push(`Keep the ${model} until ${t(after.endsAt)}`);
+      else lines.push(`Your rental moves to ${t(after.startsAt)} → ${t(after.endsAt)}`);
+      continue;
+    }
+    if (!before) continue;
+    const fromModel = idx.models.get(before.modelId);
+    const toModel = idx.models.get(after.modelId);
+    if (c.kind === 'model_change') {
+      const upgrade = (toModel?.tier ?? 0) > (fromModel?.tier ?? 0);
+      lines.push(`${upgrade ? 'Free upgrade' : 'Switch'} to the ${model}, same times (${t(after.startsAt)} → ${t(after.endsAt)})`);
+    } else if (c.kind === 'same_model_swap') {
+      lines.push(`Same ${model}, a different unit. Nothing else changes.`);
+    } else {
+      const startMoved = after.startsAt.getTime() !== new Date(before.startsAt).getTime();
+      const endMoved = after.endsAt.getTime() !== new Date(before.endsAt).getTime();
+      if (startMoved) lines.push(`Pickup moves from ${t(new Date(before.startsAt))} to ${t(after.startsAt)}`);
+      if (endMoved) lines.push(`Return moves from ${t(new Date(before.endsAt))} to ${t(after.endsAt)}`);
+      if (!startMoved && endMoved === false) lines.push(`Your booking stays ${t(after.startsAt)} → ${t(after.endsAt)}`);
+    }
+  }
+
+  if (role === 'requester') {
+    const charge = revision.quote.chargeCents;
+    lines.push(charge > 0 ? `${usd(charge)}, held on PayPal now and charged only when everything is confirmed` : 'No extra charge');
+    if (revision.quote.discountCents > 0) lines.push(`Includes a ${usd(revision.quote.discountCents)} discount`);
+  } else {
+    // Only cash is shown as an amount; an upgrade is described as free, not by its value to the shop.
+    const refund = revision.quote.compensation.filter((x) => x.customerId === customerId && x.kind === 'refund').reduce((sum, x) => sum + x.cents, 0);
+    if (refund > 0) lines.push(`${usd(refund)} refunded to your original payment`);
+  }
+
+  return {
+    revisionId: revision.id,
+    option: revision.optionLabel,
+    lines,
+    needsShop: revision.needsOwner && !ownerApproved,
+    isAlternative: revision.isAlternative,
+  };
+}
