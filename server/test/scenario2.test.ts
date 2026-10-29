@@ -202,6 +202,9 @@ describe('Scenario 6: everyone hears about the override', () => {
     const aliceMsgs = await thread(d, 'Alice');
     expect(aliceMsgs.map((m) => m.body).join(' ')).toContain('didn’t go through');
     expect(aliceMsgs.some((m) => replan.status === 'offered' && m.cardRevisionIds.includes(replan.revisions[0]!.id))).toBe(true);
-    expect((await thread(d, 'Bob')).at(-1)!.body).toBe('The other request was withdrawn, so your booking stays exactly as it was.');
+    const bobThread = await thread(d, 'Bob');
+    expect(bobThread.at(-1)!.body).toBe("The other customer's request was withdrawn, so it won't change your booking.");
+    // His offer turn ran after the override: skipped, so no stale card was posted.
+    expect(bobThread.filter((m) => m.cardRevisionIds.length)).toHaveLength(1);
   });
 });

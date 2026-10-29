@@ -90,6 +90,16 @@ export async function runTurn(db: Db, config: AgentConfig, input: { shopId: stri
   const conversation = await conversationOf(db, shopId, customerId, now());
   const turn = new TurnState();
 
+  // An offer can end before its turn runs (an owner override, an expiry, a fast click). Then there is nothing to
+  // present: skip the turn rather than show a stale card; the proposal_update turn explains what happened.
+  if (event.kind === 'offer_ready' && !(await offerStillOpen(db, customerId, event))) {
+    report.fallback = 'skipped: offer no longer open';
+    report.ms = Date.now() - t0;
+    step(report.fallback);
+    await logActivity(db, { shopId, at: now(), actor: 'agent', kind: 'agent_turn', payload: { ...report } });
+    return report;
+  }
+
   const atCap = shop.agentTurnsUsed >= config.turnCap;
   if (config.client && !atCap) {
     report.model = config.model;
@@ -261,7 +271,7 @@ async function eventFacts(tx: Tx, idx: Index, customerId: string, event: AgentEv
     const why = event.reason ?? 'it could not go ahead';
     return isRequester
       ? `Outcome: the request did not go through (${why}). Nothing was charged; any hold on their payment was released. Their original booking stands. If they want to try again, preview_change shows what is possible now.`
-      : `Outcome: the other customer's request was withdrawn (${why}). Their booking stays exactly as it was.`;
+      : `Outcome: the other customer's request was withdrawn (${why}), so it won't change their booking. Their booking now is as listed in the context.`;
   }
   const [rev] = await tx.select().from(s.revisions).where(and(eq(s.revisions.proposalId, event.proposalId), eq(s.revisions.status, 'selected')));
   if (!rev) return 'Outcome: confirmed.';
@@ -304,6 +314,22 @@ async function activeRequestsOf(tx: Tx, shopId: string, customerId: string) {
   return out;
 }
 
+/** The customer still has a decision to make on these revisions (or, as requester, the draft is still open). */
+async function offerStillOpen(db: Db, customerId: string, event: Extract<AgentEvent, { kind: 'offer_ready' }>) {
+  const [p] = await db.select().from(s.proposals).where(eq(s.proposals.id, event.proposalId));
+  if (!p) return false;
+  const live = (await db.select().from(s.revisions).where(and(eq(s.revisions.proposalId, p.id), inArray(s.revisions.status, [...LIVE_REVISION_STATUSES]))))
+    .filter((r) => event.revisionIds.includes(r.id));
+  if (!live.length) return false;
+  if (event.role === 'requester') return p.state === 'DRAFT' && p.requesterCustomerId === customerId;
+  if (p.state !== 'AWAITING_APPROVALS') return false;
+  const pending = await db
+    .select()
+    .from(s.approvals)
+    .where(and(inArray(s.approvals.revisionId, live.map((r) => r.id)), eq(s.approvals.customerId, customerId), eq(s.approvals.status, 'pending')));
+  return pending.length > 0;
+}
+
 /** The backend posts the card itself when an offer_ready turn didn't (docs/agent-tools.md: never on the critical path). */
 async function postCard(db: Db, shopId: string, conversationId: string, event: Extract<AgentEvent, { kind: 'offer_ready' }>, at: Date) {
   await db.insert(s.messages).values({ shopId, conversationId, author: 'system', body: '', cardRevisionIds: event.revisionIds, at });
@@ -321,7 +347,7 @@ async function templateFor(tx: Tx, shopId: string, customerId: string, event: Ag
     const [p] = await tx.select().from(s.proposals).where(eq(s.proposals.id, event.proposalId));
     return p?.requesterCustomerId === customerId
       ? 'Your request didn’t go through, so nothing was charged and your booking stays as it was.'
-      : 'The other request was withdrawn, so your booking stays exactly as it was.';
+      : "The other customer's request was withdrawn, so it won't change your booking.";
   }
   const facts = await eventFacts(tx, idx, customerId, event);
   return `All confirmed. ${facts.split('\n').slice(1).join('. ')}.`;
