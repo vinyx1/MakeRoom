@@ -120,7 +120,7 @@ describe('Scenario 6: the owner drags Bob while Alice waits', () => {
 
     // Re-planned against the new schedule: with Bob at 2pm, her extension to Thu 10am now fits as is.
     expect(result.cancelled).toHaveLength(1);
-    expect(result.cancelled[0]!.replan?.status).toBe('fits');
+    expect(result.cancelled[0]!.replan?.status).toBe('offered');
 
     // The feed has every step.
     const feed = await db.select().from(s.activityLog).where(eq(s.activityLog.shopId, shopId)).orderBy(s.activityLog.seq);

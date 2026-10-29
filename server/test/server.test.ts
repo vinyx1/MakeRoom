@@ -153,7 +153,7 @@ describe('Scenario 6 over HTTP', () => {
     expect(warned.body).toMatchObject({ status: 'claimed', proposals: [{ id: proposalId, requesterName: 'Alice' }] });
     const overridden = await v.post(`/api/bookings/${bob.id}/edit`, { ...edit, override: true });
     expect(overridden.body.status).toBe('applied');
-    expect(overridden.body.cancelled[0].replan.status).toBe('fits');
+    expect(overridden.body.cancelled[0].replan.status).toBe('offered');
   });
 });
 
