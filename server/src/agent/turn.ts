@@ -142,11 +142,13 @@ export async function runTurn(db: Db, config: AgentConfig, input: { shopId: stri
 
   // The backend makes sure the turn did its job, whatever the model did.
   const fallbacks: string[] = [];
-  if (event.kind === 'offer_ready' && turn.cardsPosted === 0) {
+  // The offer may have closed while the turn ran (the customer clicked fast): then there's no card to post.
+  const offerOpen = event.kind !== 'offer_ready' || (await offerStillOpen(db, customerId, event));
+  if (event.kind === 'offer_ready' && turn.cardsPosted === 0 && offerOpen) {
     await postCard(db, shopId, conversation.id, event, now());
     fallbacks.push('card');
   }
-  if (turn.messagesSent === 0) {
+  if (turn.messagesSent === 0 && offerOpen) {
     const text = atCap
       ? "I've reached my message limit for this demo session. The shop will follow up with you directly."
       : await db.transaction(async (tx) => templateFor(tx, shopId, customerId, event));
