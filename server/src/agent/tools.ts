@@ -384,9 +384,11 @@ export function makeTools(scope: ToolScope) {
           const charge = live[0]!.quote.chargeCents;
           return ok({
             card: 'posted',
-            buttons: role === 'requester' ? [charge > 0 ? `Accept and authorize ${usd(charge)} with PayPal` : 'Accept', 'Not now'] : [...shows.map((o) => `Accept option ${o.option ?? ''}`.trim()), 'Keep my booking as is'],
+            buttons: role === 'requester' ? [charge > 0 ? `Accept and authorize ${usd(charge)} with PayPal` : 'Accept', 'Not now'] : shows.map((o) => `Accept option ${o.option ?? ''}`.trim()),
             shows: role === 'requester' ? { ...shows[0], option: null } : shows,
-            hint: role === 'affected' ? 'Explain each option in a sentence; mark any needing shop confirmation as pending. Never name the other customer.' : 'Tell them to use the card; nothing is charged until everything is confirmed.',
+            hint: role === 'affected'
+              ? "Explain each option in a sentence; mark any needing shop confirmation as pending. If they want neither, they don't need to do anything: their booking stays as it is when the offer expires. Never name the other customer."
+              : 'Tell them to use the card; nothing is charged until everything is confirmed.',
           });
         });
       },

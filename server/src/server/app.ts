@@ -124,6 +124,8 @@ export function buildApp(opts: AppOptions) {
     currency: 'USD',
     environment: 'sandbox',
     sandboxBuyer: opts.sandboxBuyer ?? null,
+    /** Development only: the UI may offer "pay with the sandbox test card" instead of the PayPal popup. */
+    testCardEnabled: !!opts.allowTestCard,
   }));
 
   // --- Views ------------------------------------------------------------------------------------------------
