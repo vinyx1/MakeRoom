@@ -441,6 +441,204 @@ export async function affectedAccept(
 }
 
 // ---------------------------------------------------------------------------------------------------------
+// 4b. An affected party keeps their booking as is (docs/conflict-model.md §7, demo Scenario 3)
+
+export type RefuseResult =
+  | {
+      status: 'kept';
+      /** What the request does next: other options still open, a fallback plan to someone else, the closest
+       * alternative back to the requester, or nothing (ended, hold released). */
+      next: 'other_options' | 'fallback' | 'alternative' | 'ended';
+    }
+  | { status: 'already_decided' }
+  | { status: 'stale'; reason: string }
+  | Settled
+  | Refused;
+
+/**
+ * "Keep my booking as is": every option that changes this customer's booking is dropped and they're excluded from
+ * approval-needing changes for the rest of the request. A pick they made earlier is withdrawn the same way (judge
+ * B5). Their booking is never touched. The backend then re-plans (`planFallback`).
+ */
+export async function affectedRefuse(
+  db: Db, gateway: PaymentGateway, shopId: string, input: { proposalId: string; customerId: string },
+): Promise<RefuseResult> {
+  const locked = await withShopLock(db, shopId, async (tx): Promise<{ result?: RefuseResult; ops?: string[]; capture?: { captureOpId: string | null } }> => {
+    const p = await getProposal(tx, shopId, input.proposalId);
+    if (!p) return { result: refused('request not found') };
+    const [excluded] = await tx.select().from(s.proposalExclusions).where(and(eq(s.proposalExclusions.proposalId, p.id), eq(s.proposalExclusions.customerId, input.customerId)));
+    if (excluded) return { result: { status: 'already_decided' } };
+    if (p.state === 'CAPTURING') return { result: refused('too late: the request is being confirmed right now') };
+    if (p.state !== 'AWAITING_APPROVALS') return { result: refused(`this request is ${p.state}`) };
+
+    const now = (await loadSnapshot(tx, shopId)).now;
+    const expired = await expireIfDue(tx, p, now);
+    if (expired) return { result: { status: 'stale', reason: 'the offer expired; your booking stays as it is' }, ops: expired };
+
+    const live = await liveRevisions(tx, p.id);
+    const mine = live.length
+      ? await tx.select().from(s.approvals).where(and(
+          inArray(s.approvals.revisionId, live.map((r) => r.id)), eq(s.approvals.role, 'affected'), eq(s.approvals.customerId, input.customerId),
+        ))
+      : [];
+    if (!mine.length) return { result: refused('no decision is pending for you on this offer') };
+
+    await tx
+      .update(s.approvals)
+      .set({ status: 'rejected', refusal: true, source: 'card_click', respondedAt: now })
+      .where(inArray(s.approvals.id, mine.map((a) => a.id)));
+    await tx.insert(s.proposalExclusions).values({ shopId, proposalId: p.id, customerId: input.customerId, reason: 'kept their booking as is' }).onConflictDoNothing();
+    const dropped = live.filter((r) => mine.some((a) => a.revisionId === r.id));
+    await dropRevisions(tx, p, dropped.map((r) => r.id), now);
+    await logActivity(tx, {
+      shopId, at: now, actor: `customer:${input.customerId}`, kind: 'affected_refused', proposalId: p.id,
+      payload: { customerId: input.customerId, revisionIds: dropped.map((r) => r.id), withdrew: mine.some((a) => a.status === 'approved') },
+    });
+
+    // Options that don't touch this customer are still open (rare: options normally all ask the same party).
+    const remaining = live.filter((r) => !dropped.includes(r));
+    if (remaining.length) {
+      await reofferPending(tx, p, remaining, now);
+      if (remaining.length === 1 && (await allApproved(tx, remaining[0]!))) return { capture: { captureOpId: await startCapture(tx, p, remaining[0]!, now) } };
+      return { result: { status: 'kept', next: 'other_options' } };
+    }
+    return planFallback(tx, p, now);
+  });
+  await runOps(db, gateway, locked.ops ?? []);
+  if (locked.capture) return captureAndCommit(db, gateway, shopId, input.proposalId, locked.capture.captureOpId);
+  return locked.result!;
+}
+
+/**
+ * After a refusal left nothing to offer: re-plan around everyone who refused (they're excluded now). Up to
+ * `max_fallback_plans` new plans with the requester's terms unchanged go out as new revisions, the requester's
+ * approval and hold carrying over. After that, the requester gets the closest alternative ("no, but here's what I
+ * can do"), or the request ends and the hold is released. The requester never pays more than they authorized.
+ */
+async function planFallback(tx: Tx, p: Proposal, now: Date): Promise<{ result?: RefuseResult; ops?: string[]; capture?: { captureOpId: string | null } }> {
+  const snapshot = await loadSnapshot(tx, p.shopId, { proposalId: p.id });
+  const idx = indexSnapshot(snapshot);
+  const policy = snapshot.shop.policy;
+  const request = loadRequest(p.request as StoredRequest);
+  const order = await currentOrder(tx, p.id);
+  const heldCents = order?.status === 'authorized' ? order.amountCents : 0;
+  const [before] = await tx
+    .select()
+    .from(s.revisions)
+    .where(and(eq(s.revisions.proposalId, p.id), inArray(s.revisions.status, ['dropped', 'superseded'])))
+    .orderBy(desc(s.revisions.seq));
+  const beforeRows = before ? (await changesByRevision(tx, [before.id])).get(before.id)! : [];
+  const requesterAfter = (rows: { bookingId: string | null; partyCustomerId: string }[], pick: (c: never) => unknown) => rows;
+  void requesterAfter;
+  const sameForRequester = (plan: Plan) => {
+    const mine = plan.changes.find((c) => c.isRequester)!;
+    const was = beforeRows.find((c) => c.partyCustomerId === p.requesterCustomerId && c.bookingId === p.subjectBookingId);
+    return !!was && plan.quote.chargeCents === before!.quote.chargeCents && changeKey(mine.after) === changeKey(afterOf(was));
+  };
+
+  const result = optimize(snapshot, request);
+  const plans = result.status === 'fits' || result.status === 'needs_other_changes' ? result.plans : [];
+  await logActivity(tx, {
+    shopId: p.shopId, at: now, actor: 'system', kind: 'optimizer_run', proposalId: p.id,
+    payload: {
+      request: storeRequest(request), source: 'fallback', status: result.status, excluded: snapshot.excludedCustomerIds,
+      plans: plans.map(planSummary),
+      pruned: result.status === 'invalid_request' ? [] : result.pruned.map((x) => ({ message: x.message, rules: x.rules, bookingId: x.bookingId })),
+    },
+  });
+  const seq = p.revisionSeq + 1;
+  const expiresAt = new Date(now.getTime() + policy.approval_timeout_minutes * 60_000);
+
+  // 1. A fallback plan: same terms for the requester, so their approval and hold carry over.
+  const fallbacks = p.fallbackPlansUsed < policy.max_fallback_plans ? chooseOptions(plans.filter(sameForRequester)) : [];
+  if (fallbacks.length) {
+    const ok = await tx.transaction(async (sp) => {
+      const revs: Revision[] = [];
+      const rows = new Map<string, RevisionChange[]>();
+      for (const [i, plan] of fallbacks.entries()) {
+        const { revision, changes } = await insertRevision(sp, {
+          proposal: p, seq, optionLabel: fallbacks.length > 1 ? (['A', 'B'] as const)[i]! : null, plan, origin: 'fallback', at: now,
+        });
+        revs.push(revision);
+        rows.set(revision.id, changes);
+        await placeClaims(sp, p, revision.id, changes);
+      }
+      return { revs, rows };
+    }).catch((e) => {
+      // Another request holds capacity this plan needs: it is never offered (docs/conflict-model.md §6).
+      if (pgCode(e) !== '23P01') throw e;
+      return null;
+    });
+    if (ok) {
+      const [carried] = await tx.select().from(s.approvals).where(and(eq(s.approvals.proposalId, p.id), eq(s.approvals.role, 'requester'), eq(s.approvals.status, 'approved')));
+      await tx.insert(s.approvals).values(ok.revs.map((r) => ({
+        shopId: p.shopId, revisionId: r.id, proposalId: p.id, role: 'requester' as const, customerId: p.requesterCustomerId,
+        status: 'approved' as const, source: 'carried_over' as const, carriedFromId: carried?.id ?? null, requestedAt: now, respondedAt: now,
+      })));
+      await tx
+        .update(s.proposals)
+        .set({ revisionSeq: seq, fallbackPlansUsed: p.fallbackPlansUsed + 1, expiresAt, version: sql`${s.proposals.version} + 1` })
+        .where(eq(s.proposals.id, p.id));
+      await logActivity(tx, {
+        shopId: p.shopId, at: now, actor: 'system', kind: 'fallback_planned', proposalId: p.id,
+        payload: { revisions: ok.revs.map((r) => ({ id: r.id, option: r.optionLabel, needsOwner: r.needsOwner, quote: r.quote })) },
+      });
+      await openOffers(tx, idx, p, ok.revs, ok.rows, now, expiresAt);
+      // Nobody left to ask (only notice-only swaps): straight to capture.
+      if (ok.revs.length === 1 && (await allApproved(tx, ok.revs[0]!))) return { capture: { captureOpId: await startCapture(tx, p, ok.revs[0]!, now) } };
+      return { result: { status: 'kept', next: 'fallback' } };
+    }
+  }
+
+  // 2. The closest alternative, back to the requester to accept again. Never more than they already authorized.
+  const nearest = nearestAlternative(snapshot, request);
+  if (nearest && p.requesterCustomerId && nearest.quote.chargeCents <= heldCents) {
+    const t = transition(p.state, 'new_revision');
+    if (!t.ok) throw new Error(t.reason);
+    const { revision, changes } = await insertRevision(tx, { proposal: p, seq, optionLabel: null, plan: nearest, origin: 'alternative', at: now });
+    await tx.insert(s.approvals).values({
+      shopId: p.shopId, revisionId: revision.id, proposalId: p.id, role: 'requester', customerId: p.requesterCustomerId, requestedAt: now, expiresAt,
+    });
+    if (revision.needsOwner) await ensureOwnerApproval(tx, idx, p, revision, changes, 'plan_review', now);
+    // Nothing to pay: release the hold now rather than leave it waiting on their answer.
+    const ops: string[] = [];
+    if (nearest.quote.chargeCents === 0 && order) {
+      const id = await enqueueVoid(tx, order, now);
+      if (id) ops.push(id);
+    }
+    await tx.update(s.proposals).set({ state: t.to, revisionSeq: seq, expiresAt, version: sql`${s.proposals.version} + 1` }).where(eq(s.proposals.id, p.id));
+    await logActivity(tx, {
+      shopId: p.shopId, at: now, actor: 'system', kind: 'alternative_offered', proposalId: p.id, revisionId: revision.id,
+      payload: { quote: revision.quote, holdReleased: ops.length > 0 },
+    });
+    await offerToRequesterIfReviewed(tx, { ...p, state: t.to }, now, { fallback: true, holdReleased: ops.length > 0 });
+    return { result: { status: 'kept', next: 'alternative' }, ops };
+  }
+
+  // 3. Nothing works: the request ends, the hold is released, every booking stays as it was.
+  const ended = await endProposal(tx, p, 'reject', 'The other customer kept their booking, and nothing else fits', now);
+  return { result: { status: 'kept', next: 'ended' }, ops: ended.opIds };
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// 4c. The requester cancels their own request (docs/conflict-model.md §4 withdrawal, §7)
+
+/** Before capture the requester can always back out: `REJECTED`, hold voided, claims released, bookings untouched. */
+export async function requesterCancel(db: Db, gateway: PaymentGateway, shopId: string, input: { proposalId: string; customerId: string }): Promise<{ status: 'rejected' } | Refused> {
+  const locked = await withShopLock(db, shopId, async (tx) => {
+    const p = await getProposal(tx, shopId, input.proposalId);
+    if (!p || p.requesterCustomerId !== input.customerId) return { result: refused('request not found'), ops: [] };
+    if (p.state === 'CAPTURING') return { result: refused('too late: the request is being confirmed right now'), ops: [] };
+    if (p.state !== 'DRAFT' && p.state !== 'AWAITING_APPROVALS') return { result: refused(`this request is ${p.state}`), ops: [] };
+    const now = (await loadSnapshot(tx, shopId)).now;
+    const ended = await endProposal(tx, p, 'reject', 'The customer cancelled the request', now, `customer:${input.customerId}`);
+    return { result: { status: 'rejected' as const }, ops: ended.opIds };
+  });
+  await runOps(db, gateway, locked.ops);
+  return locked.result;
+}
+
+// ---------------------------------------------------------------------------------------------------------
 // 5. The owner approves or declines
 
 /** A fact the owner just answered on a plan card; the card then offers "Save as fact?" (demo Scenario 2, step 4). */
