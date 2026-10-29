@@ -270,7 +270,7 @@ export function makeTools(scope: ToolScope) {
 
     tool({
       name: 'preview_change',
-      description: 'A dry run of request_change: whether it fits, would need another booking to move, or is impossible, with an indicative price. Creates nothing and reserves nothing; use it for "how much would…" questions.',
+      description: 'A dry run of request_change, for hypothetical questions only ("how much would…", "would it be possible to…"): whether it fits, would need another booking to move, or is impossible, with an indicative price. When the customer asks for the change itself, use request_change instead.',
       inputSchema: z.object({ booking_id: z.string().optional(), change: Change }),
       run: async ({ booking_id, change }) =>
         read(async (_tx, idx) => {
@@ -323,7 +323,7 @@ export function makeTools(scope: ToolScope) {
 
     tool({
       name: 'request_change',
-      description: "Ask for a change to one of the customer's own bookings (extend, shift), or a new booking. Creates a request with one offer for this customer; prices are offers, and nothing is confirmed until everyone involved agrees and the shop commits it.",
+      description: "When the customer asks for a change to one of their bookings (extend, shift) or a new booking, call this directly; don't ask permission first. It creates a request with one offer and holds nothing: nothing is charged or confirmed until the customer accepts and pays on the card, everyone involved agrees, and the shop commits it.",
       inputSchema: z.object({ booking_id: z.string().optional(), change: Change }),
       run: async ({ booking_id, change }) => {
         const prepared = await read(async (_tx, idx) => {
