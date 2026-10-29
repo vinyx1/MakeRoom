@@ -12,7 +12,7 @@ import { seedShop } from '../src/db/seed.ts';
 import type { PaymentGateway } from '../src/payments/gateway.ts';
 import { createPayPalClient, payPalGateway } from '../src/payments/paypal.ts';
 import { seedPrepayments } from '../src/payments/prepay.ts';
-import { affectedAccept, createRequesterOrder, expireDue, ownerDecision, requestChange, requesterAccept } from '../src/proposals/flow.ts';
+import { affectedAccept, createRequesterOrder, expireDue, ownerDecision, ownerSetPrice, requestChange, requesterAccept } from '../src/proposals/flow.ts';
 import { fakeGateway } from './fake-gateway.ts';
 
 const { db, pool } = createDb();
@@ -346,3 +346,49 @@ describe('PayPal request ids', () => {
     expect(id).toMatch(/^authorize:[\w-]{22}:[\w-]{22}:[\w-]{22}$/);
   });
 });
+
+describe('the owner sets the price', () => {
+  async function aliceAsks(d: Seeded) {
+    const offered = await requestChange(db, d.shop.id, { customerId: d.customer('Alice').id, request: { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) } });
+    if (offered.status !== 'offered') throw new Error(offered.status);
+    return offered;
+  }
+
+  it('$40 instead of $45: a new revision per option, Alice asked again, and $40 is what gets captured', async () => {
+    const gateway = fakeGateway();
+    const d = await shop(gateway);
+    const alice = d.customer('Alice').id;
+    const offered = await aliceAsks(d);
+    // She had opened the PayPal button: an order for $45 exists, unpaid.
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
+
+    const repriced = await ownerSetPrice(db, d.shop.id, { proposalId: offered.proposal.id, priceCents: 4000 });
+    if (repriced.status !== 'repriced') throw new Error(JSON.stringify(repriced));
+    expect(repriced.revisions.map((r) => [r.optionLabel, r.origin, r.quote.chargeCents, r.quote.discountCents])).toEqual([['A', 'owner_modify', 4000, 500], ['B', 'owner_modify', 4000, 500]]);
+    expect(repriced.revisions.find((r) => r.optionLabel === 'B')!.quote.netRevenueCents).toBe(2500); // $40 − Bob's $15
+    expect((await load.revisions(offered.proposal.id)).filter((r) => r.status === 'superseded')).toHaveLength(2);
+    const orders = await db.select().from(s.paypalOrders).where(eq(s.paypalOrders.proposalId, offered.proposal.id));
+    expect(orders.map((o) => o.status)).toEqual(['voided']); // the $45 order can't be paid any more
+    const ready = await db.select().from(s.activityLog).where(and(eq(s.activityLog.proposalId, offered.proposal.id), eq(s.activityLog.kind, 'offer_ready')));
+    expect(ready.at(-1)!.payload).toMatchObject({ customerId: alice, role: 'requester', repriced: true });
+
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
+    expect(gateway.calls.filter((c) => c.method === 'createOrder' && c.id === 'AUTHORIZE').map((c) => c.amountCents)).toEqual([4500, 4000]);
+    expect((await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice })).status).toBe('awaiting_approvals');
+    const planA = repriced.revisions.find((r) => r.optionLabel === 'A')!;
+    expect((await affectedAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: d.customer('Bob').id, revisionId: planA.id })).status).toBe('committed');
+    expect(gateway.calls.find((c) => c.method === 'captureAuthorization')!.amountCents).toBe(4000);
+    expect((await load.booking(d.bookingOf('Alice').id)).priceCents).toBe(13500 + 4000);
+  });
+
+  it('refuses raising the price, and changes after Alice has paid', async () => {
+    const gateway = fakeGateway();
+    const d = await shop(gateway);
+    const offered = await aliceAsks(d);
+    expect(await ownerSetPrice(db, d.shop.id, { proposalId: offered.proposal.id, priceCents: 5000 })).toMatchObject({ status: 'refused', reason: expect.stringContaining('only lowering') });
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: d.customer('Alice').id });
+    await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: d.customer('Alice').id });
+    expect(await ownerSetPrice(db, d.shop.id, { proposalId: offered.proposal.id, priceCents: 4000 })).toMatchObject({ status: 'refused', reason: expect.stringContaining('already paid') });
+  });
+});
+
