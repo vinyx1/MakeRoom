@@ -87,6 +87,29 @@ export async function insertRevision(
   return { revision: revision!, changes };
 }
 
+/**
+ * A new revision with the same plan as `base` and different terms (an owner modification). Revisions are
+ * immutable, so changed terms are always a new revision; `base` is superseded by the caller.
+ */
+export async function cloneRevision(
+  tx: Tx,
+  input: { proposal: Proposal; base: Revision; rows: RevisionChange[]; seq: number; quote: Revision['quote']; ownerTriggers: string[]; at: Date },
+): Promise<Revision> {
+  const { base } = input;
+  const [revision] = await tx
+    .insert(s.revisions)
+    .values({
+      shopId: base.shopId, proposalId: base.proposalId, seq: input.seq, optionLabel: base.optionLabel, parentRevisionId: base.id,
+      status: 'offered', origin: 'owner_modify', createdBy: 'owner', isAlternative: base.isAlternative,
+      quote: input.quote, netRevenueCents: input.quote.netRevenueCents, ownerTriggers: input.ownerTriggers, envelopeTrips: base.envelopeTrips,
+      needsOwner: input.ownerTriggers.length > 0 || base.envelopeTrips.length > 0, factDependencies: base.factDependencies,
+      validatedAt: input.at, createdAt: input.at,
+    })
+    .returning();
+  await tx.insert(s.revisionChanges).values(input.rows.map(({ id: _id, revisionId: _r, ...rest }) => ({ ...rest, revisionId: revision!.id })));
+  return revision!;
+}
+
 export const afterOf = (c: RevisionChange): Placement => ({
   unitId: c.newUnitId,
   modelId: c.newModelId!,
