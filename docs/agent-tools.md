@@ -36,7 +36,7 @@ Each turn starts with a backend-written context block, not chat history alone:
 
 - **Now** in shop time ("Wed 14 Oct, 2:00pm") and a 14-day calendar (date ↔ weekday), so the model resolves "next weekend" by lookup rather than arithmetic.
 - Shop hours and the customer's own bookings (customer scope).
-- Any active proposal involving the customer: state, current revision summary, what the customer is waiting on or is being asked, expiry.
+- Any active proposal involving the customer: state, the customer's own terms as the card renders them (so a later turn can cite an offer's amounts without a tool call), what the customer is waiting on or is being asked, expiry.
 - Whether the conversation is handed off.
 - For event-started turns, the event payload.
 
@@ -75,7 +75,7 @@ Free and busy windows for the model across its units, accounting for buffers, un
 Shop hours, buffer, cancellation refund rule, what the agent can discount, approval timeout. So the agent explains rules from data.
 
 **`preview_change(change)`**
-A dry run of `request_change` (same `change` shape, below): availability, the optimizer, the quote. Returns what the customer could get, with `indicative` prices: either `fits`, `needs_other_changes` (plans exist that move other customers; described anonymously as "another booking would need to move") or `infeasible` with the nearest alternatives. Creates no proposal and no claims, so price questions and hypotheticals never block capacity.
+A dry run of `request_change` (same `change` shape, below): availability, the optimizer, the quote. Returns what the customer could get, with `indicative` prices: either `fits`, `needs_other_changes` (plans exist that move other customers; described anonymously as "another booking would need to move") or `infeasible` with the nearest alternatives. Creates no proposal and no claims, so price questions and hypotheticals never block capacity. For hypotheticals only: with a looser description the built agent previewed a plain request and then asked "shall I send it?" (3 runs of 3, 2026-10-29), so `request_change` says to call it directly; it holds nothing until the customer accepts and pays.
 
 **`get_my_proposals()`**
 Active proposals involving the customer, as requester or affected party: state, current revision terms from this customer's side, what is pending and from whom (anonymous: "waiting on another customer", "waiting on the shop"), expiry. Answers "what's happening with my request?"
