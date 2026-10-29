@@ -149,6 +149,92 @@ const planSummary = (p: Plan) => ({
 });
 
 // ---------------------------------------------------------------------------------------------------------
+// 1b. The owner's "Resolve with agent" on a red draft (demo Scenario 2)
+
+export type ResolveResult =
+  | { status: 'resolved'; proposal: Proposal; revisions: Revision[]; pruned: Pruned[] }
+  | { status: 'invalid'; violations: Violation[] }
+  | { status: 'infeasible'; pruned: Pruned[] }
+  | Refused;
+
+/**
+ * Turns an owner draft into a proposal for the booking's customer, who agreed by phone (an owner-attested
+ * approval). The owner reviews any plan that needs it while it is still a draft; then the customer gets the card
+ * to pay, and affected customers are asked as usual.
+ */
+export function resolveDraft(db: Db, shopId: string, input: { draftId: string }): Promise<ResolveResult> {
+  return withShopLock(db, shopId, async (tx) => {
+    const [draft] = await tx.select().from(s.ownerDrafts).where(and(eq(s.ownerDrafts.id, input.draftId), eq(s.ownerDrafts.shopId, shopId)));
+    if (!draft) return refused('draft not found');
+    const snapshot = await loadSnapshot(tx, shopId);
+    const idx = indexSnapshot(snapshot);
+    const now = snapshot.now;
+    const booking = idx.bookings.get(draft.bookingId)!;
+    if (booking.version !== draft.basedOnVersion) return refused('the booking changed since this draft; drag it again');
+    if (!draft.attestedCustomerIds.includes(booking.customerId))
+      return refused(`tick "agreed by phone" for ${idx.customerName(booking.customerId)} first: the request is on their behalf`);
+    const proposed = { unitId: draft.proposed.unitId ?? booking.unitId, startsAt: new Date(draft.proposed.startsAt!), endsAt: new Date(draft.proposed.endsAt!) };
+    if (proposed.unitId !== booking.unitId) return refused('moving a booking to another unit has to be resolved by hand for now');
+
+    const sameStart = proposed.startsAt.getTime() === booking.startsAt.getTime();
+    const request: Request =
+      sameStart && proposed.endsAt > booking.endsAt
+        ? { kind: 'extend', bookingId: booking.id, newEndsAt: proposed.endsAt }
+        : { kind: 'shift', bookingId: booking.id, newStartsAt: proposed.startsAt, newEndsAt: proposed.endsAt };
+    const [active] = await tx
+      .select()
+      .from(s.proposals)
+      .where(and(eq(s.proposals.subjectBookingId, booking.id), inArray(s.proposals.state, [...ACTIVE_STATES])));
+    if (active) return refused('this booking already has a request in progress');
+
+    const result = optimize(snapshot, request);
+    await logActivity(tx, {
+      shopId, at: now, actor: 'owner', kind: 'optimizer_run',
+      payload: {
+        request: storeRequest(request), source: 'owner_resolve', status: result.status,
+        plans: result.status === 'fits' || result.status === 'needs_other_changes' ? result.plans.map(planSummary) : [],
+        pruned: result.status === 'invalid_request' ? [] : result.pruned.map((p) => ({ message: p.message, rules: p.rules, bookingId: p.bookingId })),
+      },
+    });
+    if (result.status === 'invalid_request') return { status: 'invalid', violations: result.violations };
+    const options = result.status === 'infeasible' ? (result.nearest ? [result.nearest] : []) : chooseOptions(result.plans);
+    if (!options.length) return { status: 'infeasible', pruned: result.pruned };
+
+    const [proposal] = await tx
+      .insert(s.proposals)
+      .values({
+        shopId, source: 'owner_resolve', requesterCustomerId: booking.customerId, subjectBookingId: booking.id,
+        request: storeRequest(request), state: 'DRAFT', revisionSeq: 1,
+        expiresAt: new Date(now.getTime() + snapshot.shop.policy.approval_timeout_minutes * 60_000), createdAt: now,
+      })
+      .returning();
+    const revisions: Revision[] = [];
+    for (const [i, plan] of options.entries()) {
+      const { revision, changes } = await insertRevision(tx, {
+        proposal: proposal!, seq: 1, optionLabel: options.length > 1 ? (['A', 'B'] as const)[i]! : null, plan,
+        origin: plan.isAlternative ? 'alternative' : 'optimizer', at: now,
+      });
+      revisions.push(revision);
+      if (revision.needsOwner) await ensureOwnerApproval(tx, idx, proposal!, revision, changes, 'plan_review', now);
+    }
+    // "Agreed by phone": the customer's approval, attested by the owner. They still pay on their card.
+    await tx.insert(s.approvals).values(
+      revisions.map((r) => ({
+        shopId, revisionId: r.id, proposalId: proposal!.id, role: 'requester' as const, customerId: booking.customerId,
+        status: 'approved' as const, source: 'owner_attested' as const, requestedAt: now, respondedAt: now,
+      })),
+    );
+    await tx.delete(s.ownerDrafts).where(eq(s.ownerDrafts.id, draft.id));
+    await logActivity(tx, {
+      shopId, at: now, actor: 'owner', kind: 'proposal_created', proposalId: proposal!.id,
+      payload: { source: 'owner_resolve', revisions: revisions.map((r) => ({ id: r.id, option: r.optionLabel, needsOwner: r.needsOwner, quote: r.quote })) },
+    });
+    await offerToRequesterIfReviewed(tx, proposal!, now);
+    return { status: 'resolved', proposal: proposal!, revisions, pruned: result.pruned };
+  });
+}
+
+// ---------------------------------------------------------------------------------------------------------
 // 2. The requester's PayPal order
 
 export type OrderResult = { status: 'ok'; orderId: string } | { status: 'payment_failed'; error: string } | Refused;
