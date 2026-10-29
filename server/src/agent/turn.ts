@@ -9,6 +9,7 @@ import type { Db, Tx } from '../db/client.ts';
 import { loadSnapshot } from '../db/load-snapshot.ts';
 import * as s from '../db/schema.ts';
 import { type Index, indexSnapshot } from '../optimizer/snapshot.ts';
+import { renderOption } from '../proposals/cards.ts';
 import { ACTIVE_STATES } from '../proposals/state-machine.ts';
 import { LIVE_REVISION_STATUSES, afterOf } from '../proposals/store.ts';
 import { shopTime, usd } from './scope.ts';
@@ -183,9 +184,13 @@ async function buildPrompt(tx: Tx, shopId: string, customerId: string, conversat
     .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
     .map((b) => `- ${turn.ids.of('bk', b.id)}: ${idx.models.get(b.modelId)?.name} (${idx.unitLabel(b.unitId)}), ${t.display(b.startsAt)} → ${t.display(b.endsAt)}, ${b.status.replace('_', ' ')}, paid ${usd(b.priceCents)}`);
 
-  const requests = (await activeRequestsOf(tx, shopId, customerId)).map(({ proposal, role, waitingOn }) => {
+  const requests = (await activeRequestsOf(tx, shopId, customerId)).map(({ proposal, role, waitingOn, options }) => {
     const whose = role === 'requester' ? 'their request' : "another customer's request that affects their booking";
-    return `- ${turn.ids.of('rq', proposal.id)}: ${whose}; ${proposal.state === 'CAPTURING' ? 'being confirmed now' : `waiting on ${waitingOn.join(', ') || 'nobody'}`}${proposal.expiresAt ? `; expires ${t.display(proposal.expiresAt)}` : ''}`;
+    // Their terms, as the card shows them, so a new turn can repeat an offer's amounts without a tool call.
+    const terms = options
+      .map((o) => `    ${o.option ? `Option ${o.option}` : 'Offer'} (${turn.ids.of('rv', o.revisionId)}): ${o.lines.join('; ')}${o.needsShop ? ' [pending shop confirmation]' : ''}`)
+      .join('\n');
+    return `- ${turn.ids.of('rq', proposal.id)}: ${whose}; ${proposal.state === 'CAPTURING' ? 'being confirmed now' : `waiting on ${waitingOn.join(', ') || 'nobody'}`}${proposal.expiresAt ? `; expires ${t.display(proposal.expiresAt)}` : ''}${terms ? `\n${terms}` : ''}`;
   });
 
   const [conversation] = await tx.select().from(s.conversations).where(eq(s.conversations.id, conversationId));
@@ -258,6 +263,7 @@ async function eventFacts(tx: Tx, idx: Index, customerId: string, event: AgentEv
 }
 
 async function activeRequestsOf(tx: Tx, shopId: string, customerId: string) {
+  const idx = indexSnapshot(await loadSnapshot(tx, shopId));
   const active = await tx.select().from(s.proposals).where(and(eq(s.proposals.shopId, shopId), inArray(s.proposals.state, [...ACTIVE_STATES])));
   const out = [];
   for (const p of active) {
@@ -266,7 +272,15 @@ async function activeRequestsOf(tx: Tx, shopId: string, customerId: string) {
     const role = p.requesterCustomerId === customerId ? 'requester' : approvals.some((a) => a.customerId === customerId) ? 'affected' : null;
     if (!role) continue;
     const waitingOn = [...new Set(approvals.filter((a) => a.status === 'pending').map((a) => (a.customerId === customerId ? 'them' : a.role === 'owner' ? 'the shop' : 'another customer')))];
-    out.push({ proposal: p, role, waitingOn });
+    // The requester sees one offer; an affected customer sees the options they were asked about.
+    const shown = role === 'requester' ? revs.slice(0, 1) : revs.filter((r) => approvals.some((a) => a.revisionId === r.id && a.customerId === customerId));
+    const rows = shown.length ? await tx.select().from(s.revisionChanges).where(inArray(s.revisionChanges.revisionId, shown.map((r) => r.id))) : [];
+    const options = shown.map((r) => {
+      const ownerApproved = approvals.some((a) => a.revisionId === r.id && a.role === 'owner' && a.status === 'approved');
+      const o = renderOption(idx, r, rows.filter((c) => c.revisionId === r.id), customerId, role, ownerApproved);
+      return role === 'requester' ? { ...o, option: null } : o;
+    });
+    out.push({ proposal: p, role, waitingOn, options });
   }
   return out;
 }
