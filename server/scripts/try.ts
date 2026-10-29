@@ -258,6 +258,8 @@ async function onActivity(a: any) {
       await refreshOwner();
       if (persona === 'owner' && owner.escalations.length) say(`${c.yellow}  (${owner.escalations.length} card(s) for the owner: \`inbox\`)${c.off}`);
       return;
+    case 'auto_reply':
+      return say(`${c.magenta}  · ${who} (scripted) chose ${p.option ? `option ${p.option}` : 'the offer'}: "${p.text}"${c.off}`);
     case 'proposal_committed':
       return say(`${c.green}  · committed: the schedule is updated${c.off}`);
     case 'proposal_ended':
@@ -293,6 +295,7 @@ ${c.bold}As the owner${c.off}
 ${c.bold}Anywhere${c.off}
   schedule             everyone's bookings        ff <minutes>  fast-forward the shop clock
   reset                start the demo over        verbose       toggle extra feed lines
+  autoreply on|off     scripted customers answer their own offers (judge mode)
   quit
 ${c.dim}Scenario 1: as alice → "Shoot ran over. Can I keep the camera until Thursday at 10am?" → accept → as bob → cards → pick B → as owner → inbox → approve 1
 Scenario 2: as owner → extend dana Fri 9 --phone → inbox → resolve 1 → approve 1 yes → save → as dana → accept → as eve → cards → accept
@@ -325,7 +328,7 @@ async function run(line: string) {
       for (const b of [...owner.bookings].sort((x: any, y: any) => x.startsAt.localeCompare(y.startsAt)))
         say(`  ${unitLabel(b.unitId).padEnd(9)} ${nameOf(b.customerId).padEnd(8)} ${fmt(b.startsAt)} – ${fmt(b.endsAt)}  ${modelName(b.modelId)}${b.status === 'picked_up' ? ' (picked up)' : ''}`);
       for (const p of owner.proposals) say(`${c.yellow}  pending: ${nameOf(p.requesterCustomerId)}'s request (${p.state})${c.off}`);
-      say(`${c.dim}  shop time: ${fmt(owner.shop.now)}${c.off}`);
+      say(`${c.dim}  shop time: ${fmt(owner.shop.now)}; auto-reply customers ${owner.shop.autoReplyCustomers ? 'on' : 'off'}${c.off}`);
       return;
     }
     case 'ff': {
@@ -338,6 +341,11 @@ async function run(line: string) {
       seen.clear();
       await refreshOwner();
       return say(`${c.green}  fresh shop; shop time ${fmt(owner.shop.now)}${c.off}`);
+    case 'autoreply': {
+      if (arg !== 'on' && arg !== 'off') return say(`${c.dim}  autoreply on|off${c.off}`);
+      await api('POST', '/api/demo/auto-reply', { enabled: arg === 'on' });
+      return say(`${c.green}  auto-reply customers ${arg}: affected customers now ${arg === 'on' ? 'answer their offers by themselves (Plan B when there are two)' : 'wait for you'}${c.off}`);
+    }
     case 'verbose':
       verbose = !verbose;
       return say(`  verbose ${verbose ? 'on' : 'off'}`);

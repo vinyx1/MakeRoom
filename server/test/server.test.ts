@@ -57,7 +57,7 @@ describe('sessions', () => {
   it('config needs no session', async () => {
     const v = visitor();
     const res = await v.get('/api/config');
-    expect(res.body).toEqual({ paypalClientId: 'test-client-id', currency: 'USD', environment: 'sandbox' });
+    expect(res.body).toEqual({ paypalClientId: 'test-client-id', currency: 'USD', environment: 'sandbox', sandboxBuyer: null });
     expect(res.cookieSet).toBe(false);
   });
 

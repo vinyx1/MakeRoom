@@ -7,6 +7,7 @@ import { and, eq } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 import { afterAll, describe, expect, it } from 'vitest';
 import { createAgentService } from '../src/agent/service.ts';
+import { createAutoReply } from '../src/demo/auto-reply.ts';
 import { TurnState, makeTools } from '../src/agent/tools.ts';
 import { type AgentConfig, conversationOf } from '../src/agent/turn.ts';
 import { createDb } from '../src/db/client.ts';
@@ -226,3 +227,41 @@ describe('Scenario 6: everyone hears about the override', () => {
     expect(bobThread.map((m) => m.body)).toEqual(["The other customer's request was withdrawn, so it won't change your booking."]);
   });
 });
+
+describe('judge mode: auto-reply customers', () => {
+  async function aliceAccepts(autoReply: boolean) {
+    const gateway = fakeGateway();
+    const d = await seedShop(db, { sessionKey: randomUUID() });
+    await seedPrepayments(db, gateway, d.shop.id);
+    await db.update(s.shops).set({ autoReplyCustomers: autoReply }).where(eq(s.shops.id, d.shop.id));
+    const agent = createAgentService(db, templates, undefined, { shopId: d.shop.id }, createAutoReply(db, gateway, { delayMs: 0 }));
+    await agent.poll();
+    const alice = d.customer('Alice').id;
+    const offered = await requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) } });
+    if (offered.status !== 'offered') throw new Error(offered.status);
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
+    await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
+    await agent.poll();
+    await agent.drain();
+    const bobApprovals = await db.select().from(s.approvals).where(and(eq(s.approvals.proposalId, offered.proposal.id), eq(s.approvals.customerId, d.customer('Bob').id)));
+    return { d, offered, bobApprovals };
+  }
+
+  it('off: Bob waits for a person to choose', async () => {
+    const { bobApprovals } = await aliceAccepts(false);
+    expect(bobApprovals.every((a) => a.status === 'pending')).toBe(true);
+  });
+
+  it('on: Bob takes Plan B by himself after the offer, and the owner card appears', async () => {
+    const { d, offered, bobApprovals } = await aliceAccepts(true);
+    const planB = offered.revisions.find((r) => r.optionLabel === 'B')!;
+    expect(bobApprovals.find((a) => a.revisionId === planB.id)!.status).toBe('approved');
+    const bobChat = await thread(d, 'Bob');
+    expect(bobChat.map((m) => m.body)).toContain('Option B works for me, thanks.');
+    // His message comes after the assistant's offer, as a person would answer it.
+    expect(bobChat.findIndex((m) => m.author === 'customer')).toBeGreaterThan(bobChat.findIndex((m) => m.cardRevisionIds.length > 0));
+    const cards = await db.select().from(s.escalations).where(and(eq(s.escalations.proposalId, offered.proposal.id), eq(s.escalations.status, 'open')));
+    expect(cards.map((c) => c.kind)).toEqual(['approval']);
+  });
+});
+
