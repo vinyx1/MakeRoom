@@ -72,7 +72,7 @@ Facts: `CRANE4-1.balances_r5_rf2470 = unknown`. Shop hours 9am–9pm. All bookin
 1. Same starting point as Scenario 1, up to Alice's authorization. Then Bob replies: "No, I really need it at 9am, and I want the A7 IV, not the R." The agent records both as constraints and points him to the card, and Bob taps **Keep my booking as is**.
 2. Bob's ghost event rolls back in Bryntum, and his booking is byte-for-byte unchanged (show its version number in the inspector). Bob is now excluded from changes needing his approval.
 3. The agent tries the next plan as revision 2: upgrade Charlie to the A7R V so Bob can swap to A7IV-2 (same model, notice only). Charlie declines.
-4. No plans are left, so the agent offers Alice the closest option: "I can't do Thursday, but you can keep it until 9pm tonight, closing time, for $15."
+4. No plans are left, so the agent offers Alice the closest option: "I can't do Thursday, but you can keep it until 9pm tonight, closing time, at no extra charge." (Mon 9am → Wed 9pm is still 3 started days, so the rate card adds nothing.)
 5. Alice doesn't answer. The demo clock jumps ahead 30 minutes, the proposal goes to `EXPIRED`, her authorization is voided, the claims release, and her original Wed 6pm return stands.
 
 **What it shows:** invariant 3 (no change without the customer's approval), ghost-event rollback, fallback planning across revisions, expiry, and voiding an authorization.
