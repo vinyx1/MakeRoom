@@ -272,7 +272,7 @@ describe('uniqueness rules', () => {
       setAt: seeded.now,
     };
     expect(await pgCode(db.insert(s.facts).values(fact))).toBe(UNIQUE_VIOLATION);
-    expect(await pgCode(db.insert(s.facts).values({ ...fact, key: 'k', modelId: seeded.models.crane4.id }))).toBe(
+    expect(await pgCode(db.insert(s.facts).values({ ...fact, key: 'k', modelId: seeded.modelsByName.crane4.id }))).toBe(
       CHECK_VIOLATION,
     );
   });

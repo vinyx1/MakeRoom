@@ -1,0 +1,1 @@
+ALTER TABLE "bookings" ADD COLUMN "required_facts" text[] DEFAULT '{}' NOT NULL;

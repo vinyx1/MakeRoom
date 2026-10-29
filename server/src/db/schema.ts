@@ -248,6 +248,11 @@ export const bookings = pgTable(
     priceCents: integer().notNull(),
     prepaidOrderId: uuid().references((): AnyPgColumn => paypalOrders.id),
     note: text(),
+    /**
+     * Fact keys any unit this booking moves to must satisfy (Eve's `balances_r5_rf2470`). The optimizer reads
+     * these; `no` rules a unit out, `unknown` makes the plan need owner confirmation.
+     */
+    requiredFacts: text().array().notNull().default(sql`'{}'`),
     version: version(),
   },
   (t) => [
