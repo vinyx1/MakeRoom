@@ -1,21 +1,38 @@
 // Payment operations: recorded in `payment_ops` inside the state change's transaction, run right after it
-// commits, retried with the same PayPal-Request-Id (invariant 9). Only voids so far; capture and refund
-// follow the same shape.
+// commits, retried with the same PayPal-Request-Id (invariant 9). In the PoC they run inline; the same table
+// becomes the outbox later.
 
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { logActivity } from '../activity.ts';
 import { shopNow } from '../clock.ts';
 import type { Db, Tx } from '../db/client.ts';
 import { withShopLock } from '../db/lock.ts';
 import { Policy } from '../db/policy.ts';
 import { escalations, paymentOps, paypalOrders, shops } from '../db/schema.ts';
-import type { PaymentGateway } from './gateway.ts';
+import type { GatewayResult, PaymentGateway } from './gateway.ts';
 
 type Order = typeof paypalOrders.$inferSelect;
+type OpKind = (typeof paymentOps.$inferSelect)['kind'];
 
 /** `{proposal}:{revision}:{kind}:{customer}`. Revisions are immutable, so the amount behind an id never changes. */
-export const requestIdFor = (o: Pick<Order, 'proposalId' | 'revisionId' | 'customerId'>, kind: 'void' | 'capture' | 'refund') =>
-  `${o.proposalId ?? 'none'}:${o.revisionId ?? 'none'}:${kind}:${o.customerId}`;
+export const requestId = (proposalId: string | null, revisionId: string | null, kind: OpKind, customerId: string) =>
+  `${proposalId ?? 'none'}:${revisionId ?? 'none'}:${kind}:${customerId}`;
+
+/** Records an op; returns its id. Recording the same request id twice returns the existing op. */
+export async function enqueueOp(
+  tx: Tx,
+  input: { order: Order; kind: OpKind; amountCents: number; proposalId: string | null; revisionId: string | null; customerId: string; at: Date },
+): Promise<string> {
+  const id = requestId(input.proposalId, input.revisionId, input.kind, input.customerId);
+  const [op] = await tx
+    .insert(paymentOps)
+    .values({ shopId: input.order.shopId, kind: input.kind, paypalOrderRef: input.order.id, amountCents: input.amountCents, requestId: id, createdAt: input.at })
+    .onConflictDoNothing({ target: paymentOps.requestId })
+    .returning();
+  if (op) return op.id;
+  const [existing] = await tx.select().from(paymentOps).where(eq(paymentOps.requestId, id));
+  return existing!.id;
+}
 
 /**
  * Records a void for an order's authorization. Call inside the locked transaction that ends the proposal;
@@ -28,29 +45,35 @@ export async function enqueueVoid(tx: Tx, order: Order, at: Date): Promise<strin
     return null;
   }
   if (order.status !== 'authorized') return null;
-  const [op] = await tx
-    .insert(paymentOps)
-    .values({
-      shopId: order.shopId,
-      kind: 'void',
-      paypalOrderRef: order.id,
-      amountCents: order.amountCents,
-      requestId: requestIdFor(order, 'void'),
-      createdAt: at,
-    })
-    .onConflictDoNothing({ target: paymentOps.requestId })
-    .returning();
-  return op?.id ?? null;
+  return enqueueOp(tx, {
+    order, kind: 'void', amountCents: order.amountCents, proposalId: order.proposalId, revisionId: order.revisionId, customerId: order.customerId, at,
+  });
 }
 
 export type RunOptions = { sleep?: (ms: number) => Promise<void> };
 
 const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+const PAST = { authorize: 'authorized', capture: 'captured', refund: 'refunded', void: 'voided' } as const;
+
+function call(gateway: PaymentGateway, op: typeof paymentOps.$inferSelect, order: Order): Promise<GatewayResult> {
+  const missing = (what: string) => Promise.resolve({ ok: false as const, error: `order has no ${what}`, retryable: false });
+  switch (op.kind) {
+    case 'authorize':
+      return gateway.authorizeOrder(order.paypalOrderId, op.requestId);
+    case 'capture':
+      return order.authorizationId ? gateway.captureAuthorization(order.authorizationId, op.amountCents, op.requestId) : missing('authorization');
+    case 'refund':
+      return order.captureId ? gateway.refundCapture(order.captureId, op.amountCents, op.requestId) : missing('capture');
+    case 'void':
+      return order.authorizationId ? gateway.voidAuthorization(order.authorizationId, op.requestId) : missing('authorization');
+  }
+}
+
 /** Runs one recorded op to success or to `policy.payment_retry_limit` attempts; a final failure alerts the owner. */
 export async function runPaymentOp(db: Db, gateway: PaymentGateway, opId: string, { sleep = defaultSleep }: RunOptions = {}) {
   const [op] = await db.select().from(paymentOps).where(eq(paymentOps.id, opId));
-  if (!op || op.status !== 'pending') return op;
+  if (!op || op.status !== 'pending') return op!;
   const [order] = await db.select().from(paypalOrders).where(eq(paypalOrders.id, op.paypalOrderRef));
   const [shop] = await db.select().from(shops).where(eq(shops.id, op.shopId));
   if (!order || !shop) throw new Error(`payment op ${opId}: order or shop missing`);
@@ -60,9 +83,7 @@ export async function runPaymentOp(db: Db, gateway: PaymentGateway, opId: string
   let lastError = op.lastError;
   while (attempts < limit) {
     attempts++;
-    const result = order.authorizationId
-      ? await gateway.voidAuthorization(order.authorizationId, op.requestId)
-      : ({ ok: false, error: 'order has no authorization id', retryable: false } as const);
+    const result = await call(gateway, op, order);
 
     if (result.ok) {
       return withShopLock(db, op.shopId, async (tx) => {
@@ -72,12 +93,18 @@ export async function runPaymentOp(db: Db, gateway: PaymentGateway, opId: string
           .set({ status: 'succeeded', attempts, paypalRef: result.ref, lastError: null })
           .where(eq(paymentOps.id, op.id))
           .returning();
-        await tx.update(paypalOrders).set({ status: 'voided' }).where(eq(paypalOrders.id, order.id));
+        const orderUpdate =
+          op.kind === 'authorize' ? { status: 'authorized' as const, authorizationId: result.ref }
+          : op.kind === 'capture' ? { status: 'captured' as const, captureId: result.ref, capturedCents: op.amountCents }
+          : op.kind === 'refund' ? { refundedCents: sql`${paypalOrders.refundedCents} + ${op.amountCents}` }
+          : { status: 'voided' as const };
+        await tx.update(paypalOrders).set(orderUpdate).where(eq(paypalOrders.id, order.id));
         await logActivity(tx, {
-          shopId: op.shopId, at, actor: 'system', kind: 'payment_voided', proposalId: order.proposalId, revisionId: order.revisionId,
-          payload: { authorizationId: order.authorizationId, amountCents: order.amountCents, requestId: op.requestId, attempts },
+          shopId: op.shopId, at, actor: 'system', kind: `payment_${PAST[op.kind]}`,
+          proposalId: proposalOf(op.requestId), revisionId: revisionOf(op.requestId),
+          payload: { orderId: order.paypalOrderId, customerId: order.customerId, amountCents: op.amountCents, paypalRef: result.ref, requestId: op.requestId, attempts },
         });
-        return done;
+        return done!;
       });
     }
 
@@ -91,14 +118,19 @@ export async function runPaymentOp(db: Db, gateway: PaymentGateway, opId: string
     const at = shopNow(shop);
     const [failed] = await tx.update(paymentOps).set({ status: 'failed', attempts, lastError }).where(eq(paymentOps.id, op.id)).returning();
     await tx.insert(escalations).values({
-      shopId: op.shopId, kind: 'payment_failure', proposalId: order.proposalId, revisionId: order.revisionId,
-      reasons: ['payment_failure'], summary: `Voiding the $${(order.amountCents / 100).toFixed(2)} authorization failed after ${attempts} attempts: ${lastError}`,
+      shopId: op.shopId, kind: 'payment_failure', proposalId: proposalOf(op.requestId), revisionId: revisionOf(op.requestId),
+      reasons: ['payment_failure'],
+      summary: `PayPal ${op.kind} of $${(op.amountCents / 100).toFixed(2)} failed after ${attempts} attempt${attempts === 1 ? '' : 's'}: ${lastError}`,
       at,
     });
     await logActivity(tx, {
-      shopId: op.shopId, at, actor: 'system', kind: 'payment_failed', proposalId: order.proposalId, revisionId: order.revisionId,
+      shopId: op.shopId, at, actor: 'system', kind: 'payment_failed', proposalId: proposalOf(op.requestId), revisionId: revisionOf(op.requestId),
       payload: { kind: op.kind, requestId: op.requestId, attempts, lastError },
     });
-    return failed;
+    return failed!;
   });
 }
+
+const UUID = /^[0-9a-f-]{36}$/;
+const proposalOf = (id: string) => (UUID.test(id.split(':')[0]!) ? id.split(':')[0]! : null);
+const revisionOf = (id: string) => (UUID.test(id.split(':')[1]!) ? id.split(':')[1]! : null);
