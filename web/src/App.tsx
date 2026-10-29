@@ -8,7 +8,7 @@ import { ChatPane } from './components/ChatPane';
 import { EditDialog, type EditPrompt, EquipmentDrawer, Header, Help, type Toast, Toasts } from './components/Chrome';
 import { OwnerPanel } from './components/OwnerPanel';
 import { type EditRequest, Schedule } from './components/Schedule';
-import { isTyping, shopTime, useShop } from './live';
+import { isTyping, shopTime, usd, useShop } from './live';
 
 export function App() {
   const [config, setConfig] = useState<Config | null>(null);
@@ -49,6 +49,8 @@ function describe(o: Outcome): Omit<Toast, 'id'> {
       return { kind: 'ok', text: 'Already done.' };
     case 'resolved':
       return { kind: 'ok', text: 'The assistant found a plan: review it under Owner.' };
+    case 'repriced':
+      return { kind: 'ok', text: `New price sent: ${usd(o.chargeCents)}. The customer gets a fresh card.` };
     case 'saved':
       return { kind: 'ok', text: 'Saved as a fact.' };
     case 'applied':

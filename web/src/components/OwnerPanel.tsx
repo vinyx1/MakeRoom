@@ -71,6 +71,14 @@ export function OwnerPanel({ owner, activity, onOutcome, onOpenChat }: Props) {
             );
           })}
           {!waiting && <div className="muted small">Nothing needs you right now. Drag a booking on the schedule to change it.</div>}
+          {owner.proposals.length > 0 && (
+            <div className="pending">
+              <div className="feed-title">Pending requests</div>
+              {owner.proposals.map((p) => (
+                <PendingRequest key={p.id} proposal={p} owner={owner} onOutcome={onOutcome} />
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="feed">
@@ -81,6 +89,57 @@ export function OwnerPanel({ owner, activity, onOutcome, onOpenChat }: Props) {
         </div>
       </div>
     </section>
+  );
+}
+
+const STATE: Record<string, string> = {
+  DRAFT: 'waiting for the customer to accept and pay',
+  AWAITING_APPROVALS: 'paid; waiting for approvals',
+  CAPTURING: 'being confirmed',
+};
+
+/** One active request, with "Adjust price" while the customer hasn't paid yet. */
+function PendingRequest({ proposal: p, owner, onOutcome }: { proposal: OwnerView['proposals'][number]; owner: OwnerView; onOutcome: (o: Outcome) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [dollars, setDollars] = useState('');
+  const [busy, setBusy] = useState(false);
+  const rev = p.revisions[0];
+  if (!rev) return null;
+  const name = owner.customers.find((c) => c.id === p.requesterCustomerId)?.name ?? 'The shop';
+  const what = rev.quote.lines.map((l) => l.label).join(', ') || 'change';
+  const save = async () => {
+    const cents = Math.round(Number(dollars) * 100);
+    if (!Number.isFinite(cents) || cents < 0) return onOutcome({ status: 'refused', reason: 'Enter a price in dollars, like 40 or 40.00.' });
+    setBusy(true);
+    try {
+      const r = await api.setPrice(p.id, cents);
+      onOutcome(r);
+      if (r.status === 'repriced') setEditing(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="preq">
+      <div>
+        <b>{name}</b>: {what} · <b>{usd(rev.quote.chargeCents)}</b>
+        {rev.quote.discountCents > 0 && <span className="muted small"> ({usd(rev.quote.discountCents)} off)</span>}
+      </div>
+      <div className="muted small">{STATE[p.state] ?? p.state.toLowerCase()}</div>
+      {p.state === 'DRAFT' && p.requesterCustomerId && !editing && (
+        <button className="link" onClick={() => { setDollars((rev.quote.chargeCents / 100).toFixed(2)); setEditing(true); }}>
+          Adjust price
+        </button>
+      )}
+      {editing && (
+        <form className="row" onSubmit={(e) => { e.preventDefault(); void save(); }}>
+          <span>$</span>
+          <input className="price-input" value={dollars} onChange={(e) => setDollars(e.target.value)} inputMode="decimal" aria-label="New price in dollars" autoFocus />
+          <button className="primary" disabled={busy}>Send new price</button>
+          <button type="button" className="link muted" onClick={() => setEditing(false)}>Cancel</button>
+        </form>
+      )}
+    </div>
   );
 }
 

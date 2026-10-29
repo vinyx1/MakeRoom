@@ -44,7 +44,7 @@ export type Revision = {
   ownerTriggers: string[];
   envelopeTrips: string[];
   factDependencies: string[];
-  quote: { chargeCents: number; netRevenueCents: number };
+  quote: { chargeCents: number; discountCents: number; netRevenueCents: number; lines: { label: string; amountCents: number }[] };
   changes: RevisionChange[];
   approvals: Approval[];
 };
@@ -136,6 +136,7 @@ export const api = {
     ),
   editBooking: (bookingId: string, body: { unitId: string; startsAt: string; endsAt: string; basedOnVersion: number; attestedCustomerIds: string[]; override?: boolean }) =>
     call<Outcome & { proposals?: { id: string; requesterName: string | null }[]; violations?: { message: string }[] }>('POST', `/api/bookings/${bookingId}/edit`, body),
+  setPrice: (proposalId: string, priceCents: number) => call<Outcome>('POST', `/api/proposals/${proposalId}/price`, { priceCents }),
   resolveDraft: (draftId: string) => call<Outcome>('POST', `/api/drafts/${draftId}/resolve`),
   saveFact: (factId: string, value: 'yes' | 'no') => call<Outcome>('POST', `/api/facts/${factId}`, { value }),
 
