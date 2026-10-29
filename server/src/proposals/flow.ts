@@ -23,18 +23,19 @@ import type { Db, Tx } from '../db/client.ts';
 import { loadSnapshot } from '../db/load-snapshot.ts';
 import { withShopLock } from '../db/lock.ts';
 import * as s from '../db/schema.ts';
-import { type Plan, type Pruned, type Request, optimize } from '../optimizer/optimizer.ts';
-import { type Index, indexSnapshot } from '../optimizer/snapshot.ts';
+import { type Plan, type Pruned, type Request, nearestAlternative, optimize } from '../optimizer/optimizer.ts';
+import { type Index, type Placement, indexSnapshot } from '../optimizer/snapshot.ts';
 import { type Violation, validate } from '../optimizer/validator.ts';
 import type { PaymentGateway } from '../payments/gateway.ts';
-import { compactId, enqueueOp, runPaymentOp } from '../payments/ops.ts';
-import { storeRequest } from './request.ts';
+import { compactId, enqueueOp, enqueueVoid, runPaymentOp } from '../payments/ops.ts';
+import { type StoredRequest, loadRequest, storeRequest } from './request.ts';
 import { ACTIVE_STATES, transition } from './state-machine.ts';
 import {
   LIVE_REVISION_STATUSES,
   type Proposal,
   type Revision,
   type RevisionChange,
+  afterOf,
   allApproved,
   cloneRevision,
   endProposal,
@@ -528,13 +529,9 @@ async function planFallback(tx: Tx, p: Proposal, now: Date): Promise<{ result?: 
     .where(and(eq(s.revisions.proposalId, p.id), inArray(s.revisions.status, ['dropped', 'superseded'])))
     .orderBy(desc(s.revisions.seq));
   const beforeRows = before ? (await changesByRevision(tx, [before.id])).get(before.id)! : [];
-  const requesterAfter = (rows: { bookingId: string | null; partyCustomerId: string }[], pick: (c: never) => unknown) => rows;
-  void requesterAfter;
-  const sameForRequester = (plan: Plan) => {
-    const mine = plan.changes.find((c) => c.isRequester)!;
-    const was = beforeRows.find((c) => c.partyCustomerId === p.requesterCustomerId && c.bookingId === p.subjectBookingId);
-    return !!was && plan.quote.chargeCents === before!.quote.chargeCents && changeKey(mine.after) === changeKey(afterOf(was));
-  };
+  const was = beforeRows.find((c) => c.partyCustomerId === p.requesterCustomerId && c.bookingId === p.subjectBookingId);
+  const sameForRequester = (plan: Plan) =>
+    !!was && plan.quote.chargeCents === before!.quote.chargeCents && placementKey(plan.changes.find((c) => c.isRequester)!.after) === placementKey(afterOf(was));
 
   const result = optimize(snapshot, request);
   const plans = result.status === 'fits' || result.status === 'needs_other_changes' ? result.plans : [];
@@ -814,13 +811,15 @@ export function ownerSetPrice(db: Db, shopId: string, input: { proposalId: strin
  * Once the owner has reviewed every option of a draft that needed it, the requester gets the card to accept and
  * pay (demo Scenario 2, step 5: "Dana authorizes payment for the extra day through a PayPal link").
  */
-async function offerToRequesterIfReviewed(tx: Tx, p: Proposal, now: Date) {
+async function offerToRequesterIfReviewed(tx: Tx, p: Proposal, now: Date, extra: { fallback?: boolean; holdReleased?: boolean } = {}) {
   if (!p.requesterCustomerId) return;
   const live = await liveRevisions(tx, p.id);
   for (const r of live) if (r.needsOwner && !(await ownerApproved(tx, r.id))) return;
+  // An alternative after a refusal says so when it reaches the requester, even if the owner reviewed it first.
+  const fallback = extra.fallback ?? live.some((r) => r.origin === 'alternative' && r.seq > 1);
   await logActivity(tx, {
     shopId: p.shopId, at: now, actor: 'system', kind: 'offer_ready', proposalId: p.id,
-    payload: { customerId: p.requesterCustomerId, revisionIds: live.map((r) => r.id), role: 'requester' },
+    payload: { customerId: p.requesterCustomerId, revisionIds: live.map((r) => r.id), role: 'requester', ...(fallback ? { fallback: true, holdReleased: !!extra.holdReleased } : {}) },
   });
 }
 
@@ -1009,6 +1008,17 @@ async function ownerApproved(tx: Tx, revisionId: string) {
 function isStillValid(idx: Index, p: Proposal, rows: RevisionChange[]) {
   const v = validate(idx, { changes: proposedChanges(rows), requesterCustomerId: p.requesterCustomerId });
   return !v.violations.length && rows.every((c) => !c.bookingId || idx.bookings.get(c.bookingId)?.version === c.before?.version);
+}
+
+const placementKey = (a: Placement) => [a.unitId, a.modelId, a.startsAt.toISOString(), a.endsAt.toISOString()].join('|');
+
+/** Drops revisions with their claims and open owner cards (claims follow revisions). */
+async function dropRevisions(tx: Tx, p: Proposal, revisionIds: string[], now: Date) {
+  if (!revisionIds.length) return;
+  await tx.update(s.revisions).set({ status: 'dropped' }).where(inArray(s.revisions.id, revisionIds));
+  await releaseClaims(tx, { proposalId: p.id, revisionIds }, now);
+  await tx.update(s.escalations).set({ status: 'resolved', resolution: { dropped: true } })
+    .where(and(inArray(s.escalations.revisionId, revisionIds), eq(s.escalations.status, 'open')));
 }
 
 /** A pick supersedes the other options; their claims go with them (claims follow revisions). */
