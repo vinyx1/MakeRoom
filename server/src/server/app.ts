@@ -11,6 +11,8 @@ import type { Db } from '../db/client.ts';
 import { withShopLock } from '../db/lock.ts';
 import * as s from '../db/schema.ts';
 import { ownerEditBooking } from '../owner/edit-booking.ts';
+import type { AgentService } from '../agent/service.ts';
+import { conversationOf } from '../agent/turn.ts';
 import type { PaymentGateway } from '../payments/gateway.ts';
 import { affectedAccept, createRequesterOrder, expireDue, ownerDecision, requestChange, requesterAccept } from '../proposals/flow.ts';
 import { resetShop, shopForSession, newSessionToken } from './shops.ts';
@@ -33,6 +35,8 @@ export type AppOptions = {
   paypalClientId?: string;
   /** Set the cookie's Secure flag (behind HTTPS). */
   secureCookies?: boolean;
+  /** Runs agent turns for chat messages; without it, the chat routes answer 503. */
+  agent?: AgentService;
   /** How often the SSE stream checks for new activity. */
   ssePollMs?: number;
   logger?: boolean;
@@ -58,6 +62,8 @@ const EditBody = z.object({
   attestedCustomerIds: z.array(id).default([]),
   override: z.boolean().default(false),
 });
+const TextBody = z.object({ text: z.string().trim().min(1).max(2000) });
+const CustomerParams = z.object({ customerId: id });
 const FastForwardBody = z.object({ minutes: z.number().int().min(1).max(7 * 24 * 60) });
 const ProposalParams = z.object({ proposalId: id });
 const RevisionParams = z.object({ proposalId: id, revisionId: id });
@@ -141,6 +147,48 @@ export function buildApp(opts: AppOptions) {
     const { proposalId, revisionId } = parse(RevisionParams, req.params);
     const { customerId } = parse(CustomerBody, req.body);
     return affectedAccept(db, gateway, req.shop.id, { proposalId, customerId, revisionId });
+  });
+
+  // --- Chat -------------------------------------------------------------------------------------------------
+
+  /** Finds the customer in the session's shop, or answers 404. */
+  async function customerOf(req: FastifyRequest, reply: FastifyReply) {
+    const { customerId } = parse(CustomerParams, req.params);
+    const [customer] = await db.select().from(s.customers).where(and(eq(s.customers.id, customerId), eq(s.customers.shopId, req.shop.id)));
+    if (!customer) reply.code(404).send({ error: 'not_found' });
+    return customer;
+  }
+
+  // The customer types; the agent answers in the background, and its steps and messages arrive over SSE.
+  app.post('/api/customers/:customerId/messages', async (req, reply) => {
+    const customer = await customerOf(req, reply);
+    if (!customer) return reply;
+    const { text } = parse(TextBody, req.body);
+    if (!opts.agent) return reply.code(503).send({ error: 'agent_unavailable' });
+    const { message } = await opts.agent.customerMessage(req.shop.id, customer.id, text);
+    return reply.code(202).send({ status: 'accepted', messageId: message.id });
+  });
+
+  // The owner writes in a customer's thread (after a handoff, or any time).
+  app.post('/api/customers/:customerId/owner-message', async (req, reply) => {
+    const customer = await customerOf(req, reply);
+    if (!customer) return reply;
+    const { text } = parse(TextBody, req.body);
+    const at = new Date(Date.now() + req.shop.clockOffsetMs);
+    const conversation = await conversationOf(db, req.shop.id, customer.id, at);
+    const [message] = await db.insert(s.messages).values({ shopId: req.shop.id, conversationId: conversation.id, author: 'owner', body: text, at }).returning();
+    await db.insert(s.activityLog).values({ shopId: req.shop.id, at, actor: 'owner', kind: 'owner_message', payload: { customerId: customer.id, text } });
+    return { status: 'sent', messageId: message!.id };
+  });
+
+  // Ends a handoff: the agent resumes messaging this customer (judge D11).
+  app.post('/api/customers/:customerId/hand-back', async (req, reply) => {
+    const customer = await customerOf(req, reply);
+    if (!customer) return reply;
+    const at = new Date(Date.now() + req.shop.clockOffsetMs);
+    await db.update(s.conversations).set({ handedOffAt: null, handedBackAt: at }).where(eq(s.conversations.customerId, customer.id));
+    await db.insert(s.activityLog).values({ shopId: req.shop.id, at, actor: 'owner', kind: 'handed_back', payload: { customerId: customer.id } });
+    return { status: 'ok' };
   });
 
   // --- Owner actions ----------------------------------------------------------------------------------------

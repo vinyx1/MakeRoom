@@ -31,10 +31,12 @@ export async function ownerView(tx: Tx, shopId: string) {
         tx.select().from(s.claims).where(and(inArray(s.claims.proposalId, proposalIds), isNull(s.claims.releasedAt))),
       ])
     : [[], [], []];
-  const [drafts, escalations, activity] = await Promise.all([
+  const [drafts, escalations, activity, conversations, messages] = await Promise.all([
     tx.select().from(s.ownerDrafts).where(eq(s.ownerDrafts.shopId, shopId)),
     tx.select().from(s.escalations).where(and(eq(s.escalations.shopId, shopId), eq(s.escalations.status, 'open'))).orderBy(s.escalations.at),
     tx.select().from(s.activityLog).where(eq(s.activityLog.shopId, shopId)).orderBy(desc(s.activityLog.seq)).limit(100),
+    tx.select().from(s.conversations).where(eq(s.conversations.shopId, shopId)),
+    tx.select().from(s.messages).where(eq(s.messages.shopId, shopId)).orderBy(s.messages.at),
   ]);
 
   return {
@@ -67,6 +69,8 @@ export async function ownerView(tx: Tx, shopId: string) {
     })),
     drafts,
     escalations,
+    /** Every chat thread, including the agent's drafts during a handoff. */
+    conversations: conversations.map((c) => ({ ...c, messages: messages.filter((m) => m.conversationId === c.id) })),
     /** Newest first; the SSE stream continues from `activity[0].seq`. */
     activity,
   };
@@ -145,9 +149,21 @@ export async function customerView(tx: Tx, shopId: string, customerId: string) {
     if (card.role === 'requester') card.options = card.options.slice(0, 1).map((o) => ({ ...o, option: null, needsShop: card.options.every((x) => x.needsShop) }));
   }
 
+  const [conversation] = await tx.select().from(s.conversations).where(eq(s.conversations.customerId, customerId));
+  const messages = conversation
+    ? await tx
+        .select({ id: s.messages.id, author: s.messages.author, body: s.messages.body, cardRevisionIds: s.messages.cardRevisionIds, at: s.messages.at })
+        .from(s.messages)
+        .where(and(eq(s.messages.conversationId, conversation.id), eq(s.messages.isOwnerDraft, false)))
+        .orderBy(s.messages.at)
+    : [];
+
   return {
     customer: { id: customer.id, name: customer.name },
     now: snapshot.now,
+    /** Oldest first. A message with `cardRevisionIds` is where a card sits in the chat; its buttons come from `cards`. */
+    messages,
+    handedOff: !!conversation?.handedOffAt,
     bookings,
     cards: [...cards.values()],
   };
