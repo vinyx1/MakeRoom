@@ -52,7 +52,11 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft }: Props) {
 
   // The demo week, Monday to the next Tuesday (Hank's booking), in shop time.
   const weekStart = DateTime.fromISO(owner.shop.now, { zone: tz }).startOf('week');
-  const view = useMemo(() => ({ start: weekStart.toJSDate(), end: weekStart.plus({ days: 8 }).toJSDate() }), [weekStart.toMillis()]);
+  // The view's bounds are given in Bryntum's converted (shop-time) form, like the records it converts itself.
+  const view = useMemo(
+    () => ({ start: TimeZoneHelper.toTimeZone(weekStart.toJSDate(), tz), end: TimeZoneHelper.toTimeZone(weekStart.plus({ days: 8 }).toJSDate(), tz) }),
+    [weekStart.toMillis(), tz],
+  );
 
   const data = useMemo(() => {
     const resources = [
