@@ -82,6 +82,9 @@ export type CustomerCard = {
   role: CardRole;
   /** What the customer can do: requesters accept (and pay when `chargeCents` > 0); affected parties pick an option. */
   chargeCents: number;
+  /** Already authorized for this request (a fallback alternative keeps the hold when it costs no more): accept
+   * without paying again. */
+  heldCents: number;
   options: CardOption[];
   expiresAt: Date | null;
 };
@@ -141,11 +144,18 @@ export async function customerView(tx: Tx, shopId: string, customerId: string) {
       ])
     : [[], []];
 
+  const proposalIds = [...new Set(visible.map((v) => v.proposal.id))];
+  const held = proposalIds.length
+    ? await tx.select().from(s.paypalOrders).where(and(inArray(s.paypalOrders.proposalId, proposalIds), eq(s.paypalOrders.status, 'authorized')))
+    : [];
   const cards = new Map<string, CustomerCard>();
   for (const { approval, revision, proposal } of visible) {
     const role = approval.role as CardRole;
     const key = `${proposal.id}:${role}`;
-    const card = cards.get(key) ?? { proposalId: proposal.id, role, chargeCents: role === 'requester' ? revision.quote.chargeCents : 0, options: [], expiresAt: proposal.expiresAt };
+    const heldCents = role === 'requester' ? (held.find((o) => o.proposalId === proposal.id)?.amountCents ?? 0) : 0;
+    const card = cards.get(key) ?? {
+      proposalId: proposal.id, role, chargeCents: role === 'requester' ? revision.quote.chargeCents : 0, heldCents, options: [], expiresAt: proposal.expiresAt,
+    };
     const ownerApproved = ownerRows.some((o) => o.revisionId === revision.id && o.status === 'approved');
     card.options.push(renderOption(idx, revision, rows.filter((r) => r.revisionId === revision.id), customerId, role, ownerApproved));
     cards.set(key, card);

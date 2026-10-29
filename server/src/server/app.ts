@@ -15,7 +15,9 @@ import type { AgentService } from '../agent/service.ts';
 import { conversationOf } from '../agent/turn.ts';
 import type { PaymentGateway } from '../payments/gateway.ts';
 import { saveFact } from '../owner/facts.ts';
-import { affectedAccept, createRequesterOrder, expireDue, ownerDecision, ownerSetPrice, requestChange, requesterAccept, resolveDraft } from '../proposals/flow.ts';
+import {
+  affectedAccept, affectedRefuse, createRequesterOrder, expireDue, ownerDecision, ownerSetPrice, requestChange, requesterAccept, requesterCancel, resolveDraft,
+} from '../proposals/flow.ts';
 import { resetShop, shopForSession, newSessionToken } from './shops.ts';
 import { customerView, ownerView } from './views.ts';
 
@@ -167,6 +169,19 @@ export function buildApp(opts: AppOptions) {
     const { proposalId, revisionId } = parse(RevisionParams, req.params);
     const { customerId } = parse(CustomerBody, req.body);
     return affectedAccept(db, gateway, req.shop.id, { proposalId, customerId, revisionId });
+  });
+
+  // "Keep my booking as is" (affected party) and "Cancel my request" (requester): refusals are clicks too.
+  app.post('/api/proposals/:proposalId/keep', async (req) => {
+    const { proposalId } = parse(ProposalParams, req.params);
+    const { customerId } = parse(CustomerBody, req.body);
+    return affectedRefuse(db, gateway, req.shop.id, { proposalId, customerId });
+  });
+
+  app.post('/api/proposals/:proposalId/cancel', async (req) => {
+    const { proposalId } = parse(ProposalParams, req.params);
+    const { customerId } = parse(CustomerBody, req.body);
+    return requesterCancel(db, gateway, req.shop.id, { proposalId, customerId });
   });
 
   // --- Chat -------------------------------------------------------------------------------------------------
