@@ -117,7 +117,7 @@ export function makeTools(scope: ToolScope) {
     return { revision_id: turn.ids.of('rv', rev!.id), option: card.option, terms: card.lines, needs_shop_confirmation: card.needsShop, is_alternative: card.isAlternative };
   }
 
-  function toRequest(idx: Index, bookingId: string | null, change: z.infer<typeof Change>): Request | Result {
+  function toRequest(idx: Index, bookingId: string | null, change: z.infer<typeof Change>): { request: Request } | { error: Result } {
     const t = shopTime(idx);
     const time = (v: string | undefined, what: string) => {
       if (v === undefined) return undefined;
@@ -128,15 +128,15 @@ export function makeTools(scope: ToolScope) {
     try {
       if (change.type === 'new_booking') {
         const modelId = turn.ids.resolve('md', change.model_id);
-        if (!modelId) return refuse('NOT_FOUND', 'Unknown model.', 'Use search_inventory to find the model id.');
-        return { kind: 'new_booking', customerId: me, modelId, startsAt: time(change.start, 'start')!, endsAt: time(change.end, 'end')! };
+        if (!modelId) return { error: refuse('NOT_FOUND', 'Unknown model.', 'Use search_inventory to find the model id.') };
+        return { request: { kind: 'new_booking', customerId: me, modelId, startsAt: time(change.start, 'start')!, endsAt: time(change.end, 'end')! } };
       }
-      if (!bookingId) return refuse('NOT_FOUND', 'This change needs one of the customer’s bookings.', 'Use get_my_bookings for the booking id.');
-      if (change.type === 'extend') return { kind: 'extend', bookingId, newEndsAt: time(change.new_end, 'new_end')! };
-      if (!change.new_start && !change.new_end) return refuse('INVALID_STATE', 'Nothing to change.');
-      return { kind: 'shift', bookingId, newStartsAt: time(change.new_start, 'new_start'), newEndsAt: time(change.new_end, 'new_end') };
+      if (!bookingId) return { error: refuse('NOT_FOUND', 'This change needs one of the customer’s bookings.', 'Use get_my_bookings for the booking id.') };
+      if (change.type === 'extend') return { request: { kind: 'extend', bookingId, newEndsAt: time(change.new_end, 'new_end')! } };
+      if (!change.new_start && !change.new_end) return { error: refuse('INVALID_STATE', 'Nothing to change.') };
+      return { request: { kind: 'shift', bookingId, newStartsAt: time(change.new_start, 'new_start'), newEndsAt: time(change.new_end, 'new_end') } };
     } catch {
-      return refuse('INVALID_TIME', 'Times must be shop-local YYYY-MM-DDTHH:MM.', 'Resolve the date with the calendar in the context.');
+      return { error: refuse('INVALID_TIME', 'Times must be shop-local YYYY-MM-DDTHH:MM.', 'Resolve the date with the calendar in the context.') };
     }
   }
 
@@ -276,8 +276,9 @@ export function makeTools(scope: ToolScope) {
         read(async (_tx, idx) => {
           const b = myBooking(idx, booking_id);
           if (b === undefined) return refuse('NOT_FOUND', 'No such booking for this customer.');
-          const request = toRequest(idx, b?.id ?? null, change);
-          if ('ok' in request) return request;
+          const prepared = toRequest(idx, b?.id ?? null, change);
+          if ('error' in prepared) return prepared.error;
+          const { request } = prepared;
           const r = optimize(idx.snap, request);
           if (r.status === 'invalid_request') return invalid(idx, r.violations, request);
           if (r.status === 'infeasible')
@@ -328,10 +329,10 @@ export function makeTools(scope: ToolScope) {
         const prepared = await read(async (_tx, idx) => {
           const b = myBooking(idx, booking_id);
           if (b === undefined) return { error: refuse('NOT_FOUND', 'No such booking for this customer.') };
-          const request = toRequest(idx, b?.id ?? null, change);
-          return 'ok' in request ? { error: request } : { request, idx };
+          const r = toRequest(idx, b?.id ?? null, change);
+          return 'error' in r ? r : { request: r.request, idx };
         });
-        if ('error' in prepared) return prepared.error!;
+        if ('error' in prepared) return prepared.error;
         const r = await requestChange(db, shopId, { customerId: me, request: prepared.request });
         if (r.status === 'invalid') return invalid(prepared.idx, r.violations, prepared.request);
         if (r.status === 'refused') return refuse('INVALID_STATE', r.reason, 'Use get_my_proposals to explain what is already in progress.');
