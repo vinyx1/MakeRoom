@@ -133,6 +133,8 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft }: Props) {
 
   // EXPERIMENT span: set the visible range after mount, in Bryntum's converted form.
   useEffect(() => {
+    (window as any).__sched = (scheduler.current as any)?.instance; // EXPERIMENT
+    (window as any).__TZH = TimeZoneHelper; // EXPERIMENT
     if (mode !== 'span') return;
     const s = (scheduler.current as any)?.instance;
     s?.setTimeSpan(TimeZoneHelper.toTimeZone(weekStart.toJSDate(), tz), TimeZoneHelper.toTimeZone(weekStart.plus({ days: 9 }).toJSDate(), tz));
