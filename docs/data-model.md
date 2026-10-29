@@ -253,7 +253,7 @@ Every PayPal call, recorded before it is made. In the PoC the call runs inline r
 | `kind` | `authorize`, `capture`, `void`, `refund` |
 | `paypal_order_ref` | → `paypal_orders` |
 | `amount_cents` | |
-| `request_id` | **Unique.** The `PayPal-Request-Id`: `{proposal}:{revision}:{kind}:{customer}`. One id = one amount: PayPal replays the first result for a repeated id without comparing the body (`spikes/paypal/FINDINGS.md`) |
+| `request_id` | **Unique.** The `PayPal-Request-Id`: `{kind}:{proposal}:{revision}:{customer}`, each id as 22 base64url characters (PayPal allows at most 108). One id = one amount: PayPal replays the first result for a repeated id without comparing the body (`spikes/paypal/FINDINGS.md`) |
 | `status` | `pending`, `succeeded`, `failed` |
 | `attempts`, `last_error`, `paypal_ref` | Retries reuse `request_id`; after `policy.payment_retry_limit`, an escalation |
 

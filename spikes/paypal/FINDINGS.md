@@ -30,6 +30,7 @@ Files: `paypal.ts` is the REST client (the only file that holds the secret); `ch
 6. **The developer dashboard's account balance is a setup value.** It stays at its initial number (CAD 5,000) and editing it didn't change the live balance on sandbox.paypal.com. Use sandbox.paypal.com, or Event Logs → API Calls, to see what happened.
 7. **Mocked failures aren't remembered.** After a mocked refund failure, retrying with the same id succeeded. Whether a real failure is cached under its id is unknown, so the retry policy must also handle "same failure again".
 8. **Fees and conversion show up in PayPal records.** A USD 45 capture had a USD 1.52 fee and converted to CAD for the merchant.
+9. **`PayPal-Request-Id` is at most 108 characters.** A longer id gets `500 INTERNAL_SERVICE_ERROR`, not a validation error, so it looks retryable. Found 2026-10-29 in the real build: three plain UUIDs plus the kind are 118. The build writes each UUID as 22 base64url characters (`compactId` in `server/src/payments/ops.ts`).
 
 ## Not covered (sandbox limits)
 
