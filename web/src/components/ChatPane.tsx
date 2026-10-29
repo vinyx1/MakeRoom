@@ -28,7 +28,9 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
   useEffect(() => {
     void load().catch(() => {});
   }, [load, tick]);
-  useEffect(() => bottom.current?.scrollIntoView({ block: 'end' }), [view?.messages.length, typing]);
+  useEffect(() => {
+    bottom.current?.scrollIntoView({ block: 'end' });
+  }, [view?.messages.length, typing]);
 
   const send = async () => {
     const body = text.trim();
