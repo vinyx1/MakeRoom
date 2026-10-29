@@ -325,7 +325,9 @@ describe.skipIf(!process.env.PAYPAL_CLIENT_ID)('PayPal sandbox: Scenario 1 for r
     if (offered.status !== 'offered') throw new Error(JSON.stringify(offered));
     // The test card authorizes on create, standing in for the buyer's click in the PayPal popup.
     await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice, testCard: true });
-    expect((await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice })).status).toBe('awaiting_approvals');
+    const orderResult = await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
+    const accepted = await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
+    expect([orderResult, accepted]).toEqual([]);
     const planB = offered.revisions.find((r) => r.optionLabel === 'B')!;
     await affectedAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: bob.customerId, revisionId: planB.id });
     const done = await ownerDecision(db, gateway, d.shop.id, { proposalId: offered.proposal.id, revisionId: planB.id, decision: 'approve' });
