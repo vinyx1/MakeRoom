@@ -19,9 +19,10 @@ import { type OptimizeResult, optimize } from '../optimizer/optimizer.ts';
 import { type Placement, occupancy, overlaps } from '../optimizer/snapshot.ts';
 import { type Violation, validate } from '../optimizer/validator.ts';
 import type { PaymentGateway } from '../payments/gateway.ts';
-import { enqueueVoid, runPaymentOp } from '../payments/ops.ts';
+import { runPaymentOp } from '../payments/ops.ts';
 import { type StoredRequest, loadRequest } from '../proposals/request.ts';
-import { ACTIVE_STATES, transition } from '../proposals/state-machine.ts';
+import { ACTIVE_STATES } from '../proposals/state-machine.ts';
+import { endProposal } from '../proposals/store.ts';
 
 export type OwnerEdit = {
   bookingId: string;
@@ -138,28 +139,9 @@ async function applyLocked(tx: Tx, shopId: string, edit: OwnerEdit): Promise<Loc
   const opIds: string[] = [];
   for (const c of claiming) {
     const [p] = await tx.select().from(s.proposals).where(eq(s.proposals.id, c.id));
-    const t = transition(p!.state, 'owner_override');
-    // Unreachable (CAPTURING is refused above); throwing rolls back any proposal already cancelled.
-    if (!t.ok) throw new Error(`owner override: ${t.reason}`);
-    const [updated] = await tx
-      .update(s.proposals)
-      .set({ state: t.to, endedReason: 'The owner changed a booking this request depended on', version: p!.version + 1 })
-      .where(eq(s.proposals.id, p!.id))
-      .returning();
-    cancelled.push(updated!);
-    if (t.effects.includes('release_claims'))
-      await tx.update(s.claims).set({ releasedAt: snapshot.now }).where(and(eq(s.claims.proposalId, p!.id), isNull(s.claims.releasedAt)));
-    if (t.effects.includes('void_authorization')) {
-      const orders = await tx.select().from(s.paypalOrders).where(eq(s.paypalOrders.proposalId, p!.id));
-      for (const o of orders) {
-        const opId = await enqueueVoid(tx, o, snapshot.now);
-        if (opId) opIds.push(opId);
-      }
-    }
-    await logActivity(tx, {
-      shopId, at: snapshot.now, actor: 'owner', kind: 'proposal_cancelled', proposalId: p!.id,
-      payload: { reason: 'owner_override', bookingId: booking.id, from: p!.state, to: t.to },
-    });
+    const ended = await endProposal(tx, p!, 'owner_override', 'The owner changed a booking this request depended on', snapshot.now, 'owner');
+    opIds.push(...ended.opIds);
+    cancelled.push((await tx.select().from(s.proposals).where(eq(s.proposals.id, c.id)))[0]!);
   }
 
   await allowOwnerShorten(tx);

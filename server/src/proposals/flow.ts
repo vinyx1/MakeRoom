@@ -210,10 +210,10 @@ export type AcceptResult =
 
 export async function requesterAccept(db: Db, gateway: PaymentGateway, shopId: string, input: { proposalId: string; customerId: string }): Promise<AcceptResult> {
   // a) Authorize the buyer-approved order, if the button hasn't been authorized yet. Recorded, then called.
-  const prep = await withShopLock(db, shopId, async (tx) => {
+  const prep = await withShopLock(db, shopId, async (tx): Promise<AcceptResult | { opId: string | null }> => {
     const p = await getProposal(tx, shopId, input.proposalId);
     if (!p || p.requesterCustomerId !== input.customerId) return refused('request not found');
-    if (p.state !== 'DRAFT') return (await requesterApproved(tx, p.id)) ? ({ status: 'already_accepted' } as const) : refused(`request is ${p.state}`);
+    if (p.state !== 'DRAFT') return (await requesterApproved(tx, p.id)) ? { status: 'already_accepted' } : refused(`request is ${p.state}`);
     const [rev] = await liveRevisions(tx, p.id);
     if (!rev) return refused('nothing to accept');
     if (rev.quote.chargeCents <= 0) return { opId: null };
@@ -226,7 +226,7 @@ export async function requesterAccept(db: Db, gateway: PaymentGateway, shopId: s
       opId: await enqueueOp(tx, { order, kind: 'authorize', amountCents: order.amountCents, proposalId: p.id, revisionId: order.revisionId, customerId: order.customerId, at: now }),
     };
   });
-  if ('status' in prep) return prep;
+  if (!('opId' in prep)) return prep;
   if (prep.opId) {
     const op = await runPaymentOp(db, gateway, prep.opId);
     if (op.status !== 'succeeded') return { status: 'payment_failed', error: op.lastError ?? 'authorization failed' };

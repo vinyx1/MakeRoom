@@ -10,9 +10,10 @@ import { createDb } from '../src/db/client.ts';
 import * as s from '../src/db/schema.ts';
 import { seedShop } from '../src/db/seed.ts';
 import { ownerEditBooking } from '../src/owner/edit-booking.ts';
-import type { GatewayResult, PaymentGateway } from '../src/payments/gateway.ts';
+import type { GatewayResult } from '../src/payments/gateway.ts';
 import { createPayPalClient, payPalGateway } from '../src/payments/paypal.ts';
 import { storeRequest } from '../src/proposals/request.ts';
+import { fakeGateway } from './fake-gateway.ts';
 
 const { db, pool } = createDb();
 afterAll(() => pool.end());
@@ -24,18 +25,6 @@ const plus = (d: Date, hours: number) => new Date(d.getTime() + hours * H);
 function at(d: Seeded, day: 'Wed' | 'Thu' | 'Fri', hour: number) {
   const days = { Wed: 2, Thu: 3, Fri: 4 }[day];
   return DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).startOf('week').plus({ days }).set({ hour }).toJSDate();
-}
-
-/** A PayPal stand-in that answers from a script and records every call. */
-function fakeGateway(answers: GatewayResult[] = []): PaymentGateway & { calls: { authorizationId: string; requestId: string }[] } {
-  const calls: { authorizationId: string; requestId: string }[] = [];
-  return {
-    calls,
-    async voidAuthorization(authorizationId, requestId) {
-      calls.push({ authorizationId, requestId });
-      return answers.shift() ?? { ok: true, ref: authorizationId };
-    },
-  };
 }
 
 /** Scenario 1 up to step 5: Alice authorized $45, claims held, both options offered to Bob. */
@@ -124,7 +113,7 @@ describe('Scenario 6: the owner drags Bob while Alice waits', () => {
     expect(await reload.activeClaims(proposal.id)).toEqual([]);
 
     // Her $45 authorization was voided once, with the deterministic request id.
-    expect(gateway.calls).toEqual([{ authorizationId: order.authorizationId, requestId: `${proposal.id}:${order.revisionId}:void:${order.customerId}` }]);
+    expect(gateway.calls).toEqual([{ method: 'voidAuthorization', id: order.authorizationId, requestId: `${proposal.id}:${order.revisionId}:void:${order.customerId}` }]);
     expect(result.paymentOps[0]!.status).toBe('succeeded');
     expect((await reload.order(order.id)).status).toBe('voided');
 
@@ -134,14 +123,15 @@ describe('Scenario 6: the owner drags Bob while Alice waits', () => {
 
     // The feed has every step.
     const feed = await db.select().from(s.activityLog).where(eq(s.activityLog.shopId, shopId)).orderBy(s.activityLog.seq);
-    expect(feed.map((e) => e.kind)).toEqual(['proposal_cancelled', 'booking_edited', 'payment_voided']);
+    expect(feed.map((e) => e.kind)).toEqual(['proposal_ended', 'booking_edited', 'payment_voided']);
   });
 
   // Waits between retries for real (0.5s, then 1s).
   it('a failed void is retried with the same id, then alerts the owner; the schedule change stands', async () => {
     const { shopId, bob, proposal, order, dragBob } = await alicePending();
     const failing: GatewayResult = { ok: false, error: '500 INTERNAL_SERVER_ERROR', retryable: true };
-    const gateway = fakeGateway([failing, failing, failing]);
+    const gateway = fakeGateway();
+    gateway.failNext('voidAuthorization', failing, failing, failing);
     const result = await ownerEditBooking(db, gateway, shopId, dragBob({ override: true }));
     if (result.status !== 'applied') throw new Error(JSON.stringify(result));
 
