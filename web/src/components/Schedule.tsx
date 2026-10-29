@@ -162,6 +162,7 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft }: Props) {
       endDate: view.end,
       viewPreset: 'dayAndWeek',
       weekStartDay: 1, // Monday, like the demo week
+      autoAdjustTimeAxis: false,
       forceFit: true,
       rowHeight: 42,
       barMargin: 5,
