@@ -118,6 +118,9 @@ code { font-size: 12px; background: #f0f2f5; padding: 1px 4px; border-radius: 4p
 .badge.fact-unknown { background: #eef0f3; color: var(--muted); }
 .paypal { margin: 6px 0; max-width: 340px; }
 .paypal.disabled { pointer-events: none; opacity: 0.6; }
+.hold-note { font-size: 12.5px; background: var(--accent-soft); border-radius: 6px; padding: 6px 9px; margin: 2px 0 6px; line-height: 1.4; }
+.card-actions { display: flex; gap: 14px; margin-top: 4px; }
+.option.keep { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .sandbox-login { font-size: 12px; color: var(--muted); margin: 4px 0 6px; }
 
 /* Schedule: bookings, ghosts (pending plans) and red drafts */

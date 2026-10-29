@@ -50,12 +50,24 @@ function RequesterCard({ card, customerId, config, onOutcome }: CardProps) {
       return api.accept(card.proposalId, customerId);
     });
 
+  const cancel = () =>
+    run(async () => {
+      const r = await api.cancel(card.proposalId, customerId);
+      return r.status === 'rejected' ? { status: 'cancelled', reason: 'Request cancelled: your booking stays as it was, and any payment hold is released.' } : r;
+    });
+  // A fallback alternative that costs no more than what's already held is accepted without paying again.
+  const needsPayment = card.chargeCents > 0 && card.heldCents < card.chargeCents;
+
   return (
     <div className="card requester">
-      <div className="card-head">Your offer</div>
+      <div className="card-head">{offer.isAlternative ? 'The closest we can do' : 'Your offer'}</div>
       <Terms lines={offer.lines} needsShop={offer.needsShop} isAlternative={offer.isAlternative} />
-      {card.chargeCents > 0 ? (
+      {needsPayment ? (
         <>
+          <div className="hold-note">
+            <b>Nothing is charged yet.</b> PayPal holds {usd(card.chargeCents)} while we confirm. You're only charged if it goes ahead;
+            otherwise the hold is released automatically.
+          </div>
           <PayPalCheckout card={card} customerId={customerId} onOutcome={onOutcome} disabled={busy} />
           {config.sandboxBuyer && (
             <div className="sandbox-login">
@@ -75,7 +87,10 @@ function RequesterCard({ card, customerId, config, onOutcome }: CardProps) {
           Accept
         </button>
       )}
-      <div>
+      <div className="card-actions">
+        <button className="link muted" disabled={busy} onClick={cancel}>
+          Cancel my request
+        </button>
         <button className="link muted" onClick={() => setHidden(true)}>
           Not now
         </button>
@@ -104,17 +119,16 @@ function PayPalCheckout({ card, customerId, onOutcome, disabled }: { card: Custo
         onCancel={() => onOutcome({ status: 'cancelled', reason: 'The PayPal window was closed; nothing was charged.' })}
         onError={(e: unknown) => onOutcome({ status: 'error', reason: `PayPal: ${(e as Error)?.message ?? 'something went wrong'}` })}
       />
-      <div className="muted small">Your payment is only held now ({usd(card.chargeCents)}), and charged when the shop confirms.</div>
     </div>
   );
 }
 
 function AffectedCard({ card, customerId, onOutcome }: CardProps) {
   const [busy, setBusy] = useState(false);
-  const pick = async (revisionId: string) => {
+  const run = async (fn: () => Promise<Outcome>) => {
     setBusy(true);
     try {
-      onOutcome(await api.pick(card.proposalId, revisionId, customerId));
+      onOutcome(await fn());
     } catch (e) {
       onOutcome({ status: 'error', reason: (e as Error).message });
     } finally {
@@ -128,12 +142,17 @@ function AffectedCard({ card, customerId, onOutcome }: CardProps) {
         <div className="option" key={o.revisionId}>
           {o.option && <div className="option-label">Option {o.option}</div>}
           <Terms lines={o.lines} needsShop={o.needsShop} isAlternative={o.isAlternative} />
-          <button className="primary" disabled={busy} onClick={() => pick(o.revisionId)}>
+          <button className="primary" disabled={busy} onClick={() => run(() => api.pick(card.proposalId, o.revisionId, customerId))}>
             {o.option ? `Accept option ${o.option}` : 'Accept'}
           </button>
         </div>
       ))}
-      <div className="muted small">Want neither? Do nothing: your booking stays as it is.</div>
+      <div className="option keep">
+        <button disabled={busy} onClick={() => run(() => api.keep(card.proposalId, customerId))}>
+          Keep my booking as is
+        </button>
+        <div className="muted small">Nothing about your booking changes.</div>
+      </div>
     </div>
   );
 }
