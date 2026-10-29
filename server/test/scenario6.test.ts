@@ -124,7 +124,7 @@ describe('Scenario 6: the owner drags Bob while Alice waits', () => {
 
     // The feed has every step.
     const feed = await db.select().from(s.activityLog).where(eq(s.activityLog.shopId, shopId)).orderBy(s.activityLog.seq);
-    expect(feed.map((e) => e.kind)).toEqual(['proposal_ended', 'booking_edited', 'payment_voided']);
+    expect(feed.map((e) => e.kind)).toEqual(['proposal_ended', 'booking_edited', 'payment_voided', 'optimizer_run', 'proposal_created', 'offer_ready']);
   });
 
   // Waits between retries for real (0.5s, then 1s).
