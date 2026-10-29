@@ -4,6 +4,7 @@
 import '../env.ts';
 import Anthropic from '@anthropic-ai/sdk';
 import { createAgentService } from '../agent/service.ts';
+import { createAutoReply } from '../demo/auto-reply.ts';
 import { createDb } from '../db/client.ts';
 import { payPalGateway } from '../payments/paypal.ts';
 import { buildApp, sweepExpiries } from './app.ts';
@@ -16,13 +17,17 @@ const agent = createAgentService(db, {
   model: process.env.AGENT_MODEL ?? 'claude-sonnet-5-5',
   effort: (process.env.AGENT_EFFORT as 'low' | 'medium' | 'high' | undefined) ?? 'medium',
   turnCap: Number(process.env.AGENT_TURN_CAP ?? 60),
-}, (msg) => app.log.info(msg));
+}, (msg) => app.log.info(msg), {}, createAutoReply(db, gateway));
 const app = buildApp({
   db,
   gateway,
   agent,
   paypalClientId: process.env.PAYPAL_CLIENT_ID,
   secureCookies: process.env.NODE_ENV === 'production',
+  // Shown beside the PayPal button so a judge can log in to the sandbox popup (CLAUDE.md "Judge mode").
+  sandboxBuyer: process.env.PAYPAL_SANDBOX_BUYER_EMAIL
+    ? { email: process.env.PAYPAL_SANDBOX_BUYER_EMAIL, password: process.env.PAYPAL_SANDBOX_BUYER_PASSWORD ?? '' }
+    : undefined,
   // `npm run dev:test-card`: pay with the sandbox test card from a terminal client (scripts/try.ts).
   allowTestCard: process.env.DEV_TEST_CARD === '1' && process.env.NODE_ENV !== 'production',
   logger: true,

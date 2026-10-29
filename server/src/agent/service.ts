@@ -16,6 +16,8 @@ export function createAgentService(
   log: (msg: string) => void = () => {},
   /** Only dispatch events of this shop (tests, which share one database across parallel files). */
   scope: { shopId?: string } = {},
+  /** Judge mode: called after an affected customer's offer turn, to let a scripted customer answer it. */
+  autoReply?: (offer: { shopId: string; customerId: string; proposalId: string; revisionIds: string[] }) => Promise<unknown>,
 ) {
   const queues = new Map<string, Promise<unknown>>();
   const pending = new Set<Promise<unknown>>();
@@ -71,7 +73,16 @@ export function createAgentService(
         // Claim the event first: another server process on the same database may be reading it too.
         const claimed = await db.insert(s.agentDispatches).values({ activitySeq: row.seq }).onConflictDoNothing().returning();
         if (!claimed.length) continue;
-        for (const [customerId, event] of await eventsFor(row)) enqueue(row.shopId, customerId, event);
+        for (const [customerId, event] of await eventsFor(row)) {
+          const turn = enqueue(row.shopId, customerId, event);
+          if (autoReply && event.kind === 'offer_ready' && event.role === 'affected') {
+            const reply = turn
+              .then(() => autoReply({ shopId: row.shopId, customerId, proposalId: event.proposalId, revisionIds: event.revisionIds }))
+              .catch((e) => log(`auto-reply failed: ${String(e)}`));
+            pending.add(reply);
+            void reply.finally(() => pending.delete(reply));
+          }
+        }
       }
     } finally {
       polling = false;

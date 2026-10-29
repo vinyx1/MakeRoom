@@ -48,6 +48,7 @@ export async function ownerView(tx: Tx, shopId: string) {
       closesAt: snapshot.shop.closesAt,
       policy: snapshot.shop.policy,
       agentTurnsUsed: shop!.agentTurnsUsed,
+      autoReplyCustomers: shop!.autoReplyCustomers,
     },
     models: snapshot.models,
     units: snapshot.units,

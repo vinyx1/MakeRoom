@@ -34,6 +34,8 @@ export type AppOptions = {
   gateway: PaymentGateway;
   /** PayPal client id for the browser button; public by design (spikes/paypal/FINDINGS.md gotcha 5). */
   paypalClientId?: string;
+  /** The PayPal sandbox buyer account, shown beside the PayPal button for judges. Sandbox only, so not a secret. */
+  sandboxBuyer?: { email: string; password: string };
   /** Set the cookie's Secure flag (behind HTTPS). */
   secureCookies?: boolean;
   /**
@@ -117,7 +119,12 @@ export function buildApp(opts: AppOptions) {
     return reply.code(500).send({ error: 'internal_error' });
   });
 
-  app.get('/api/config', async () => ({ paypalClientId: opts.paypalClientId ?? null, currency: 'USD', environment: 'sandbox' }));
+  app.get('/api/config', async () => ({
+    paypalClientId: opts.paypalClientId ?? null,
+    currency: 'USD',
+    environment: 'sandbox',
+    sandboxBuyer: opts.sandboxBuyer ?? null,
+  }));
 
   // --- Views ------------------------------------------------------------------------------------------------
 
@@ -234,6 +241,14 @@ export function buildApp(opts: AppOptions) {
   app.post('/api/demo/reset', async (req) => {
     const shop = await resetShop(db, gateway, req.shop.id);
     return { status: 'reset', shopId: shop.id };
+  });
+
+  // Judge mode: scripted customers answer affected-party offers by themselves.
+  app.post('/api/demo/auto-reply', async (req) => {
+    const { enabled } = parse(z.object({ enabled: z.boolean() }), req.body);
+    await db.update(s.shops).set({ autoReplyCustomers: enabled }).where(eq(s.shops.id, req.shop.id));
+    await db.insert(s.activityLog).values({ shopId: req.shop.id, at: new Date(Date.now() + req.shop.clockOffsetMs), actor: 'owner', kind: 'auto_reply_toggled', payload: { enabled } });
+    return { status: 'ok', enabled };
   });
 
   app.post('/api/demo/fast-forward', async (req) => {
