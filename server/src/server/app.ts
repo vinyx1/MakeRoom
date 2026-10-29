@@ -14,7 +14,8 @@ import { ownerEditBooking } from '../owner/edit-booking.ts';
 import type { AgentService } from '../agent/service.ts';
 import { conversationOf } from '../agent/turn.ts';
 import type { PaymentGateway } from '../payments/gateway.ts';
-import { affectedAccept, createRequesterOrder, expireDue, ownerDecision, requestChange, requesterAccept } from '../proposals/flow.ts';
+import { saveFact } from '../owner/facts.ts';
+import { affectedAccept, createRequesterOrder, expireDue, ownerDecision, requestChange, requesterAccept, resolveDraft } from '../proposals/flow.ts';
 import { resetShop, shopForSession, newSessionToken } from './shops.ts';
 import { customerView, ownerView } from './views.ts';
 
@@ -53,7 +54,11 @@ const RequestBody = z.object({
     z.object({ kind: z.literal('new_booking'), modelId: id, startsAt: isoDate, endsAt: isoDate }),
   ]),
 });
-const OwnerDecisionBody = z.object({ decision: z.enum(['approve', 'decline']) });
+const OwnerDecisionBody = z.object({
+  decision: z.enum(['approve', 'decline']),
+  /** Answers to the plan's unknown facts, by fact id (demo Scenario 2). */
+  factAnswers: z.record(z.uuid(), z.enum(['yes', 'no'])).optional(),
+});
 const EditBody = z.object({
   unitId: id,
   startsAt: isoDate,
@@ -195,8 +200,21 @@ export function buildApp(opts: AppOptions) {
 
   app.post('/api/proposals/:proposalId/revisions/:revisionId/owner', async (req) => {
     const { proposalId, revisionId } = parse(RevisionParams, req.params);
-    const { decision } = parse(OwnerDecisionBody, req.body);
-    return ownerDecision(db, gateway, req.shop.id, { proposalId, revisionId, decision });
+    const { decision, factAnswers } = parse(OwnerDecisionBody, req.body);
+    return ownerDecision(db, gateway, req.shop.id, { proposalId, revisionId, decision, factAnswers });
+  });
+
+  // "Resolve with agent" on a red draft.
+  app.post('/api/drafts/:draftId/resolve', async (req) => {
+    const { draftId } = parse(z.object({ draftId: id }), req.params);
+    return resolveDraft(db, req.shop.id, { draftId });
+  });
+
+  // "Save as fact": the owner's answer is stored, so the question isn't asked again.
+  app.post('/api/facts/:factId', async (req) => {
+    const { factId } = parse(z.object({ factId: id }), req.params);
+    const { value } = parse(z.object({ value: z.enum(['yes', 'no']) }), req.body);
+    return saveFact(db, req.shop.id, { factId, value });
   });
 
   app.post('/api/bookings/:bookingId/edit', async (req) => {
