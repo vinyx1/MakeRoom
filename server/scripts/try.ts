@@ -282,7 +282,7 @@ async function onActivity(a: any) {
     case 'affected_refused':
       return say(`${c.yellow}  · ${who} kept their booking as is${c.off}`);
     case 'fallback_planned':
-      return say(`${c.magenta}  · trying the next plan (revision ${p.revisions?.length ? 'with ' + p.revisions.length + ' option(s)' : ''})${c.off}`);
+      return say(`${c.magenta}  · trying the next plan: another customer will be asked${c.off}`);
     case 'alternative_offered':
       return say(`${c.magenta}  · no plans left: offering the requester the closest alternative${p.holdReleased ? ' (hold released)' : ''}${c.off}`);
     case 'proposal_committed':
