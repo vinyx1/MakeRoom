@@ -31,6 +31,22 @@ export class TurnState {
   citable = new Set<number>();
   cardsPosted = 0;
   messagesSent = 0;
+  /** Chat writes (cards and messages) in the order the model made the calls, even when it makes them in parallel. */
+  writes: Promise<unknown> = Promise.resolve();
+  private lastAt = 0;
+
+  /** A strictly increasing timestamp for this turn's chat writes, so they sort in call order. */
+  nextAt(now: Date) {
+    this.lastAt = Math.max(now.getTime(), this.lastAt + 1);
+    return new Date(this.lastAt);
+  }
+
+  /** Runs chat writes one after another, in call order. */
+  inOrder<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.writes.then(fn, fn);
+    this.writes = run.catch(() => {});
+    return run;
+  }
 
   allow(text: string) {
     for (const cents of amountsIn(text)) this.citable.add(cents);
@@ -361,7 +377,7 @@ export function makeTools(scope: ToolScope) {
         if (turn.cardsPosted >= 1) return refuse('OVER_LIMIT', 'Only one card per turn.');
         const ids = revision_ids.map((r) => turn.ids.resolve('rv', r));
         if (ids.some((x) => !x)) return refuse('NOT_FOUND', 'Unknown revision.', 'Use get_my_proposals for revision ids.');
-        return db.transaction(async (tx) => {
+        return turn.inOrder(() => db.transaction(async (tx) => {
           const idx = indexSnapshot(await loadSnapshot(tx, shopId));
           const revs = await tx.select().from(s.revisions).where(inArray(s.revisions.id, ids as string[]));
           if (new Set(revs.map((r) => r.proposalId)).size !== 1) return refuse('INVALID_STATE', 'Options on one card must belong to one request.');
@@ -386,7 +402,7 @@ export function makeTools(scope: ToolScope) {
               ? live.map((r) => r.id)
               : live.filter((r) => pending.some((a) => a.revisionId === r.id) && (!r.envelopeTrips.length || ownerOk.has(r.id))).map((r) => r.id);
           if (!cardIds.length) return refuse('INVALID_STATE', 'Nothing on that request can be offered to this customer yet.', 'Say the shop is reviewing it.');
-          await tx.insert(s.messages).values({ shopId, conversationId: scope.conversationId, author: 'agent', body: '', cardRevisionIds: cardIds, at: idx.snap.now });
+          await tx.insert(s.messages).values({ shopId, conversationId: scope.conversationId, author: 'agent', body: '', cardRevisionIds: cardIds, at: turn.nextAt(idx.snap.now) });
           turn.cardsPosted++;
           const shows = await Promise.all((role === 'requester' ? cardIds.slice(0, 1) : cardIds).map((id) => terms(tx, idx, id, role)));
           const charge = live[0]!.quote.chargeCents;
@@ -398,7 +414,7 @@ export function makeTools(scope: ToolScope) {
               ? "Explain each option in a sentence; mark any needing shop confirmation as pending. If they want neither, they don't need to do anything: their booking stays as it is when the offer expires. Never name the other customer."
               : 'Tell them to use the card; nothing is charged until everything is confirmed.',
           });
-        });
+        }));
       },
     }),
 
@@ -461,14 +477,14 @@ export function makeTools(scope: ToolScope) {
           await logActivity(db, { shopId, at: scope.now(), actor: 'agent', kind: 'agent_message_blocked', payload: { customerId: me, text, amounts: unverified.map(usd) } });
           return refuse('UNVERIFIED_AMOUNT', `Not sent: ${unverified.map(usd).join(', ')} did not come from a tool.`, 'Remove the amount or get it from a tool, then send again.');
         }
-        return db.transaction(async (tx) => {
+        return turn.inOrder(() => db.transaction(async (tx) => {
           const [conversation] = await tx.select().from(s.conversations).where(eq(s.conversations.id, scope.conversationId));
           const now = (await loadSnapshot(tx, shopId)).now;
           const draft = !!conversation?.handedOffAt;
-          await tx.insert(s.messages).values({ shopId, conversationId: scope.conversationId, author: 'agent', body: text, isOwnerDraft: draft, at: now });
+          await tx.insert(s.messages).values({ shopId, conversationId: scope.conversationId, author: 'agent', body: text, isOwnerDraft: draft, at: turn.nextAt(now) });
           turn.messagesSent++;
           return ok(draft ? { sent: false, saved_as_draft_for_owner: true } : { sent: true });
-        });
+        }));
       },
     }),
   ];

@@ -239,3 +239,12 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('live agent: Scenario 1 through 
     console.log(`live Scenario 1: ${turns.length} turns, $${cost.toFixed(4)} on ${config.model}`);
   }, 180_000);
 });
+
+describe('chat order', () => {
+  it('messages sent in parallel land in the order the model sent them', async () => {
+    const { d } = await shop();
+    const { call, conversationId } = await toolsFor(d, 'Bob');
+    await Promise.all([call('send_message', { text: 'first' }), call('send_message', { text: 'second' }), call('send_message', { text: 'third' })]);
+    expect((await messagesOf(conversationId)).map((m) => m.body)).toEqual(['first', 'second', 'third']);
+  });
+});
