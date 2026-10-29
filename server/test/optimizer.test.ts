@@ -280,3 +280,51 @@ describe('shop hours', () => {
     expect(DateTime.fromJSDate(next, { zone: hours.timezone }).toFormat('ccc HH:mm')).toBe('Sun 09:00');
   });
 });
+
+describe('random requests (property test)', () => {
+  // Small seeded PRNG (mulberry32) so a failure reproduces.
+  const rng = (seed: number) => () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+
+  it('never throws, every plan passes the validator, and results are deterministic', () => {
+    const { d, snap } = demo();
+    const rand = rng(42);
+    const pick = <T,>(xs: T[]) => xs[Math.floor(rand() * xs.length)]!;
+    // Quarter-hours from Wed 9am to Sun 9pm, inside and outside shop hours.
+    const randomTime = () => plus(at(d, 'Wed', 9), Math.floor(rand() * 4 * 24 * 4) / 4);
+    let withPlans = 0;
+
+    for (let i = 0; i < 400; i++) {
+      const b = pick(d.bookings);
+      const kind = pick(['extend', 'shift', 'new_booking'] as const);
+      const request =
+        kind === 'extend' ? { kind, bookingId: b.id, newEndsAt: randomTime() }
+        : kind === 'shift' ? { kind, bookingId: b.id, newStartsAt: randomTime(), newEndsAt: randomTime() }
+        : (() => {
+            const startsAt = randomTime();
+            return { kind, customerId: pick(d.customers).id, modelId: pick(d.models).id, startsAt, endsAt: plus(startsAt, 1 + Math.floor(rand() * 48)) };
+          })();
+
+      const result = optimize(snap, request);
+      expect(optimize(snap, request)).toEqual(result);
+      const plans = result.status === 'fits' || result.status === 'needs_other_changes' ? result.plans
+        : result.status === 'infeasible' && result.nearest ? [result.nearest] : [];
+      if (plans.length) withPlans++;
+      for (const plan of plans) {
+        const requesterCustomerId = plan.changes[0]!.customerId;
+        expect(validate(snap, { changes: plan.changes, requesterCustomerId }).violations).toEqual([]);
+        for (const c of plan.changes) {
+          if (c.isRequester) continue;
+          expect(c.hoursShifted).toBeLessThanOrEqual(d.shop.policy.max_shift_hours);
+          // Picked-up rentals are never moved for someone else.
+          expect(d.bookings.find((x) => x.id === c.bookingId)!.status).toBe('confirmed');
+        }
+      }
+    }
+    expect(withPlans).toBeGreaterThan(20); // the generator does reach feasible requests
+  });
+});

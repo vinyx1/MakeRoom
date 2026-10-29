@@ -96,6 +96,7 @@ Unique `(shop_id, unit_id, model_id, key)` `NULLS NOT DISTINCT` (one of the two 
 | `price_cents` | What the booking cost |
 | `prepaid_order_id` | → `paypal_orders`; the capture refunds are issued against |
 | `note` | "for Canon R5 + RF 24-70" |
+| `required_facts text[]` | Fact keys any unit this booking moves to must satisfy (Eve: `balances_r5_rf2470`). `no` rules the unit out; `unknown` makes the plan need owner confirmation. Seeded from the note; how a new booking gets them is still open |
 | `version` | |
 
 **Exclusion constraint** (invariant 7):
