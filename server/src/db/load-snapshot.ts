@@ -15,17 +15,15 @@ export async function loadSnapshot(
 ): Promise<Snapshot> {
   const [shop] = await tx.select().from(s.shops).where(eq(s.shops.id, shopId));
   if (!shop) throw new Error(`shop ${shopId} not found`);
-  const byShop = <T extends { shopId: unknown }>(t: T) => eq((t as unknown as typeof s.units).shopId, shopId);
-
   const [models, substitutes, units, unavailability, conditionNotes, facts, customers, bookings] = await Promise.all([
-    tx.select().from(s.equipmentModels).where(byShop(s.equipmentModels)),
-    tx.select().from(s.modelSubstitutes).where(byShop(s.modelSubstitutes)),
-    tx.select().from(s.units).where(byShop(s.units)),
-    tx.select().from(s.unitUnavailability).where(byShop(s.unitUnavailability)),
-    tx.select().from(s.conditionNotes).where(byShop(s.conditionNotes)),
-    tx.select().from(s.facts).where(byShop(s.facts)),
-    tx.select().from(s.customers).where(byShop(s.customers)),
-    tx.select().from(s.bookings).where(byShop(s.bookings)),
+    tx.select().from(s.equipmentModels).where(eq(s.equipmentModels.shopId, shopId)),
+    tx.select().from(s.modelSubstitutes).where(eq(s.modelSubstitutes.shopId, shopId)),
+    tx.select().from(s.units).where(eq(s.units.shopId, shopId)),
+    tx.select().from(s.unitUnavailability).where(eq(s.unitUnavailability.shopId, shopId)),
+    tx.select().from(s.conditionNotes).where(eq(s.conditionNotes.shopId, shopId)),
+    tx.select().from(s.facts).where(eq(s.facts.shopId, shopId)),
+    tx.select().from(s.customers).where(eq(s.customers.shopId, shopId)),
+    tx.select().from(s.bookings).where(eq(s.bookings.shopId, shopId)),
   ]);
 
   // Claims held by other active proposals. Unreleased claims of an ended proposal are ignored too, so a
