@@ -71,8 +71,9 @@ Bookings and unavailability are separate tables, so the database can't exclude o
 |---|---|
 | `unit_id` or `model_id` | Exactly one set (CHECK). Seed: `CRANE4-1` |
 | `key` | `balances_r5_rf2470` |
+| `label` | How the owner's card asks about it: "Balances a Canon R5 + RF 24-70" (for an agent-raised question, the customer's question) |
 | `value` | enum `yes`, `no`, `unknown` |
-| `source` | `seed`, `owner`; plus `set_at`, `escalation_id` that answered it |
+| `source` | `seed`, `owner`, or `agent` (a question the agent raised, still `unknown`); plus `set_at`, `escalation_id` that answered it. Only the owner's "Save as fact" sets a value |
 | `version` | |
 
 Unique `(shop_id, unit_id, model_id, key)` `NULLS NOT DISTINCT` (one of the two ids is always null, which would otherwise defeat it). The agent's fact tool reads only this table.
@@ -277,7 +278,7 @@ Every PayPal call, recorded before it is made. In the PoC the call runs inline r
 
 | Column | Notes |
 |---|---|
-| `kind` | `approval`, `fact_question`, `plan_review`, `handoff`, `overdue`, `no_show`, `unassigned`, `payment_failure` |
+| `kind` | `approval`, `fact_question`, `plan_review`, `handoff`, `overdue`, `no_show`, `unassigned`, `payment_failure`, `customer_issue` (a judgment call from `escalate_to_owner` that doesn't hand off) |
 | `proposal_id`, `revision_id`, `conversation_id`, `fact_id`, `booking_id` | Whichever apply |
 | `reasons text[]` | Trigger codes |
 | `summary` | Agent-written context for the owner |

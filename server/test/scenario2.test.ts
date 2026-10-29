@@ -204,7 +204,25 @@ describe('Scenario 6: everyone hears about the override', () => {
     expect(aliceMsgs.some((m) => replan.status === 'offered' && m.cardRevisionIds.includes(replan.revisions[0]!.id))).toBe(true);
     const bobThread = await thread(d, 'Bob');
     expect(bobThread.at(-1)!.body).toBe("The other customer's request was withdrawn, so it won't change your booking.");
-    // His offer turn ran after the override: skipped, so no stale card was posted.
-    expect(bobThread.filter((m) => m.cardRevisionIds.length)).toHaveLength(1);
+
+  });
+
+  it('an offer that ended before its turn ran is skipped, never shown as a stale card', async () => {
+    const { d, gateway, agent } = await shop();
+    const alice = d.customer('Alice').id;
+    const offered = await requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) } });
+    if (offered.status !== 'offered') throw new Error(offered.status);
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
+    await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
+    // The owner overrides before the dispatcher has run Bob's offer turn.
+    const bob = d.bookingOf('Bob');
+    await ownerEditBooking(db, gateway, d.shop.id, {
+      bookingId: bob.id, unitId: bob.unitId!, startsAt: at(d, 'Thu', 14), endsAt: bob.endsAt, basedOnVersion: bob.version, attestedCustomerIds: [bob.customerId], override: true,
+    });
+    await agent.poll();
+    await agent.drain();
+    const bobThread = await thread(d, 'Bob');
+    expect(bobThread.filter((m) => m.cardRevisionIds.length)).toEqual([]);
+    expect(bobThread.map((m) => m.body)).toEqual(["The other customer's request was withdrawn, so it won't change your booking."]);
   });
 });
