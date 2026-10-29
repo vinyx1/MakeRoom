@@ -205,6 +205,8 @@ export const facts = pgTable(
     unitId: uuid().references(() => units.id, { onDelete: 'cascade' }),
     modelId: uuid().references(() => equipmentModels.id, { onDelete: 'cascade' }),
     key: text().notNull(),
+    /** How the owner's card asks about it: "Balances a Canon R5 + RF 24-70". */
+    label: text(),
     value: factValue().notNull(),
     source: factSource().notNull(),
     setAt: at().notNull(),

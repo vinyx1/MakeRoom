@@ -259,7 +259,10 @@ export async function requesterAccept(db: Db, gateway: PaymentGateway, shopId: s
     await tx
       .update(s.approvals)
       .set({ status: 'approved', source: 'card_click', respondedAt: now })
-      .where(and(eq(s.approvals.proposalId, p.id), eq(s.approvals.role, 'requester'), inArray(s.approvals.revisionId, valid.map((r) => r.id))));
+      .where(and(
+        eq(s.approvals.proposalId, p.id), eq(s.approvals.role, 'requester'), eq(s.approvals.status, 'pending'),
+        inArray(s.approvals.revisionId, valid.map((r) => r.id)),
+      ));
 
     // Claims before anyone else is contacted. A conflict means another request got there first.
     try {
@@ -284,8 +287,9 @@ export async function requesterAccept(db: Db, gateway: PaymentGateway, shopId: s
         await tx.insert(s.approvals).values(parties.map((customerId) => ({
           shopId, revisionId: r.id, proposalId: p.id, role: 'affected' as const, customerId, requestedAt: now, expiresAt,
         })));
-      // Outside the envelope: the owner reviews before any customer sees it (invariant 6).
-      if (r.envelopeTrips.length) await ensureOwnerApproval(tx, idx, p, r, rows.get(r.id)!, 'plan_review', now);
+      // Outside the envelope: the owner reviews before any customer sees it (invariant 6). An owner-resolved
+      // request was reviewed already, while it was a draft.
+      if (r.envelopeTrips.length && !(await ownerApproved(tx, r.id))) await ensureOwnerApproval(tx, idx, p, r, rows.get(r.id)!, 'plan_review', now);
       else for (const c of parties) offers.set(c, [...(offers.get(c) ?? []), r.id]);
     }
     await logActivity(tx, { shopId, at: now, actor: `customer:${input.customerId}`, kind: 'requester_accepted', proposalId: p.id, payload: { revisionIds: valid.map((r) => r.id) } });
@@ -311,7 +315,7 @@ export async function requesterAccept(db: Db, gateway: PaymentGateway, shopId: s
 // 4. An affected party picks an option
 
 export type DecisionResult =
-  | { status: 'awaiting_approvals'; waitingOn: ('owner' | 'affected')[] }
+  | { status: 'awaiting_approvals'; waitingOn: ('owner' | 'affected' | 'requester')[] }
   | { status: 'already_decided' }
   | { status: 'rejected' }
   | { status: 'stale'; reason: string }
@@ -365,16 +369,29 @@ export async function affectedAccept(
 // ---------------------------------------------------------------------------------------------------------
 // 5. The owner approves or declines
 
+/** A fact the owner just answered on a plan card; the card then offers "Save as fact?" (demo Scenario 2, step 4). */
+export type SaveableFact = { factId: string; value: 'yes' | 'no'; label: string };
+
 export async function ownerDecision(
-  db: Db, gateway: PaymentGateway, shopId: string, input: { proposalId: string; revisionId: string; decision: 'approve' | 'decline' },
-): Promise<DecisionResult> {
+  db: Db,
+  gateway: PaymentGateway,
+  shopId: string,
+  input: {
+    proposalId: string;
+    revisionId: string;
+    decision: 'approve' | 'decline';
+    /** Answers to the plan's unknown facts, by fact id. A "no" declines the plan. */
+    factAnswers?: Record<string, 'yes' | 'no'>;
+  },
+): Promise<DecisionResult & { saveableFacts?: SaveableFact[] }> {
   const locked = await withShopLock(db, shopId, async (tx) => {
     const p = await getProposal(tx, shopId, input.proposalId);
     if (!p) return { result: refused('request not found') };
     const [approval] = await tx.select().from(s.approvals).where(and(eq(s.approvals.revisionId, input.revisionId), eq(s.approvals.role, 'owner')));
     if (!approval) return { result: refused('nothing is waiting for the shop on this offer') };
     if (approval.status !== 'pending') return { result: { status: 'already_decided' } as DecisionResult };
-    if (p.state !== 'AWAITING_APPROVALS') return { result: refused(`this request is ${p.state}`) };
+    // The owner reviews an owner-resolved plan while it is still a draft, before the requester pays.
+    if (p.state !== 'AWAITING_APPROVALS' && p.state !== 'DRAFT') return { result: refused(`this request is ${p.state}`) };
 
     const snapshot = await loadSnapshot(tx, shopId, { proposalId: p.id });
     const idx = indexSnapshot(snapshot);
@@ -384,16 +401,42 @@ export async function ownerDecision(
     const [rev] = await tx.select().from(s.revisions).where(eq(s.revisions.id, input.revisionId));
     const rows = (await changesByRevision(tx, [rev!.id])).get(rev!.id)!;
 
-    const approve = input.decision === 'approve';
+    // The plan's unknown facts must be answered to approve it; a "no" means it can't work.
+    const unknownFacts = rev!.factDependencies.length
+      ? (await tx.select().from(s.facts).where(inArray(s.facts.id, rev!.factDependencies))).filter((f) => f.value !== 'yes')
+      : [];
+    const answers = input.factAnswers ?? {};
+    if (input.decision === 'approve' && unknownFacts.some((f) => !answers[f.id]))
+      return { result: refused('answer the fact question on the card first') };
+    const saveableFacts: SaveableFact[] = unknownFacts
+      .filter((f) => answers[f.id])
+      .map((f) => ({ factId: f.id, value: answers[f.id]!, label: f.label ?? f.key }));
+    const approve = input.decision === 'approve' && !unknownFacts.some((f) => answers[f.id] === 'no');
+
     await tx
       .update(s.approvals)
       .set({ status: approve ? 'approved' : 'rejected', source: 'card_click', respondedAt: now })
       .where(eq(s.approvals.id, approval.id));
     await tx
       .update(s.escalations)
-      .set({ status: 'resolved', resolution: { decision: input.decision } })
+      .set({ status: 'resolved', resolution: { decision: approve ? 'approve' : 'decline', factAnswers: answers } })
       .where(and(eq(s.escalations.revisionId, rev!.id), eq(s.escalations.status, 'open')));
-    await logActivity(tx, { shopId, at: now, actor: 'owner', kind: approve ? 'owner_approved' : 'owner_declined', proposalId: p.id, revisionId: rev!.id, payload: {} });
+    await logActivity(tx, {
+      shopId, at: now, actor: 'owner', kind: approve ? 'owner_approved' : 'owner_declined', proposalId: p.id, revisionId: rev!.id,
+      payload: { factAnswers: answers },
+    });
+
+    if (p.state === 'DRAFT') {
+      if (!approve) {
+        await tx.update(s.revisions).set({ status: 'dropped' }).where(eq(s.revisions.id, rev!.id));
+        if (!(await liveRevisions(tx, p.id)).length) {
+          const ended = await endProposal(tx, p, 'reject', 'The shop declined the plan', now, 'owner');
+          return { result: { status: 'rejected', saveableFacts } as DecisionResult, ops: ended.opIds };
+        }
+      }
+      await offerToRequesterIfReviewed(tx, p, now);
+      return { result: { status: 'awaiting_approvals', waitingOn: ['requester'], saveableFacts } as DecisionResult };
+    }
 
     if (!approve) {
       // Declining one option drops only that option (judge B8); declining the last one rejects the request (B9).
@@ -411,12 +454,26 @@ export async function ownerDecision(
     if (!isStillValid(idx, p, rows)) return { result: { status: 'stale', reason: 'the schedule changed; this plan no longer works' } as DecisionResult };
     // A plan the owner had to review first can now go to the customers.
     if (rev!.envelopeTrips.length) await reofferPending(tx, p, [rev!], now);
-    if (await allApproved(tx, rev!)) return { capture: { captureOpId: await startCapture(tx, p, rev!, now) } };
-    return { result: { status: 'awaiting_approvals', waitingOn: await waitingOn(tx, rev!) } as DecisionResult };
+    if (await allApproved(tx, rev!)) return { capture: { captureOpId: await startCapture(tx, p, rev!, now) }, saveableFacts };
+    return { result: { status: 'awaiting_approvals', waitingOn: await waitingOn(tx, rev!), saveableFacts } as DecisionResult };
   });
   await runOps(db, gateway, locked.ops ?? []);
-  if (locked.capture) return captureAndCommit(db, gateway, shopId, input.proposalId, locked.capture.captureOpId);
+  if (locked.capture) return { ...(await captureAndCommit(db, gateway, shopId, input.proposalId, locked.capture.captureOpId)), saveableFacts: locked.saveableFacts };
   return locked.result!;
+}
+
+/**
+ * Once the owner has reviewed every option of a draft that needed it, the requester gets the card to accept and
+ * pay (demo Scenario 2, step 5: "Dana authorizes payment for the extra day through a PayPal link").
+ */
+async function offerToRequesterIfReviewed(tx: Tx, p: Proposal, now: Date) {
+  if (!p.requesterCustomerId) return;
+  const live = await liveRevisions(tx, p.id);
+  for (const r of live) if (r.needsOwner && !(await ownerApproved(tx, r.id))) return;
+  await logActivity(tx, {
+    shopId: p.shopId, at: now, actor: 'system', kind: 'offer_ready', proposalId: p.id,
+    payload: { customerId: p.requesterCustomerId, revisionIds: live.map((r) => r.id), role: 'requester' },
+  });
 }
 
 // ---------------------------------------------------------------------------------------------------------

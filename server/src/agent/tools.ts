@@ -407,7 +407,7 @@ export function makeTools(scope: ToolScope) {
           if (!fact)
             [fact] = await tx
               .insert(s.facts)
-              .values({ shopId, unitId: unit?.id ?? null, modelId: unit ? null : model!.id, key: k, value: 'unknown', source: 'agent', setAt: idx.snap.now })
+              .values({ shopId, unitId: unit?.id ?? null, modelId: unit ? null : model!.id, key: k, label: question, value: 'unknown', source: 'agent', setAt: idx.snap.now })
               .returning();
           const [open] = await tx.select().from(s.escalations).where(and(eq(s.escalations.factId, fact!.id), eq(s.escalations.status, 'open')));
           if (!open)

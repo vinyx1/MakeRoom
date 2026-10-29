@@ -94,6 +94,7 @@ export function demoShopData({ sessionKey, realNow = new Date() }: { sessionKey:
       unitId: unit('CRANE4-1').id,
       modelId: null,
       key: 'balances_r5_rf2470',
+      label: 'Balances a Canon R5 + RF 24-70',
       value: 'unknown',
       source: 'seed',
       setAt: now,

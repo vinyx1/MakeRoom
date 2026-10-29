@@ -43,6 +43,13 @@
       "when": 1793295350965,
       "tag": "0005_agent_enums",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793296554574,
+      "tag": "0006_fact_label",
+      "breakpoints": true
     }
   ]
 }
