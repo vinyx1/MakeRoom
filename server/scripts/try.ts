@@ -101,14 +101,27 @@ async function showCards(name: string) {
       say(`${c.magenta}   ${o.option ? `Option ${o.option}` : 'Offer'}${o.needsShop ? ' (needs shop confirmation)' : ''}${o.isAlternative ? ' (alternative)' : ''}${c.off}`);
       for (const line of o.lines) say(`     ${line}`);
     }
-    say(`${c.dim}   ${card.role === 'requester' ? '`accept` to accept' + (card.chargeCents ? ` and pay ${usd(card.chargeCents)} (sandbox test card)` : '') : '`pick A` / `pick B` to choose'}${c.off}`);
+    const labels = card.options.map((o: any) => o.option).filter(Boolean);
+    const how =
+      card.role === 'requester'
+        ? '`accept` to accept' + (card.chargeCents ? ` and pay ${usd(card.chargeCents)} (sandbox test card)` : '')
+        : labels.length > 1
+          ? `${labels.map((l: string) => `\`pick ${l}\``).join(' or ')} to choose`
+          : '`accept` (or `pick`) to accept it';
+    say(`${c.dim}   ${how}${c.off}`);
   }
 }
 
 async function accept(name: string) {
   const { cust, view } = await customerView(name);
   const card = view.cards.find((x: any) => x.role === 'requester');
-  if (!card) return say(`${c.dim}  ${name} has no offer to accept${c.off}`);
+  if (!card) {
+    // Another customer's request with a single option: accepting it is picking it.
+    const affected = view.cards.find((x: any) => x.role === 'affected');
+    if (affected?.options.length === 1) return pick(name, '');
+    if (affected) return say(`${c.dim}  this card has options: ${affected.options.map((o: any) => `\`pick ${o.option}\``).join(' or ')}${c.off}`);
+    return say(`${c.dim}  ${name} has no offer to accept${c.off}`);
+  }
   if (card.chargeCents > 0) {
     const order = await api('POST', `/api/proposals/${card.proposalId}/order`, { customerId: cust.id, testCard: true });
     if (order.status !== 'ok') return say(`${c.red}  payment: ${JSON.stringify(order)}${c.off}`);
@@ -121,8 +134,13 @@ async function accept(name: string) {
 async function pick(name: string, label: string) {
   const { cust, view } = await customerView(name);
   const card = view.cards.find((x: any) => x.role === 'affected');
-  const option = card?.options.find((o: any) => (o.option ?? '').toLowerCase() === label.toLowerCase());
-  if (!option) return say(`${c.dim}  no option ${label} for ${name}${c.off}`);
+  if (!card) return say(`${c.dim}  ${name} has no options to pick from; \`cards\` shows what's waiting${c.off}`);
+  const options = card.options as any[];
+  const option =
+    options.find((o) => (o.option ?? '').toLowerCase() === label.toLowerCase()) ??
+    (/^\d+$/.test(label) ? options[Number(label) - 1] : undefined) ??
+    (options.length === 1 ? options[0] : undefined);
+  if (!option) return say(`${c.dim}  no option "${label}"; choose ${options.map((o) => `\`pick ${o.option}\``).join(' or ')}${c.off}`);
   const r = await api('POST', `/api/proposals/${card.proposalId}/revisions/${option.revisionId}/accept`, { customerId: cust.id });
   say(`${c.green}  → ${r.status}${r.waitingOn ? ` (waiting on ${r.waitingOn.join(', ')})` : ''}${r.reason ? `: ${r.reason}` : ''}${c.off}`);
 }
@@ -260,7 +278,7 @@ ${c.bold}As a customer${c.off}
   <any text>           chat with the assistant
   cards                show the approval cards waiting for you
   accept               accept your offer (pays with the sandbox test card)
-  pick A | pick B      choose an option on another customer's request
+  pick A | pick B      choose an option on another customer's request (a single option: \`pick\` or \`accept\`)
   chat                 show the whole conversation
 ${c.bold}As the owner${c.off}
   inbox                owner cards and red drafts
@@ -277,7 +295,7 @@ ${c.bold}Anywhere${c.off}
   reset                start the demo over        verbose       toggle extra feed lines
   quit
 ${c.dim}Scenario 1: as alice → "Shoot ran over. Can I keep the camera until Thursday at 10am?" → accept → as bob → cards → pick B → as owner → inbox → approve 1
-Scenario 2: as owner → extend dana Fri 9 --phone → inbox → resolve 1 → approve 1 yes → save → as dana → accept → as eve → cards → pick (the only option is unlabelled: \`accept\` won't do; use \`pick\` with no label)
+Scenario 2: as owner → extend dana Fri 9 --phone → inbox → resolve 1 → approve 1 yes → save → as dana → accept → as eve → cards → accept
 Scenario 6: Scenario 1 up to Alice's accept → as owner → move bob Thu 14 --phone → again with --override${c.off}
 `;
 
@@ -380,13 +398,8 @@ async function run(line: string) {
       return showCards(persona);
     case 'accept':
       return accept(persona);
-    case 'pick': {
-      // A single unlabelled option is picked with a bare `pick`.
-      const { view } = await customerView(persona);
-      const card = view.cards.find((x: any) => x.role === 'affected');
-      const label = arg || (card?.options.length === 1 ? (card.options[0].option ?? '') : '');
-      return pick(persona, label);
-    }
+    case 'pick':
+      return pick(persona, arg);
     case 'chat':
       return showChat(persona);
     default: {
