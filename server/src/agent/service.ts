@@ -8,7 +8,7 @@ import type { Db } from '../db/client.ts';
 import * as s from '../db/schema.ts';
 import { type AgentConfig, type AgentEvent, type TurnReport, conversationOf, runTurn } from './turn.ts';
 
-const TRIGGERS = ['offer_ready', 'proposal_update', 'proposal_ended'] as const;
+const TRIGGERS = ['offer_ready', 'proposal_update', 'proposal_ended', 'fact_answered'] as const;
 
 export function createAgentService(db: Db, config: AgentConfig, log: (msg: string) => void = () => {}) {
   const queues = new Map<string, Promise<unknown>>();
@@ -71,10 +71,15 @@ export function createAgentService(db: Db, config: AgentConfig, log: (msg: strin
 
   async function eventsFor(row: typeof s.activityLog.$inferSelect): Promise<[string, AgentEvent][]> {
     const payload = row.payload as Record<string, unknown>;
+    if (row.kind === 'fact_answered')
+      return [[payload.customerId as string, { kind: 'owner_answered', factId: payload.factId as string, value: payload.value as 'yes' | 'no' }]];
     const proposalId = row.proposalId;
     if (!proposalId) return [];
     if (row.kind === 'offer_ready')
-      return [[payload.customerId as string, { kind: 'offer_ready', proposalId, revisionIds: payload.revisionIds as string[] }]];
+      return [[payload.customerId as string, {
+        kind: 'offer_ready', proposalId, revisionIds: payload.revisionIds as string[],
+        role: payload.role === 'requester' ? 'requester' : 'affected', replanOf: (payload.replanOf as string) ?? null,
+      }]];
     if (row.kind === 'proposal_update')
       return [[payload.customerId as string, { kind: 'proposal_update', proposalId, outcome: 'COMMITTED' }]];
     // An ended request reaches its requester and everyone who was asked about it.

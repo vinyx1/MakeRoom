@@ -17,8 +17,13 @@ import { MAX_TOOL_CALLS, TurnState, makeTools } from './tools.ts';
 
 export type AgentEvent =
   | { kind: 'customer_message'; text: string }
-  /** Another customer's request needs this customer's decision. */
-  | { kind: 'offer_ready'; proposalId: string; revisionIds: string[] }
+  /**
+   * A card for this customer: as an affected party (another customer's request needs their decision), or as the
+   * requester of an offer the backend made (the owner arranged it by phone, or re-planned it after a change).
+   */
+  | { kind: 'offer_ready'; proposalId: string; revisionIds: string[]; role: 'affected' | 'requester'; replanOf?: string | null }
+  /** The owner answered an equipment question this customer asked. */
+  | { kind: 'owner_answered'; factId: string; value: 'yes' | 'no' }
   /** A request this customer is part of was committed or ended. */
   | { kind: 'proposal_update'; proposalId: string; outcome: 'COMMITTED' | 'REJECTED' | 'EXPIRED' | 'CANCELLED' | 'FAILED'; reason?: string | null };
 
@@ -227,7 +232,21 @@ async function describeEvent(tx: Tx, idx: Index, customerId: string, event: Agen
   if (event.kind === 'customer_message') return `Customer message: ${JSON.stringify(event.text)}`;
   if (event.kind === 'offer_ready') {
     const ids = event.revisionIds.map((id) => turn.ids.of('rv', id));
+    if (event.role === 'requester') {
+      const [p] = await tx.select().from(s.proposals).where(eq(s.proposals.id, event.proposalId));
+      const why = event.replanOf
+        ? 'The shop changed the schedule while their earlier request was pending, so that request was cancelled and its payment hold released. The shop has made them a fresh offer for the same change.'
+        : p?.source === 'owner_resolve'
+          ? 'The shop arranged this change with them by phone and has made them the offer.'
+          : 'Their offer is ready.';
+      return `Event offer_ready (request ${turn.ids.of('rq', event.proposalId)}): ${why} Present it with present_offer (${JSON.stringify(ids.slice(0, 1))}) so they can accept and pay, then explain it briefly with send_message.`;
+    }
     return `Event offer_ready: another customer's request (${turn.ids.of('rq', event.proposalId)}) needs this customer's decision. Present options ${JSON.stringify(ids)} with present_offer, then explain them briefly with send_message. Never name the other customer.`;
+  }
+  if (event.kind === 'owner_answered') {
+    const [fact] = await tx.select().from(s.facts).where(eq(s.facts.id, event.factId));
+    const subject = fact?.unitId ? idx.unitLabel(fact.unitId) : (fact?.modelId ? idx.models.get(fact.modelId)?.name : '') ?? '';
+    return `Event owner_answered: the shop answered their question about the ${subject} ("${fact?.label ?? fact?.key}"): ${event.value}. Tell them the answer in one short message.`;
   }
   return `Event proposal_update for request ${turn.ids.of('rq', event.proposalId)}:\n${await eventFacts(tx, idx, customerId, event)}\nTell the customer what happened in one short message.`;
 }
@@ -292,7 +311,11 @@ async function postCard(db: Db, shopId: string, conversationId: string, event: E
 
 async function templateFor(tx: Tx, shopId: string, customerId: string, event: AgentEvent): Promise<string> {
   if (event.kind === 'customer_message') return TEMPLATE_REPLY;
-  if (event.kind === 'offer_ready') return "Another customer's request affects your booking. Your options are on the card below; nothing changes unless you accept one.";
+  if (event.kind === 'offer_ready')
+    return event.role === 'requester'
+      ? 'The shop has set up your change. Please review it on the card and accept to authorize the payment; nothing is charged until everything is confirmed.'
+      : "Another customer's request affects your booking. Your options are on the card below; nothing changes unless you accept one.";
+  if (event.kind === 'owner_answered') return `The shop has answered your question: ${event.value === 'yes' ? 'yes' : 'no'}.`;
   const idx = indexSnapshot(await loadSnapshot(tx, shopId));
   if (event.outcome !== 'COMMITTED') {
     const [p] = await tx.select().from(s.proposals).where(eq(s.proposals.id, event.proposalId));

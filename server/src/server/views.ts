@@ -107,6 +107,9 @@ export async function customerView(tx: Tx, shopId: string, customerId: string) {
       priceCents: b.priceCents,
     }));
 
+  const ownerOk = new Set(
+    (await tx.select().from(s.approvals).where(and(eq(s.approvals.shopId, shopId), eq(s.approvals.role, 'owner'), eq(s.approvals.status, 'approved')))).map((a) => a.revisionId),
+  );
   const pending = await tx
     .select({ approval: s.approvals, revision: s.revisions, proposal: s.proposals })
     .from(s.approvals)
@@ -116,14 +119,17 @@ export async function customerView(tx: Tx, shopId: string, customerId: string) {
       and(
         eq(s.approvals.shopId, shopId),
         eq(s.approvals.customerId, customerId),
-        eq(s.approvals.status, 'pending'),
+        inArray(s.approvals.status, ['pending', 'approved']),
         inArray(s.revisions.status, [...LIVE_REVISION_STATUSES]),
         inArray(s.proposals.state, ['DRAFT', 'AWAITING_APPROVALS']),
       ),
     );
   // A requester's card is open while the proposal is DRAFT; an affected party's once offers are out.
+  // A requester agreed by phone still has a card to pay on (owner-attested approval, demo Scenario 2).
   const visible = pending.filter(({ approval, proposal, revision }) =>
-    approval.role === 'requester' ? proposal.state === 'DRAFT' : proposal.state === 'AWAITING_APPROVALS' && !revision.envelopeTrips.length,
+    approval.role === 'requester'
+      ? proposal.state === 'DRAFT' && (approval.status === 'pending' || approval.source === 'owner_attested')
+      : approval.status === 'pending' && proposal.state === 'AWAITING_APPROVALS' && (!revision.envelopeTrips.length || ownerOk.has(revision.id)),
   );
 
   const revisionIds = visible.map((v) => v.revision.id);

@@ -372,8 +372,9 @@ export function makeTools(scope: ToolScope) {
             .select()
             .from(s.approvals)
             .where(and(inArray(s.approvals.revisionId, live.map((r) => r.id)), eq(s.approvals.customerId, me), eq(s.approvals.status, 'pending')));
-          const open = role === 'requester' ? p!.state === 'DRAFT' : p!.state === 'AWAITING_APPROVALS';
-          if (!open || !pending.length) return refuse('INVALID_STATE', 'This customer has no decision pending on that request.', 'Use get_my_proposals to explain what it is waiting on.');
+          // A requester's card is open while the request is a draft, even when they agreed by phone (owner-attested).
+          const open = role === 'requester' ? p!.state === 'DRAFT' : p!.state === 'AWAITING_APPROVALS' && pending.length > 0;
+          if (!open) return refuse('INVALID_STATE', 'This customer has no decision pending on that request.', 'Use get_my_proposals to explain what it is waiting on.');
           // The requester's card carries every sibling option; an affected party's carries the options they can pick.
           const cardIds = role === 'requester' ? live.map((r) => r.id) : live.filter((r) => pending.some((a) => a.revisionId === r.id) && !r.envelopeTrips.length).map((r) => r.id);
           if (!cardIds.length) return refuse('INVALID_STATE', 'Nothing on that request can be offered to this customer yet.', 'Say the shop is reviewing it.');
