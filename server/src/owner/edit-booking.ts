@@ -139,7 +139,8 @@ async function applyLocked(tx: Tx, shopId: string, edit: OwnerEdit): Promise<Loc
   for (const c of claiming) {
     const [p] = await tx.select().from(s.proposals).where(eq(s.proposals.id, c.id));
     const t = transition(p!.state, 'owner_override');
-    if (!t.ok) return { status: 'refused', reason: t.reason };
+    // Unreachable (CAPTURING is refused above); throwing rolls back any proposal already cancelled.
+    if (!t.ok) throw new Error(`owner override: ${t.reason}`);
     const [updated] = await tx
       .update(s.proposals)
       .set({ state: t.to, endedReason: 'The owner changed a booking this request depended on', version: p!.version + 1 })
