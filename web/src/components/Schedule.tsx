@@ -12,7 +12,7 @@
 import { EventModel, StringHelper, TimeZoneHelper } from '@bryntum/schedulerpro';
 import { BryntumSchedulerPro, BryntumSchedulerProProjectModel } from '@bryntum/schedulerpro-react';
 import { DateTime } from 'luxon';
-import { useEffect, useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import type { OwnerView } from '../api';
 import { shopTime, usd } from '../live';
 
@@ -44,22 +44,18 @@ const hoursBetween = (a: string, b: string) => Math.round((new Date(b).getTime()
 
 export function Schedule({ owner, shopNow, onEdit, onResolveDraft }: Props) {
   const project = useRef<BryntumSchedulerProProjectModel>(null);
-  const scheduler = useRef<BryntumSchedulerPro>(null);
   const tz = owner.shop.timezone;
   const nameOf = (id: string | null) => owner.customers.find((c) => c.id === id)?.name ?? 'Customer';
   const modelOf = (id: string) => owner.models.find((m) => m.id === id)?.name ?? '';
   const unitOf = (id: string | null) => (id ? (owner.units.find((u) => u.id === id)?.label ?? '?') : 'Unassigned');
   const t = (iso: string) => shopTime(iso, tz);
 
-  // The demo week, Monday to the next Tuesday (Hank's booking), in shop time.
   const weekStart = DateTime.fromISO(owner.shop.now, { zone: tz }).startOf('week');
-  // EXPERIMENT: ?view=real|to|from picks how the bounds are passed.
-  const mode = new URLSearchParams(location.search).get('view') ?? 'real';
-  const conv = (d: Date) => (mode === 'to' ? TimeZoneHelper.toTimeZone(d, tz) : mode === 'from' ? TimeZoneHelper.fromTimeZone(d, tz) : d);
-  const view = useMemo(
-    () => ({ start: conv(weekStart.toJSDate()), end: conv(weekStart.plus({ days: 9 }).toJSDate()) }),
-    [weekStart.toMillis(), tz, mode],
-  );
+  // The demo week, Monday to the following Tuesday (Hank), as real instants: Bryntum converts them to shop time.
+  // It ends at 10pm Tuesday, after Hank's buffer: the clocks change inside the week, so a midnight end would spill
+  // an hour into Wednesday in browsers whose offset to the shop changes that week. `autoAdjustTimeAxis: false`
+  // keeps Bryntum from widening the range to whole weeks.
+  const view = useMemo(() => ({ start: weekStart.toJSDate(), end: weekStart.plus({ days: 8, hours: 22 }).toJSDate() }), [weekStart.toMillis()]);
 
   const data = useMemo(() => {
     const resources = [
@@ -130,15 +126,6 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft }: Props) {
     }));
     return { resources, events, assignments, resourceTimeRanges };
   }, [owner]);
-
-  // EXPERIMENT span: set the visible range after mount, in Bryntum's converted form.
-  useEffect(() => {
-    (window as any).__sched = (scheduler.current as any)?.instance; // EXPERIMENT
-    (window as any).__TZH = TimeZoneHelper; // EXPERIMENT
-    if (mode !== 'span') return;
-    const s = (scheduler.current as any)?.instance;
-    s?.setTimeSpan(TimeZoneHelper.toTimeZone(weekStart.toJSDate(), tz), TimeZoneHelper.toTimeZone(weekStart.plus({ days: 9 }).toJSDate(), tz));
-  }, [weekStart.toMillis(), tz]);
 
   const timeRanges = useMemo(() => [{ id: 'now', name: `Now · ${shopTime(shopNow, tz, 'h:mma')}`, startDate: shopNow }], [Math.floor(shopNow.getTime() / 60_000)]);
 
@@ -224,7 +211,7 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft }: Props) {
         resourceTimeRanges={data.resourceTimeRanges as any}
         timeRanges={timeRanges as any}
       />
-      <BryntumSchedulerPro ref={scheduler} project={project as any} {...(config as any)} />
+      <BryntumSchedulerPro project={project as any} {...(config as any)} />
     </div>
   );
 }
