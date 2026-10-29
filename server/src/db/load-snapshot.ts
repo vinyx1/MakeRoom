@@ -5,6 +5,7 @@ import { and, eq, inArray, isNull, ne } from 'drizzle-orm';
 import { shopNow } from '../clock.ts';
 import type { Snapshot } from '../optimizer/snapshot.ts';
 import { ACTIVE_STATES } from '../proposals/state-machine.ts';
+import { Policy } from './policy.ts';
 import type { Tx } from './client.ts';
 import * as s from './schema.ts';
 
@@ -50,7 +51,7 @@ export async function loadSnapshot(
 
   return {
     now: shopNow(shop, realNow),
-    shop: { timezone: shop.timezone, opensAt: shop.opensAt, closesAt: shop.closesAt, policy: shop.policy },
+    shop: { timezone: shop.timezone, opensAt: shop.opensAt, closesAt: shop.closesAt, policy: Policy.parse(shop.policy) },
     models,
     substitutes,
     units,

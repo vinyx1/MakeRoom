@@ -7,6 +7,7 @@ import { logActivity } from '../activity.ts';
 import { shopNow } from '../clock.ts';
 import type { Db, Tx } from '../db/client.ts';
 import { withShopLock } from '../db/lock.ts';
+import { Policy } from '../db/policy.ts';
 import { escalations, paymentOps, paypalOrders, shops } from '../db/schema.ts';
 import type { PaymentGateway } from './gateway.ts';
 
@@ -53,7 +54,7 @@ export async function runPaymentOp(db: Db, gateway: PaymentGateway, opId: string
   const [order] = await db.select().from(paypalOrders).where(eq(paypalOrders.id, op.paypalOrderRef));
   const [shop] = await db.select().from(shops).where(eq(shops.id, op.shopId));
   if (!order || !shop) throw new Error(`payment op ${opId}: order or shop missing`);
-  const limit = shop.policy.payment_retry_limit;
+  const limit = Policy.parse(shop.policy).payment_retry_limit;
 
   let attempts = op.attempts;
   let lastError = op.lastError;

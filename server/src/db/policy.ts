@@ -6,6 +6,10 @@ export const Policy = z.object({
   approval_timeout_minutes: z.number().int().positive().default(30),
   discount_band_pct: z.number().nonnegative().max(100).default(10),
   compensation_cap_cents: z.number().int().nonnegative().default(5000),
+  /** Goodwill per hour a customer's booking moves for someone else (Bob, 5h later: $15). */
+  shift_compensation_cents_per_hour: z.number().int().nonnegative().default(300),
+  /** Goodwill on top of the price difference when a customer is moved to a cheaper model (Eve: $15 + $5). */
+  downgrade_goodwill_cents: z.number().int().nonnegative().default(500),
   max_shift_hours: z.number().positive().default(6),
   max_bookings_touched: z.number().int().positive().default(3),
   search_window_hours: z.number().positive().default(24),

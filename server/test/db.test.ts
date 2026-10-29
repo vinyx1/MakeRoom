@@ -57,7 +57,7 @@ async function revisionOf(seeded: Seeded, proposalId: string, seq: number, optio
       optionLabel,
       origin: 'optimizer',
       createdBy: 'agent',
-      quote: { lines: [], discountCents: 0, compensation: [], netRevenueCents: 0 },
+      quote: { lines: [], discountCents: 0, chargeCents: 0, compensation: [], netRevenueCents: 0 },
       netRevenueCents: 0,
       createdAt: seeded.now,
     })

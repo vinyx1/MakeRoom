@@ -55,7 +55,7 @@ async function alicePending(state: 'AWAITING_APPROVALS' | 'CAPTURING' = 'AWAITIN
     .returning();
   const revision = (optionLabel: 'A' | 'B') => ({
     shopId, proposalId: proposal!.id, seq: 1, optionLabel, status: 'offered' as const, origin: 'optimizer' as const, createdBy: 'agent' as const,
-    quote: { lines: [], discountCents: 0, compensation: [], netRevenueCents: 4500 }, netRevenueCents: 4500, createdAt: d.now,
+    quote: { lines: [], discountCents: 0, chargeCents: 0, compensation: [], netRevenueCents: 4500 }, netRevenueCents: 4500, createdAt: d.now,
   });
   const [revA, revB] = await db.insert(s.revisions).values([revision('A'), { ...revision('B'), ownerTriggers: ['booking_shortened'], needsOwner: true }]).returning();
 

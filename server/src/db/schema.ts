@@ -293,9 +293,13 @@ export const proposals = pgTable(
 
 /** Quote stored on a revision. Agreed terms never change after the revision is created. */
 export type Quote = {
+  /** What the requester's change costs at the rate card, line by line. */
   lines: { customerId: string; label: string; amountCents: number }[];
   discountCents: number;
-  compensation: { customerId: string; cents: number; kind: 'refund' | 'upgrade_value' }[];
+  /** Lines minus discount: what the requester authorizes and is captured. Negative = owed to them. */
+  chargeCents: number;
+  /** Per affected booking. `upgrade_value` is revenue the shop gives up; `refund` is cash back on their capture. */
+  compensation: { customerId: string; bookingId: string | null; cents: number; kind: 'refund' | 'upgrade_value'; reason: string }[];
   netRevenueCents: number;
 };
 
