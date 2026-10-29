@@ -1,6 +1,6 @@
 # Data model
 
-The tables RentFlow stores, how they link, and where each rule from `CLAUDE.md` and `docs/conflict-model.md` lives. This is a design, not a migration: column types are Postgres; Drizzle schema follows from it on day 4.
+The tables RentFlow stores, how they link, and where each rule from `CLAUDE.md` and `docs/conflict-model.md` lives. Implemented in `server/src/db/schema.ts` (Drizzle) and `server/drizzle/0001_constraints.sql` and `0003_immutable_revisions.sql` (exclusion constraints and triggers, which Drizzle can't express); `server/test/db.test.ts` checks each database guarantee below.
 
 Conventions for every table:
 
@@ -8,6 +8,7 @@ Conventions for every table:
 - Times are `timestamptz` (UTC). The shop's time zone is used only for display and for shop-hours checks.
 - Tables the owner or agent can edit concurrently carry `version int`, bumped on every update. Owner edits and revisions record the versions they were made against.
 - Money is integer cents (`*_cents`), one currency per shop.
+- Event times (`created_at`, `at`, `requested_at`, …) are on the **shop clock** (server now + `clock_offset_ms`) and passed by the app, never defaulted by the database, so the feed and timeouts follow fast-forward.
 
 Postgres extension needed: `btree_gist` (exclusion constraints mixing `=` / `<>` with range overlap).
 
@@ -74,7 +75,7 @@ Bookings and unavailability are separate tables, so the database can't exclude o
 | `source` | `seed`, `owner`; plus `set_at`, `escalation_id` that answered it |
 | `version` | |
 
-Unique `(shop_id, unit_id, model_id, key)`. The agent's fact tool reads only this table.
+Unique `(shop_id, unit_id, model_id, key)` `NULLS NOT DISTINCT` (one of the two ids is always null, which would otherwise defeat it). The agent's fact tool reads only this table.
 
 ## 3. Customers and bookings
 
@@ -109,7 +110,7 @@ Gotcha: the constraint must be **deferred** to commit time. A plan applies sever
 
 Gotcha: `buffer_ends_at` is stored, not generated, because `timestamptz + interval` is not immutable in Postgres and can't be used in a generated column or constraint expression.
 
-**Trigger backstop** for invariant 3: reject an update where `OLD.status = 'picked_up'` and `unit_id` changes, or `ends_at` moves earlier without an owner-sourced change. The validator enforces this first; the trigger catches bugs.
+**Trigger backstop** for invariant 3: reject an update where `OLD.status = 'picked_up'` and `unit_id` changes, or `ends_at` moves earlier without an owner-sourced change. "Owner-sourced" is a transaction-local setting, `rentflow.owner_shorten = on`, set by `allowOwnerShorten` in `server/src/db/lock.ts`. The validator enforces this first; the trigger catches bugs.
 
 ## 4. Proposals
 
@@ -133,7 +134,7 @@ Unique partial index: one active proposal per requester per booking —
 
 ### `revisions`
 
-Immutable once created, apart from `status`.
+Immutable once created, apart from `status`, `validated_at` and `fingerprint`; a trigger refuses any other update, and any update to `revision_changes`.
 
 | Column | Notes |
 |---|---|
@@ -142,7 +143,7 @@ Immutable once created, apart from `status`.
 | `parent_revision_id` | The revision this one replaced (for diffing) |
 | `status` | `draft`, `offered`, `selected`, `superseded`, `dropped` |
 | `origin` | `optimizer`, `counter`, `owner_modify`, `fallback`, `alternative` |
-| `created_by` | `agent`, `owner`, or a customer id (the counter's author) |
+| `created_by`, `created_by_customer_id` | `agent`, `owner` or `customer`; the customer id is set only for `customer` (the counter's author) |
 | `is_alternative bool` | Gives the requester something other than asked; labelled on the card |
 | `quote jsonb` | Stored quote: line items, discount, compensation per party, net revenue. Agreed terms never change after this. |
 | `net_revenue_cents` | Denormalised from the quote for the envelope and owner card |
@@ -153,7 +154,7 @@ Immutable once created, apart from `status`.
 | `fingerprint jsonb` | **Deferred.** Versions of every input |
 | `validated_at` | Last successful validator run |
 
-Unique `(proposal_id, seq, option_label)`.
+Unique `(proposal_id, seq, option_label)` `NULLS NOT DISTINCT`, so a revision without options is unique per seq.
 
 ### `revision_changes`
 
@@ -166,7 +167,7 @@ One row per booking a revision touches. Together they are the plan.
 | `action` | `create`, `update`, `cancel`, `unassign`, `assign` |
 | `before jsonb` | Booking snapshot incl. `version` (what the diff and revalidation compare against) |
 | `new_unit_id`, `new_model_id`, `new_starts_at`, `new_ends_at`, `new_buffer_ends_at` | The after state; null = unchanged |
-| `kind` | `extension`, `time_shift`, `same_model_swap`, `model_change`, `cancellation` |
+| `kind` | `new_booking`, `extension`, `time_shift`, `same_model_swap`, `model_change`, `cancellation` |
 | `requires_approval bool` | False for `same_model_swap` (notice only) |
 | `hours_shifted numeric` | For ranking and the 6h envelope check |
 | `party_customer_id` | Whose booking this is |
@@ -187,7 +188,7 @@ The **re-approval diff** compares a party's `revision_changes` rows and quote li
 | `carried_from_id` | The approval this one carried over from |
 | `requested_at`, `responded_at`, `expires_at` | |
 
-Unique `(revision_id, role, customer_id)`; approving twice is an upsert that changes nothing. Approval rows are only written by the card endpoint and owner actions; no agent tool writes `approved`.
+Unique `(revision_id, role, customer_id)` `NULLS NOT DISTINCT` (the owner's row has no customer); approving twice is an upsert that changes nothing. Approval rows are only written by the card endpoint and owner actions; no agent tool writes `approved`.
 
 ### `proposal_exclusions`
 
@@ -259,7 +260,7 @@ Every PayPal call, recorded before it is made. In the PoC the call runs inline r
 
 ### `conversations`
 
-`customer_id`, `handed_off_at`, `handoff_reason`, `handed_back_at`. While handed off, agent output is stored as owner drafts, not sent.
+`customer_id` (unique: one conversation per customer), `handed_off_at`, `handoff_reason`, `handed_back_at`. While handed off, agent output is stored as owner drafts, not sent.
 
 ### `messages`
 
@@ -285,11 +286,11 @@ Every PayPal call, recorded before it is made. In the PoC the call runs inline r
 
 ### `owner_drafts`
 
-`booking_id`, `proposed jsonb` (new unit/times), `based_on_version`, `attested_customer_ids uuid[]` ("agreed by phone"). Stored server-side so a refresh keeps them; they hold no claims. "Resolve with agent" turns a draft into a proposal with `source = owner_resolve`.
+`booking_id` (unique: one draft per booking), `proposed jsonb` (new unit/times), `based_on_version`, `attested_customer_ids uuid[]` ("agreed by phone"). Stored server-side so a refresh keeps them; they hold no claims. "Resolve with agent" turns a draft into a proposal with `source = owner_resolve`.
 
 ### `activity_log`
 
-Append-only: `at` (shop clock), `actor` (`agent`, `owner`, `customer:{id}`, `system`), `kind`, `proposal_id`, `revision_id`, `payload jsonb`. Holds tool calls, optimizer runs with every pruned alternative and its reason, constraints recorded, claims, approvals, payment ops, transitions. Feeds the owner's activity feed over SSE (invariant 12).
+Append-only: `seq` (insertion order, for stable feed order and SSE resume), `at` (shop clock), `actor` (`agent`, `owner`, `customer:{id}`, `system`), `kind`, `proposal_id`, `revision_id`, `payload jsonb`. Holds tool calls, optimizer runs with every pruned alternative and its reason, constraints recorded, claims, approvals, payment ops, transitions. Feeds the owner's activity feed over SSE (invariant 12).
 
 ## 8. Where each rule lives
 

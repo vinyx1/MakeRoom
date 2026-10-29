@@ -1,0 +1,15 @@
+# Local Postgres for development and tests: `docker compose up -d`.
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: rentflow
+      POSTGRES_PASSWORD: rentflow
+      POSTGRES_DB: rentflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
