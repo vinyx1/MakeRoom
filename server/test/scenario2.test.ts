@@ -155,7 +155,7 @@ describe('Scenario 2: the owner drags, the agent asks', () => {
     const call = async (name: string, input: unknown) => JSON.parse(await (tools.find((t) => t.name === name)!.run as (i: unknown) => Promise<string>)(input));
     const [request] = (await call('get_my_proposals', {})).requests;
     expect(request.options[0].terms[1]).toContain('$25.00');
-    expect(await call('present_offer', { revision_ids: [request.options[0].revision_id] })).toMatchObject({ ok: true, buttons: ['Accept and authorize $25.00 with PayPal', 'Not now'] });
+    expect(await call('present_offer', { revision_ids: [request.options[0].revision_id] })).toMatchObject({ ok: true, buttons: ['Accept and authorize $25.00 with PayPal', 'Cancel my request'] });
   });
 
   it('once Dana pays, the agent can present the owner-approved downgrade to Eve', async () => {
@@ -175,7 +175,7 @@ describe('Scenario 2: the owner drags, the agent asks', () => {
     const call = async (name: string, input: unknown) => JSON.parse(await (tools.find((t) => t.name === name)!.run as (i: unknown) => Promise<string>)(input));
     const [request] = (await call('get_my_proposals', {})).requests;
     const offer = await call('present_offer', { revision_ids: [request.options[0].revision_id] });
-    expect(offer).toMatchObject({ ok: true, buttons: ['Accept'] });
+    expect(offer).toMatchObject({ ok: true, buttons: ['Accept', 'Keep my booking as is'] });
     expect(offer.shows[0].terms[0]).toContain('Zhiyun Crane 4');
   });
 });
