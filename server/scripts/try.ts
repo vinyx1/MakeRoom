@@ -104,10 +104,10 @@ async function showCards(name: string) {
     const labels = card.options.map((o: any) => o.option).filter(Boolean);
     const how =
       card.role === 'requester'
-        ? '`accept` to accept' + (card.chargeCents ? ` and pay ${usd(card.chargeCents)} (sandbox test card)` : '')
-        : labels.length > 1
+        ? '`accept` to accept' + (card.chargeCents && !card.heldCents ? ` and pay ${usd(card.chargeCents)} (sandbox test card)` : '') + ', or `cancel` to drop the request'
+        : (labels.length > 1
           ? `${labels.map((l: string) => `\`pick ${l}\``).join(' or ')} to choose`
-          : '`accept` (or `pick`) to accept it';
+          : '`accept` (or `pick`) to accept it') + ', or `keep` to keep your booking as is';
     say(`${c.dim}   ${how}${c.off}`);
   }
 }
@@ -122,7 +122,7 @@ async function accept(name: string) {
     if (affected) return say(`${c.dim}  this card has options: ${affected.options.map((o: any) => `\`pick ${o.option}\``).join(' or ')}${c.off}`);
     return say(`${c.dim}  ${name} has no offer to accept${c.off}`);
   }
-  if (card.chargeCents > 0) {
+  if (card.chargeCents > 0 && !card.heldCents) {
     const order = await api('POST', `/api/proposals/${card.proposalId}/order`, { customerId: cust.id, testCard: true });
     if (order.status !== 'ok') return say(`${c.red}  payment: ${JSON.stringify(order)}${c.off}`);
     say(`${c.green}  paid with the sandbox test card: ${usd(card.chargeCents)} held${c.off}`);
@@ -143,6 +143,25 @@ async function pick(name: string, label: string) {
   if (!option) return say(`${c.dim}  no option "${label}"; choose ${options.map((o) => `\`pick ${o.option}\``).join(' or ')}${c.off}`);
   const r = await api('POST', `/api/proposals/${card.proposalId}/revisions/${option.revisionId}/accept`, { customerId: cust.id });
   say(`${c.green}  → ${r.status}${r.waitingOn ? ` (waiting on ${r.waitingOn.join(', ')})` : ''}${r.reason ? `: ${r.reason}` : ''}${c.off}`);
+}
+
+/** "Keep my booking as is" on another customer's request. */
+async function keep(name: string) {
+  const { cust, view } = await customerView(name);
+  const card = view.cards.find((x: any) => x.role === 'affected');
+  if (!card) return say(`${c.dim}  ${name} has no request to say no to${c.off}`);
+  const r = await api('POST', `/api/proposals/${card.proposalId}/keep`, { customerId: cust.id });
+  say(r.status === 'kept' ? `${c.green}  → booking kept as is (the request goes on: ${r.next.replace('_', ' ')})${c.off}` : `${c.red}  → ${r.status}${r.reason ? `: ${r.reason}` : ''}${c.off}`);
+}
+
+/** The requester drops their own request (any time before it's confirmed). */
+async function cancel(name: string) {
+  const { cust } = await customerView(name);
+  await refreshOwner();
+  const proposal = owner.proposals.find((p: any) => p.requesterCustomerId === cust.id && ['DRAFT', 'AWAITING_APPROVALS'].includes(p.state));
+  if (!proposal) return say(`${c.dim}  ${name} has no open request${c.off}`);
+  const r = await api('POST', `/api/proposals/${proposal.id}/cancel`, { customerId: cust.id });
+  say(`${r.status === 'rejected' ? c.green : c.red}  → ${r.status === 'rejected' ? 'request cancelled; any hold released' : r.reason}${c.off}`);
 }
 
 // --- Owner side ---------------------------------------------------------------------------------------------
@@ -260,6 +279,12 @@ async function onActivity(a: any) {
       return;
     case 'auto_reply':
       return say(`${c.magenta}  · ${who} (scripted) chose ${p.option ? `option ${p.option}` : 'the offer'}: "${p.text}"${c.off}`);
+    case 'affected_refused':
+      return say(`${c.yellow}  · ${who} kept their booking as is${c.off}`);
+    case 'fallback_planned':
+      return say(`${c.magenta}  · trying the next plan (revision ${p.revisions?.length ? 'with ' + p.revisions.length + ' option(s)' : ''})${c.off}`);
+    case 'alternative_offered':
+      return say(`${c.magenta}  · no plans left: offering the requester the closest alternative${p.holdReleased ? ' (hold released)' : ''}${c.off}`);
     case 'proposal_committed':
       return say(`${c.green}  · committed: the schedule is updated${c.off}`);
     case 'proposal_ended':
@@ -281,6 +306,8 @@ ${c.bold}As a customer${c.off}
   cards                show the approval cards waiting for you
   accept               accept your offer (pays with the sandbox test card)
   pick A | pick B      choose an option on another customer's request (a single option: \`pick\` or \`accept\`)
+  keep                 "Keep my booking as is": say no to another customer's request
+  cancel               drop your own request (releases the payment hold)
   chat                 show the whole conversation
 ${c.bold}As the owner${c.off}
   inbox                owner cards and red drafts
@@ -300,6 +327,7 @@ ${c.bold}Anywhere${c.off}
   quit
 ${c.dim}Scenario 1: as alice → "Shoot ran over. Can I keep the camera until Thursday at 10am?" → accept → as bob → cards → pick B → as owner → inbox → approve 1
 Scenario 2: as owner → extend dana Fri 9 --phone → inbox → resolve 1 → approve 1 yes → save → as dana → accept → as eve → cards → accept
+Scenario 3: Scenario 1 up to Alice's accept → as bob → keep → as charlie → keep → as alice → cards → accept (or \`ff 31\`)
 Scenario 6: Scenario 1 up to Alice's accept → as owner → move bob Thu 14 --phone → again with --override${c.off}
 `;
 
@@ -418,6 +446,10 @@ async function run(line: string) {
       return accept(persona);
     case 'pick':
       return pick(persona, arg);
+    case 'keep':
+      return keep(persona);
+    case 'cancel':
+      return cancel(persona);
     case 'chat':
       return showChat(persona);
     default: {
