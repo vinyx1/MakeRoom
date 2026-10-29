@@ -104,10 +104,10 @@ describe('Scenario 1 over HTTP', () => {
     const aliceView = await v.get(`/api/customers/${alice}`);
     expect(aliceView.body.cards).toEqual([
       {
-        proposalId, role: 'requester', chargeCents: 4500, expiresAt: expect.any(String),
+        proposalId, role: 'requester', chargeCents: 4500, heldCents: 0, expiresAt: expect.any(String),
         options: [{
           revisionId: expect.any(String), option: null, needsShop: false, isAlternative: false,
-          lines: ['Keep the Sony A7 IV until Thu 10:00am', '$45.00, held on PayPal now and charged only when everything is confirmed'],
+          lines: ['Keep the Sony A7 IV until Thu 10:00am', "$45.00: nothing is charged yet. PayPal holds it until everything is confirmed; if it doesn't go ahead, the hold is released"],
         }],
       },
     ]);
