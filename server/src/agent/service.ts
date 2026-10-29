@@ -62,6 +62,9 @@ export function createAgentService(db: Db, config: AgentConfig, log: (msg: strin
         .limit(100);
       for (const row of rows) {
         cursor = row.seq;
+        // Claim the event first: another server process on the same database may be reading it too.
+        const claimed = await db.insert(s.agentDispatches).values({ activitySeq: row.seq }).onConflictDoNothing().returning();
+        if (!claimed.length) continue;
         for (const [customerId, event] of await eventsFor(row)) enqueue(row.shopId, customerId, event);
       }
     } finally {

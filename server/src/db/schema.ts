@@ -587,6 +587,15 @@ export const ownerDrafts = pgTable('owner_drafts', {
   attestedCustomerIds: uuid().array().notNull().default(sql`'{}'`),
 });
 
+/**
+ * Activity events whose agent turns have been started. The insert is the claim: when several server processes
+ * share a database, only the one whose insert succeeds starts the turns, so each event reaches customers once.
+ */
+export const agentDispatches = pgTable('agent_dispatches', {
+  activitySeq: bigint({ mode: 'number' }).primaryKey(),
+  claimedAt: at().notNull().defaultNow(),
+});
+
 /** Append-only. Feeds the owner's activity feed over SSE. */
 export const activityLog = pgTable(
   'activity_log',
