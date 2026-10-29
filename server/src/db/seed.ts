@@ -43,6 +43,7 @@ export function demoShopData({ sessionKey, realNow = new Date() }: { sessionKey:
     clockOffsetMs: now.getTime() - realNow.getTime(),
     policy,
     agentTurnsUsed: 0,
+    autoReplyCustomers: false,
     sessionKey,
     createdAt: realNow,
   };

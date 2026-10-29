@@ -57,6 +57,13 @@
       "when": 1793297319590,
       "tag": "0007_agent_dispatches",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793299028091,
+      "tag": "0008_auto_reply",
+      "breakpoints": true
     }
   ]
 }

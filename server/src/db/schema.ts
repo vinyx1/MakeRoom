@@ -117,6 +117,8 @@ export const shops = pgTable('shops', {
   clockOffsetMs: bigint({ mode: 'number' }).notNull().default(0),
   policy: jsonb().$type<Policy>().notNull(),
   agentTurnsUsed: integer().notNull().default(0),
+  /** Judge mode: scripted customers answer affected-party offers, so one judge can watch a negotiation play out. */
+  autoReplyCustomers: boolean().notNull().default(false),
   /** Hash of the visitor's session cookie. The shop is looked up by this, never by URL. */
   sessionKey: text().notNull().unique(),
   createdAt: at().notNull().defaultNow(),

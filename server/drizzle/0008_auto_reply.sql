@@ -1,0 +1,1 @@
+ALTER TABLE "shops" ADD COLUMN "auto_reply_customers" boolean DEFAULT false NOT NULL;
