@@ -9,7 +9,6 @@ import type { Db, Tx } from '../db/client.ts';
 import { loadSnapshot } from '../db/load-snapshot.ts';
 import * as s from '../db/schema.ts';
 import { type Index, indexSnapshot } from '../optimizer/snapshot.ts';
-import { renderOption } from '../proposals/cards.ts';
 import { ACTIVE_STATES } from '../proposals/state-machine.ts';
 import { LIVE_REVISION_STATUSES, afterOf } from '../proposals/store.ts';
 import { shopTime, usd } from './scope.ts';
@@ -291,4 +290,3 @@ async function templateFor(tx: Tx, shopId: string, customerId: string, event: Ag
   return `All confirmed. ${facts.split('\n').slice(1).join('. ')}.`;
 }
 
-export { renderOption };
