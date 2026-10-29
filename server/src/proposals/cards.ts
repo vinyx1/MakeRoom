@@ -54,7 +54,6 @@ export function renderOption(
       const endMoved = after.endsAt.getTime() !== new Date(before.endsAt).getTime();
       if (startMoved) lines.push(`Pickup moves from ${t(new Date(before.startsAt))} to ${t(after.startsAt)}`);
       if (endMoved) lines.push(`Return moves from ${t(new Date(before.endsAt))} to ${t(after.endsAt)}`);
-      if (!startMoved && endMoved === false) lines.push(`Your booking stays ${t(after.startsAt)} → ${t(after.endsAt)}`);
     }
   }
 
