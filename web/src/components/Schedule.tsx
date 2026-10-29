@@ -52,7 +52,7 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft }: Props) {
 
   // The demo week, Monday to the next Tuesday (Hank's booking), in shop time.
   const weekStart = DateTime.fromISO(owner.shop.now, { zone: tz }).startOf('week');
-  const view = useMemo(() => ({ start: weekStart.toJSDate(), end: weekStart.plus({ days: 9 }).toJSDate() }), [weekStart.toMillis()]);
+  const view = useMemo(() => ({ start: weekStart.toJSDate(), end: weekStart.plus({ days: 8 }).toJSDate() }), [weekStart.toMillis()]);
 
   const data = useMemo(() => {
     const resources = [
@@ -145,13 +145,14 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft }: Props) {
       startDate: view.start,
       endDate: view.end,
       viewPreset: 'dayAndWeek',
+      weekStartDay: 1, // Monday, like the demo week
       forceFit: true,
       rowHeight: 42,
       barMargin: 5,
       eventStyle: 'rounded',
       columns: [
-        { text: 'Unit', field: 'name', width: 92 },
-        { text: 'Model', field: 'model', width: 132 },
+        { text: 'Unit', field: 'name', width: 104 },
+        { text: 'Model', field: 'model', width: 150 },
       ],
       // The React wrapper takes one `<name>Feature` prop per feature (spike gotcha 1).
       eventBufferFeature: { showDuration: true },

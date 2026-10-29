@@ -57,8 +57,8 @@ code { font-size: 12px; background: #f0f2f5; padding: 1px 4px; border-radius: 4p
 }
 
 /* Owner column */
-.owner-body { display: grid; grid-template-rows: auto 1fr; min-height: 0; flex: 1; }
-.inbox { padding: 10px; display: flex; flex-direction: column; gap: 8px; max-height: 55%; overflow: auto; border-bottom: 1px solid var(--line); }
+.owner-body { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.inbox { padding: 10px; display: flex; flex-direction: column; gap: 8px; flex: 0 1 auto; max-height: 60%; overflow: auto; border-bottom: 1px solid var(--line); }
 .count { font-size: 12px; color: var(--muted); }
 .count.hot { color: #fff; background: var(--warn); padding: 1px 8px; border-radius: 999px; }
 .ocard { border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px; padding: 10px; background: #fff; }
@@ -69,7 +69,7 @@ code { font-size: 12px; background: #f0f2f5; padding: 1px 4px; border-radius: 4p
 .ocard-kind { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-bottom: 4px; }
 .fact-q { margin-top: 8px; padding: 8px; background: var(--warn-soft); border-radius: 6px; }
 .fact-q-text { font-size: 13px; }
-.feed { overflow: auto; padding: 8px 12px; min-height: 0; font-size: 12.5px; }
+.feed { overflow: auto; padding: 8px 12px; min-height: 0; flex: 1; font-size: 12.5px; }
 .feed-title { font-weight: 600; margin-bottom: 4px; }
 .fl { padding: 2px 0; }
 .fl-at { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 4px; }
@@ -121,8 +121,8 @@ code { font-size: 12px; background: #f0f2f5; padding: 1px 4px; border-radius: 4p
 .sandbox-login { font-size: 12px; color: var(--muted); margin: 4px 0 6px; }
 
 /* Schedule: bookings, ghosts (pending plans) and red drafts */
-.b-sch-event.kind-booking { background: #3b78e7; border-color: #2f62c1; }
-.b-sch-event.kind-booking.picked-up { background: #1f4fa8; }
+.b-sch-event.kind-booking { background: #3b78e7 !important; border-color: #2f62c1 !important; color: #fff !important; }
+.b-sch-event.kind-booking.picked-up { background: #1f4fa8 !important; }
 .b-sch-event.kind-booking.in-request { outline: 2px solid var(--warn); outline-offset: 1px; }
 .b-sch-event.kind-ghost { background: rgba(106, 79, 209, 0.12) !important; border: 2px dashed var(--ghost) !important; color: var(--ghost) !important; }
 .b-sch-event.kind-draft { background: var(--bad-soft) !important; border: 2px solid var(--bad) !important; color: var(--bad) !important; }
