@@ -54,7 +54,8 @@ const createdAt = () => at().notNull();
 
 export const unavailabilityReason = pgEnum('unavailability_reason', ['maintenance', 'out_of_service']);
 export const factValue = pgEnum('fact_value', ['yes', 'no', 'unknown']);
-export const factSource = pgEnum('fact_source', ['seed', 'owner']);
+/** `agent`: a question the agent raised that nobody has answered yet (value `unknown`). */
+export const factSource = pgEnum('fact_source', ['seed', 'owner', 'agent']);
 export const bookingStatus = pgEnum('booking_status', ['confirmed', 'picked_up', 'returned', 'cancelled', 'no_show']);
 export const proposalSource = pgEnum('proposal_source', [
   'customer_request',
@@ -99,6 +100,8 @@ export const escalationKind = pgEnum('escalation_kind', [
   'no_show',
   'unassigned',
   'payment_failure',
+  /** A judgment call from `escalate_to_owner`: upset, asks for a person, dispute, still ambiguous, … */
+  'customer_issue',
 ]);
 export const escalationStatus = pgEnum('escalation_status', ['open', 'resolved']);
 
