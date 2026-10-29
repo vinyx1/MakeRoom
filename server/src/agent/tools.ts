@@ -2,7 +2,8 @@
 // conversation. The model never passes the shop or the customer. Every tool validates against current state;
 // the agent can only reach the customer through send_message, and no tool records a decision or moves money.
 //
-// Not yet: revise_terms (counters) and record_constraint, which wait for counters and refusals in the flow.
+// Not yet: revise_terms (counters) and record_constraint. Refusals are a card button (Keep my booking as is); the
+// backend re-plans after one, so no tool is involved.
 
 import { betaZodTool } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { and, eq, inArray } from 'drizzle-orm';
@@ -406,13 +407,18 @@ export function makeTools(scope: ToolScope) {
           turn.cardsPosted++;
           const shows = await Promise.all((role === 'requester' ? cardIds.slice(0, 1) : cardIds).map((id) => terms(tx, idx, id, role)));
           const charge = live[0]!.quote.chargeCents;
+          const held = (await tx.select().from(s.paypalOrders).where(and(eq(s.paypalOrders.proposalId, p!.id), eq(s.paypalOrders.status, 'authorized')))).length > 0;
           return ok({
             card: 'posted',
-            buttons: role === 'requester' ? [charge > 0 ? `Accept and authorize ${usd(charge)} with PayPal` : 'Accept', 'Not now'] : shows.map((o) => (o.option ? `Accept option ${o.option}` : 'Accept')),
+            buttons: role === 'requester'
+              ? [charge > 0 && !held ? `Accept and authorize ${usd(charge)} with PayPal` : 'Accept', 'Cancel my request']
+              : [...shows.map((o) => (o.option ? `Accept option ${o.option}` : 'Accept')), 'Keep my booking as is'],
             shows: role === 'requester' ? { ...shows[0], option: null } : shows,
             hint: role === 'affected'
-              ? "Explain each option in a sentence; mark any needing shop confirmation as pending. If they want neither, they don't need to do anything: their booking stays as it is when the offer expires. Never name the other customer."
-              : 'Tell them to use the card; nothing is charged until everything is confirmed.',
+              ? 'Explain each option in a sentence; mark any needing shop confirmation as pending. If they want none of them, they tap Keep my booking as is and nothing about their booking changes. Never name the other customer.'
+              : charge > 0 && !held
+                ? 'Tell them to use the card. Authorizing only places a hold: nothing is charged until everything is confirmed, and the hold is released if it does not go ahead.'
+                : 'Tell them to use the card.',
           });
         }));
       },

@@ -78,7 +78,7 @@ describe('tools', () => {
     expect(r.hint).toContain(r.offer.revision_id);
 
     const card = await call('present_offer', { revision_ids: [r.offer.revision_id] });
-    expect(card).toMatchObject({ ok: true, card: 'posted', buttons: ['Accept and authorize $45.00 with PayPal', 'Not now'] });
+    expect(card).toMatchObject({ ok: true, card: 'posted', buttons: ['Accept and authorize $45.00 with PayPal', 'Cancel my request'] });
     expect((await call('present_offer', { revision_ids: [r.offer.revision_id] })).code).toBe('OVER_LIMIT');
   });
 
