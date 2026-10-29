@@ -291,6 +291,7 @@ ${c.bold}As the owner${c.off}
   extend <name> <Day> <H[:MM]> [--phone] [--override]   drag the end of their booking
   move <name> <Day> <H[:MM]> [--phone] [--override]     drag the pickup
   resolve <n>          "Resolve with agent" on red draft n
+  price <name> <$>     lower what a customer pays for their request, before they pay
   reply <name> <text>  write in a customer's chat;  handback <name>  ends a handoff
 ${c.bold}Anywhere${c.off}
   schedule             everyone's bookings        ff <minutes>  fast-forward the shop clock
@@ -376,6 +377,15 @@ async function run(line: string) {
       case 'extend':
       case 'move':
         return edit(rest[0] ?? '', cmd === 'extend' ? 'end' : 'start', rest[1] ?? '', rest[2] ?? '', rest.slice(3));
+      case 'price': {
+        await refreshOwner();
+        const cust = customerByName(rest[0] ?? '');
+        const proposal = owner.proposals.find((p: any) => p.requesterCustomerId === cust?.id);
+        const dollars = Number((rest[1] ?? '').replace('$', ''));
+        if (!proposal || !Number.isFinite(dollars)) return say(`${c.dim}  price <name> <dollars>, for a request that's waiting for the customer to pay${c.off}`);
+        const r = await api('POST', `/api/proposals/${proposal.id}/price`, { priceCents: Math.round(dollars * 100) });
+        return say(r.status === 'repriced' ? `${c.green}  new price sent to ${cust.name}: ${usd(r.chargeCents)}${c.off}` : `${c.red}  ${r.reason}${c.off}`);
+      }
       case 'resolve': {
         const d = owner?.drafts[Number(rest[0]) - 1];
         if (!d) return say(`${c.dim}  no draft ${rest[0]}; type \`inbox\`${c.off}`);
@@ -397,7 +407,7 @@ async function run(line: string) {
         return say(`${c.green}  the assistant is back on ${cust.name}'s chat${c.off}`);
       }
       default:
-        return say(`${c.dim}  owner commands: inbox, approve, decline, save, answer, extend, move, resolve, reply, handback (\`help\`)${c.off}`);
+        return say(`${c.dim}  owner commands: inbox, approve, decline, save, answer, extend, move, resolve, price, reply, handback (\`help\`)${c.off}`);
     }
   }
 
