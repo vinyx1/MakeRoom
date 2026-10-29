@@ -187,7 +187,11 @@ export async function ensureOwnerApproval(
   });
 }
 
-/** "Bob's booking shortened by 5h, $15 refund. Net +$30." Rendered from the revision, never from agent text. */
+/**
+ * The owner card's text, rendered from the revision, never from agent text:
+ *   "Bob's booking shortened by 5h (now Thu 2:00pm → Fri 6:00pm), $15 refund. Net +$30."
+ *   "Eve moved to the Zhiyun Crane 4 gimbal (downgrade), $20 refund. Net +$5. Needs a fact: … Balances a Canon R5 + RF 24-70?"
+ */
 export function ownerSummary(idx: Index, proposal: Proposal, revision: Revision, rows: RevisionChange[]) {
   const usd = (cents: number) => `$${(Math.abs(cents) / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
   const t = (d: Date) => formatShopTime(d, idx.snap.shop);
@@ -199,16 +203,32 @@ export function ownerSummary(idx: Index, proposal: Proposal, revision: Revision,
       const after = afterOf(c);
       const out: string[] = [];
       const lostMs = new Date(before.endsAt).getTime() - new Date(before.startsAt).getTime() - (after.endsAt.getTime() - after.startsAt.getTime());
-      if (c.kind === 'model_change') out.push(`${name} moved to the ${idx.models.get(after.modelId)?.name ?? 'other model'}`);
+      if (c.kind === 'model_change') {
+        const [from, to] = [idx.models.get(before.modelId), idx.models.get(after.modelId)];
+        const direction = from && to ? (to.tier < from.tier ? ' (downgrade)' : to.tier > from.tier ? ' (upgrade)' : '') : '';
+        out.push(`${name} moved to the ${to?.name ?? 'other model'}${direction}`);
+      }
       else if (c.kind === 'same_model_swap') out.push(`${name} moved to ${idx.unitLabel(after.unitId)} (notice only)`);
       else if (lostMs > 0) out.push(`${name}'s booking shortened by ${lostMs / 3600_000}h (now ${t(after.startsAt)} → ${t(after.endsAt)})`);
       else if (c.kind === 'time_shift') out.push(`${name} moved to ${t(after.startsAt)} → ${t(after.endsAt)}`);
       const comp = revision.quote.compensation.filter((x) => x.bookingId === c.bookingId);
-      for (const x of comp) out.push(x.kind === 'refund' ? `${usd(x.cents)} refund` : `${usd(x.cents)} upgrade value`);
+      const refund = comp.filter((x) => x.kind === 'refund').reduce((sum, x) => sum + x.cents, 0);
+      const upgrade = comp.filter((x) => x.kind === 'upgrade_value').reduce((sum, x) => sum + x.cents, 0);
+      if (refund) out.push(`${usd(refund)} refund`);
+      if (upgrade) out.push(`${usd(upgrade)} upgrade value`);
       return out.length ? [out.join(', ')] : [];
     });
   const net = revision.quote.netRevenueCents;
-  return `${parts.join('; ') || 'No other bookings change'}. Net ${net < 0 ? '−' : '+'}${usd(net)}.`;
+  // Unknown facts the plan relies on, as questions, with the booking note that explains why it matters.
+  const questions = idx.snap.facts
+    .filter((f) => revision.factDependencies.includes(f.id) && f.value !== 'yes')
+    .map((f) => {
+      const needing = rows.find((c) => c.newUnitId === f.unitId && c.bookingId && idx.bookings.get(c.bookingId)?.requiredFacts.includes(f.key));
+      const booking = needing?.bookingId ? idx.bookings.get(needing.bookingId) : undefined;
+      const why = booking?.note ? `${idx.customerName(booking.customerId)}'s booking says "${booking.note}". ` : '';
+      return `Needs a fact: ${why}${f.unitId ? idx.unitLabel(f.unitId) : (idx.models.get(f.modelId!)?.name ?? '')}: ${f.label ?? f.key.replaceAll('_', ' ')}?`;
+    });
+  return [`${parts.join('; ') || 'No other bookings change'}.`, `Net ${net < 0 ? '−' : '+'}${usd(net)}.`, ...questions].join(' ');
 }
 
 /** Every approval this revision needs is in: the requester's, each affected party's, and the owner's if needed. */
