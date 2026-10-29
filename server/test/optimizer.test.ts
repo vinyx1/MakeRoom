@@ -96,7 +96,7 @@ describe('Scenario 1: Alice extends to Thu 10am', () => {
 
   it('lists the alternatives from the demo script as pruned, with reasons', () => {
     const messages = result.pruned.map((p) => p.message);
-    expect(messages).toContain('Move Alice to A7IV-2 → picked-up rentals never change unit');
+    expect(messages).toContain('Move Alice to A7IV-2, return to Thu 10:00am → picked-up rentals never change unit');
     expect(messages).toContain("Move Bob to A7IV-2 → overlaps Charlie's booking on A7IV-2");
     expect(messages).toContain('Move Bob to A7IV-3 → A7IV-3 is unavailable (maintenance)');
   });

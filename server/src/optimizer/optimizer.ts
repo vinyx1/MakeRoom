@@ -211,9 +211,13 @@ function movesFor(
     const timeMoves: Placement[] = [
       { ...base, startsAt: later }, // later pickup, same return (shortened)
       { ...base, ...shiftBy(later.getTime() - b.startsAt.getTime()) }, // whole booking later
-      { ...base, endsAt: earlier, bufferEndsAt: new Date(earlier.getTime() + buffer) }, // earlier return (shortened)
-      { ...base, ...shiftBy(earlier.getTime() - b.endsAt.getTime()) }, // whole booking earlier
     ];
+    // Earlier only helps when the blocker starts after this booking does (e.g. a new booking right after it).
+    if (freeUntil > b.startsAt)
+      timeMoves.push(
+        { ...base, endsAt: earlier, bufferEndsAt: new Date(earlier.getTime() + buffer) }, // earlier return (shortened)
+        { ...base, ...shiftBy(earlier.getTime() - b.endsAt.getTime()) }, // whole booking earlier
+      );
     for (const p of timeMoves) {
       if (p.endsAt <= p.startsAt) continue;
       const hours = hoursShifted(base, p);
