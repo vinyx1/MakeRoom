@@ -376,7 +376,15 @@ export function makeTools(scope: ToolScope) {
           const open = role === 'requester' ? p!.state === 'DRAFT' : p!.state === 'AWAITING_APPROVALS' && pending.length > 0;
           if (!open) return refuse('INVALID_STATE', 'This customer has no decision pending on that request.', 'Use get_my_proposals to explain what it is waiting on.');
           // The requester's card carries every sibling option; an affected party's carries the options they can pick.
-          const cardIds = role === 'requester' ? live.map((r) => r.id) : live.filter((r) => pending.some((a) => a.revisionId === r.id) && !r.envelopeTrips.length).map((r) => r.id);
+          // A plan outside the envelope reaches a customer only once the owner has approved it (invariant 6).
+          const ownerOk = new Set(
+            (await tx.select().from(s.approvals).where(and(inArray(s.approvals.revisionId, live.map((r) => r.id)), eq(s.approvals.role, 'owner'), eq(s.approvals.status, 'approved'))))
+              .map((a) => a.revisionId),
+          );
+          const cardIds =
+            role === 'requester'
+              ? live.map((r) => r.id)
+              : live.filter((r) => pending.some((a) => a.revisionId === r.id) && (!r.envelopeTrips.length || ownerOk.has(r.id))).map((r) => r.id);
           if (!cardIds.length) return refuse('INVALID_STATE', 'Nothing on that request can be offered to this customer yet.', 'Say the shop is reviewing it.');
           await tx.insert(s.messages).values({ shopId, conversationId: scope.conversationId, author: 'agent', body: '', cardRevisionIds: cardIds, at: idx.snap.now });
           turn.cardsPosted++;
@@ -384,7 +392,7 @@ export function makeTools(scope: ToolScope) {
           const charge = live[0]!.quote.chargeCents;
           return ok({
             card: 'posted',
-            buttons: role === 'requester' ? [charge > 0 ? `Accept and authorize ${usd(charge)} with PayPal` : 'Accept', 'Not now'] : shows.map((o) => `Accept option ${o.option ?? ''}`.trim()),
+            buttons: role === 'requester' ? [charge > 0 ? `Accept and authorize ${usd(charge)} with PayPal` : 'Accept', 'Not now'] : shows.map((o) => (o.option ? `Accept option ${o.option}` : 'Accept')),
             shows: role === 'requester' ? { ...shows[0], option: null } : shows,
             hint: role === 'affected'
               ? "Explain each option in a sentence; mark any needing shop confirmation as pending. If they want neither, they don't need to do anything: their booking stays as it is when the offer expires. Never name the other customer."

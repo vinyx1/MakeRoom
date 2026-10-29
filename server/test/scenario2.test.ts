@@ -157,6 +157,27 @@ describe('Scenario 2: the owner drags, the agent asks', () => {
     expect(request.options[0].terms[1]).toContain('$25.00');
     expect(await call('present_offer', { revision_ids: [request.options[0].revision_id] })).toMatchObject({ ok: true, buttons: ['Accept and authorize $25.00 with PayPal', 'Not now'] });
   });
+
+  it('once Dana pays, the agent can present the owner-approved downgrade to Eve', async () => {
+    const { d, gateway } = await shop();
+    const resolved = await resolveDraft(db, d.shop.id, { draftId: await danaDragged(d, gateway) });
+    if (resolved.status !== 'resolved') throw new Error(resolved.status);
+    await ownerDecision(db, gateway, d.shop.id, {
+      proposalId: resolved.proposal.id, revisionId: resolved.revisions[0]!.id, decision: 'approve', factAnswers: { [d.facts[0]!.id]: 'yes' },
+    });
+    const dana = d.customer('Dana').id;
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: resolved.proposal.id, customerId: dana });
+    await requesterAccept(db, gateway, d.shop.id, { proposalId: resolved.proposal.id, customerId: dana });
+
+    const eveId = d.customer('Eve').id;
+    const conversation = await conversationOf(db, d.shop.id, eveId, d.now);
+    const tools = makeTools({ db, shopId: d.shop.id, customerId: eveId, conversationId: conversation.id, turn: new TurnState(), now: () => d.now, onStep: () => {} });
+    const call = async (name: string, input: unknown) => JSON.parse(await (tools.find((t) => t.name === name)!.run as (i: unknown) => Promise<string>)(input));
+    const [request] = (await call('get_my_proposals', {})).requests;
+    const offer = await call('present_offer', { revision_ids: [request.options[0].revision_id] });
+    expect(offer).toMatchObject({ ok: true, buttons: ['Accept'] });
+    expect(offer.shows[0].terms[0]).toContain('Zhiyun Crane 4');
+  });
 });
 
 describe('a customer’s fact question', () => {
