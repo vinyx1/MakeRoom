@@ -12,7 +12,7 @@
 import { EventModel, StringHelper, TimeZoneHelper } from '@bryntum/schedulerpro';
 import { BryntumSchedulerPro, BryntumSchedulerProProjectModel } from '@bryntum/schedulerpro-react';
 import { DateTime } from 'luxon';
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { OwnerView } from '../api';
 import { shopTime, usd } from '../live';
 
@@ -44,6 +44,7 @@ const hoursBetween = (a: string, b: string) => Math.round((new Date(b).getTime()
 
 export function Schedule({ owner, shopNow, onEdit, onResolveDraft }: Props) {
   const project = useRef<BryntumSchedulerProProjectModel>(null);
+  const scheduler = useRef<BryntumSchedulerPro>(null);
   const tz = owner.shop.timezone;
   const nameOf = (id: string | null) => owner.customers.find((c) => c.id === id)?.name ?? 'Customer';
   const modelOf = (id: string) => owner.models.find((m) => m.id === id)?.name ?? '';
@@ -130,6 +131,13 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft }: Props) {
     return { resources, events, assignments, resourceTimeRanges };
   }, [owner]);
 
+  // EXPERIMENT span: set the visible range after mount, in Bryntum's converted form.
+  useEffect(() => {
+    if (mode !== 'span') return;
+    const s = (scheduler.current as any)?.instance;
+    s?.setTimeSpan(TimeZoneHelper.toTimeZone(weekStart.toJSDate(), tz), TimeZoneHelper.toTimeZone(weekStart.plus({ days: 9 }).toJSDate(), tz));
+  }, [weekStart.toMillis(), tz]);
+
   const timeRanges = useMemo(() => [{ id: 'now', name: `Now · ${shopTime(shopNow, tz, 'h:mma')}`, startDate: shopNow }], [Math.floor(shopNow.getTime() / 60_000)]);
 
   // Bryntum keeps the config from the first render, so its handlers read the latest props from here.
@@ -213,7 +221,7 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft }: Props) {
         resourceTimeRanges={data.resourceTimeRanges as any}
         timeRanges={timeRanges as any}
       />
-      <BryntumSchedulerPro project={project as any} {...(config as any)} />
+      <BryntumSchedulerPro ref={scheduler} project={project as any} {...(config as any)} />
     </div>
   );
 }
