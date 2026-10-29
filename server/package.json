@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "start": "node src/server/main.ts",
+    "dev": "node --watch src/server/main.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node src/db/migrate.ts",
     "db:studio": "drizzle-kit studio",

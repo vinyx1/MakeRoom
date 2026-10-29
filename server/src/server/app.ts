@@ -1,0 +1,243 @@
+// The HTTP API. Thin: parse and check input, find the visitor's shop, call the domain function, return its
+// result. Domain outcomes (refused, stale, expired…) come back as 200 with a `status`; bad input is 400.
+// Routes act for whoever the role switcher says (owner, Alice, Bob…): judge mode has no auth beyond the session,
+// and every id is checked against the session's shop.
+
+import cookie from '@fastify/cookie';
+import { and, eq, gt, inArray, max, sql } from 'drizzle-orm';
+import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
+import { z } from 'zod';
+import type { Db } from '../db/client.ts';
+import { withShopLock } from '../db/lock.ts';
+import * as s from '../db/schema.ts';
+import { ownerEditBooking } from '../owner/edit-booking.ts';
+import type { PaymentGateway } from '../payments/gateway.ts';
+import { affectedAccept, createRequesterOrder, expireDue, ownerDecision, requestChange, requesterAccept } from '../proposals/flow.ts';
+import { resetShop, shopForSession, newSessionToken } from './shops.ts';
+import { customerView, ownerView } from './views.ts';
+
+type Shop = typeof s.shops.$inferSelect;
+
+declare module 'fastify' {
+  interface FastifyRequest {
+    shop: Shop;
+  }
+}
+
+export const SESSION_COOKIE = 'rentflow_session';
+
+export type AppOptions = {
+  db: Db;
+  gateway: PaymentGateway;
+  /** PayPal client id for the browser button; public by design (spikes/paypal/FINDINGS.md gotcha 5). */
+  paypalClientId?: string;
+  /** Set the cookie's Secure flag (behind HTTPS). */
+  secureCookies?: boolean;
+  /** How often the SSE stream checks for new activity. */
+  ssePollMs?: number;
+  logger?: boolean;
+};
+
+const isoDate = z.iso.datetime({ offset: true }).transform((v) => new Date(v));
+const id = z.uuid();
+const CustomerBody = z.object({ customerId: id });
+const RequestBody = z.object({
+  customerId: id,
+  request: z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('extend'), bookingId: id, newEndsAt: isoDate }),
+    z.object({ kind: z.literal('shift'), bookingId: id, newStartsAt: isoDate.optional(), newEndsAt: isoDate.optional() }),
+    z.object({ kind: z.literal('new_booking'), modelId: id, startsAt: isoDate, endsAt: isoDate }),
+  ]),
+});
+const OwnerDecisionBody = z.object({ decision: z.enum(['approve', 'decline']) });
+const EditBody = z.object({
+  unitId: id,
+  startsAt: isoDate,
+  endsAt: isoDate,
+  basedOnVersion: z.number().int().positive(),
+  attestedCustomerIds: z.array(id).default([]),
+  override: z.boolean().default(false),
+});
+const FastForwardBody = z.object({ minutes: z.number().int().min(1).max(7 * 24 * 60) });
+const ProposalParams = z.object({ proposalId: id });
+const RevisionParams = z.object({ proposalId: id, revisionId: id });
+
+class BadRequest extends Error {
+  issues: unknown;
+  constructor(issues: unknown) {
+    super('bad request');
+    this.issues = issues;
+  }
+}
+
+function parse<T extends z.ZodType>(schema: T, value: unknown): z.infer<T> {
+  const r = schema.safeParse(value);
+  if (!r.success) throw new BadRequest(z.treeifyError(r.error));
+  return r.data;
+}
+
+export function buildApp(opts: AppOptions) {
+  const { db, gateway } = opts;
+  const app = Fastify({ logger: opts.logger ?? false });
+  app.register(cookie);
+  app.decorateRequest('shop', null as unknown as Shop);
+
+  // Every /api route except config acts on the visitor's own shop, seeded on first visit.
+  app.addHook('preHandler', async (req: FastifyRequest, reply: FastifyReply) => {
+    if (!req.url.startsWith('/api/') || req.url.startsWith('/api/config')) return;
+    let token = req.cookies[SESSION_COOKIE];
+    if (!token || !/^[\w-]{43}$/.test(token)) {
+      token = newSessionToken();
+      reply.setCookie(SESSION_COOKIE, token, { path: '/', httpOnly: true, sameSite: 'lax', secure: opts.secureCookies ?? false, maxAge: 7 * 24 * 3600 });
+    }
+    req.shop = await shopForSession(db, gateway, token);
+  });
+
+  app.setErrorHandler((err: Error & { statusCode?: number }, req, reply) => {
+    if (err instanceof BadRequest) return reply.code(400).send({ error: 'bad_request', issues: err.issues });
+    req.log.error(err);
+    // Fastify's own client errors (bad JSON, wrong content type) keep their 4xx.
+    if (err.statusCode && err.statusCode < 500) return reply.code(err.statusCode).send({ error: err.message });
+    return reply.code(500).send({ error: 'internal_error' });
+  });
+
+  app.get('/api/config', async () => ({ paypalClientId: opts.paypalClientId ?? null, currency: 'USD', environment: 'sandbox' }));
+
+  // --- Views ------------------------------------------------------------------------------------------------
+
+  app.get('/api/owner', async (req) => db.transaction((tx) => ownerView(tx, req.shop.id)));
+
+  app.get('/api/customers/:customerId', async (req, reply) => {
+    const { customerId } = parse(CustomerBody, req.params);
+    const view = await db.transaction((tx) => customerView(tx, req.shop.id, customerId));
+    return view ?? reply.code(404).send({ error: 'not_found' });
+  });
+
+  // --- Customer actions -------------------------------------------------------------------------------------
+
+  app.post('/api/requests', async (req) => {
+    const { customerId, request } = parse(RequestBody, req.body);
+    return requestChange(db, req.shop.id, {
+      customerId,
+      request: request.kind === 'new_booking' ? { ...request, customerId } : request,
+    });
+  });
+
+  // The PayPal button's createOrder: returns the order id the button approves.
+  app.post('/api/proposals/:proposalId/order', async (req) => {
+    const { proposalId } = parse(ProposalParams, req.params);
+    const { customerId } = parse(CustomerBody, req.body);
+    return createRequesterOrder(db, gateway, req.shop.id, { proposalId, customerId });
+  });
+
+  // The PayPal button's onApprove, or Accept when nothing is owed.
+  app.post('/api/proposals/:proposalId/accept', async (req) => {
+    const { proposalId } = parse(ProposalParams, req.params);
+    const { customerId } = parse(CustomerBody, req.body);
+    return requesterAccept(db, gateway, req.shop.id, { proposalId, customerId });
+  });
+
+  app.post('/api/proposals/:proposalId/revisions/:revisionId/accept', async (req) => {
+    const { proposalId, revisionId } = parse(RevisionParams, req.params);
+    const { customerId } = parse(CustomerBody, req.body);
+    return affectedAccept(db, gateway, req.shop.id, { proposalId, customerId, revisionId });
+  });
+
+  // --- Owner actions ----------------------------------------------------------------------------------------
+
+  app.post('/api/proposals/:proposalId/revisions/:revisionId/owner', async (req) => {
+    const { proposalId, revisionId } = parse(RevisionParams, req.params);
+    const { decision } = parse(OwnerDecisionBody, req.body);
+    return ownerDecision(db, gateway, req.shop.id, { proposalId, revisionId, decision });
+  });
+
+  app.post('/api/bookings/:bookingId/edit', async (req) => {
+    const { bookingId } = parse(z.object({ bookingId: id }), req.params);
+    const body = parse(EditBody, req.body);
+    return ownerEditBooking(db, gateway, req.shop.id, { bookingId, ...body });
+  });
+
+  // --- Judge-mode controls ----------------------------------------------------------------------------------
+
+  app.post('/api/demo/reset', async (req) => {
+    const shop = await resetShop(db, gateway, req.shop.id);
+    return { status: 'reset', shopId: shop.id };
+  });
+
+  app.post('/api/demo/fast-forward', async (req) => {
+    const { minutes } = parse(FastForwardBody, req.body);
+    const shopId = req.shop.id;
+    const now = await withShopLock(db, shopId, async (tx) => {
+      const [shop] = await tx
+        .update(s.shops)
+        .set({ clockOffsetMs: sql`${s.shops.clockOffsetMs} + ${minutes * 60_000}` })
+        .where(eq(s.shops.id, shopId))
+        .returning();
+      const at = new Date(Date.now() + shop!.clockOffsetMs);
+      await tx.insert(s.activityLog).values({ shopId, at, actor: 'owner', kind: 'clock_fast_forwarded', payload: { minutes } });
+      return at;
+    });
+    const expired = await expireDue(db, gateway, shopId);
+    return { status: 'ok', now, expired };
+  });
+
+  // --- Live activity feed (SSE) -----------------------------------------------------------------------------
+
+  // Streams the shop's activity log from `Last-Event-ID` (or `?after=`), else from now. Polls the table: one
+  // process, a handful of shops, and it survives restarts with nothing to wire up.
+  app.get('/api/events', async (req, reply) => {
+    const shopId = req.shop.id;
+    const query = parse(z.object({ after: z.coerce.number().int().nonnegative().optional() }), req.query);
+    const header = Number(req.headers['last-event-id']);
+    let after = Number.isFinite(header) && header > 0 ? header : query.after;
+    if (after === undefined) {
+      const [row] = await db.select({ seq: max(s.activityLog.seq) }).from(s.activityLog).where(eq(s.activityLog.shopId, shopId));
+      after = row?.seq ?? 0;
+    }
+
+    reply.hijack();
+    const res = reply.raw;
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    res.write(': connected\n\n');
+    let open = true;
+    req.raw.on('close', () => (open = false));
+    let lastWrite = Date.now();
+    while (open) {
+      const rows = await db
+        .select()
+        .from(s.activityLog)
+        .where(and(eq(s.activityLog.shopId, shopId), gt(s.activityLog.seq, after)))
+        .orderBy(s.activityLog.seq)
+        .limit(200);
+      for (const row of rows) {
+        res.write(`id: ${row.seq}\nevent: activity\ndata: ${JSON.stringify(row)}\n\n`);
+        after = row.seq;
+        lastWrite = Date.now();
+      }
+      if (Date.now() - lastWrite > 15_000) {
+        res.write(': ping\n\n');
+        lastWrite = Date.now();
+      }
+      await new Promise((r) => setTimeout(r, opts.ssePollMs ?? 500));
+    }
+    res.end();
+  });
+
+  return app;
+}
+
+/** Expires overdue proposals in every shop that has one waiting. Run on an interval (approval timeouts). */
+export async function sweepExpiries(db: Db, gateway: PaymentGateway) {
+  const rows = await db
+    .selectDistinct({ shopId: s.proposals.shopId })
+    .from(s.proposals)
+    .where(inArray(s.proposals.state, ['DRAFT', 'AWAITING_APPROVALS']));
+  const expired: string[] = [];
+  for (const { shopId } of rows) expired.push(...(await expireDue(db, gateway, shopId)));
+  return expired;
+}
