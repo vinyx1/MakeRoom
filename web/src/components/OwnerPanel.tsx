@@ -106,7 +106,8 @@ function PendingRequest({ proposal: p, owner, onOutcome }: { proposal: OwnerView
   const rev = p.revisions[0];
   if (!rev) return null;
   const name = owner.customers.find((c) => c.id === p.requesterCustomerId)?.name ?? 'The shop';
-  const what = rev.quote.lines.map((l) => l.label).join(', ') || 'change';
+  const what = rev.isAlternative ? 'closest alternative' : rev.quote.lines.map((l) => l.label).join(', ') || 'change';
+  const free = rev.quote.chargeCents === 0;
   const save = async () => {
     const cents = Math.round(Number(dollars) * 100);
     if (!Number.isFinite(cents) || cents < 0) return onOutcome({ status: 'refused', reason: 'Enter a price in dollars, like 40 or 40.00.' });
@@ -125,8 +126,8 @@ function PendingRequest({ proposal: p, owner, onOutcome }: { proposal: OwnerView
         <b>{name}</b>: {what} · <b>{usd(rev.quote.chargeCents)}</b>
         {rev.quote.discountCents > 0 && <span className="muted small"> ({usd(rev.quote.discountCents)} off)</span>}
       </div>
-      <div className="muted small">{STATE[p.state] ?? p.state.toLowerCase()}</div>
-      {p.state === 'DRAFT' && p.requesterCustomerId && !editing && (
+      <div className="muted small">{p.state === 'DRAFT' && free ? 'waiting for the customer to accept' : (STATE[p.state] ?? p.state.toLowerCase())}</div>
+      {p.state === 'DRAFT' && p.requesterCustomerId && !free && !editing && (
         <button className="link" onClick={() => { setDollars((rev.quote.chargeCents / 100).toFixed(2)); setEditing(true); }}>
           Adjust price
         </button>

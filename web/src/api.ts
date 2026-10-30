@@ -40,6 +40,7 @@ export type Revision = {
   proposalId: string;
   optionLabel: string | null;
   status: string;
+  isAlternative: boolean;
   needsOwner: boolean;
   ownerTriggers: string[];
   envelopeTrips: string[];
