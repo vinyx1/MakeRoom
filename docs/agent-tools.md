@@ -109,7 +109,7 @@ A counter is the customer's approval of it only once they click **Send** on its 
 **`present_offer(revision_ids)`**
 Posts an approval card in the conversation for one revision, or up to 2 sibling options (§4 options). The card's contents are rendered by the backend from the revisions. Buttons depend on role:
 
-- requester: **Accept** (plus PayPal authorize when money is due), **Not now**
+- requester: **Accept** (plus PayPal authorize when money is due and no hold covers it), **Cancel my request** (ends the request, hold voided), **Not now** (hides the card)
 - affected party: **Accept** per option, **Keep my booking as is** (refusal)
 - author of a counter: **Send**, **Discard**
 - after accepting, while `AWAITING_APPROVALS`: **Withdraw**

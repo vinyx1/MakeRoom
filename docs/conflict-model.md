@@ -152,6 +152,8 @@ The Bryntum client can be stale too: every owner edit carries the versions it wa
 
 The requester always gets the closest feasible alternative, never a bare denial.
 
+**Built (2026-10-29, `affectedRefuse` / `planFallback` in `server/src/proposals/flow.ts`):** a refusal drops every live option that needs the refusing customer and records the exclusion. Fallback plans are offered only when the requester's terms are unchanged, so their approval and hold carry over; the closest alternative goes back to the requester as a `DRAFT` revision, is never priced above the authorized amount, and voids the hold immediately when it costs nothing. If neither exists the request is `REJECTED`. Customers who refused aren't messaged again when the request ends; they were told when they refused.
+
 **Forced changes.** When a unit goes unavailable, a booking on it can't stay as it was, so "a rejection leaves the booking unchanged" has no valid meaning. Such bookings become **unassigned**: still confirmed for their model, with no unit, shown in an "Unassigned" row in Bryntum. The agent offers options as usual. If the customer refuses every option, the booking stays unassigned and the owner decides: cancel with a full refund, or source gear. The exclusion constraint applies only to assigned bookings.
 
 **Owner priority.** The owner may decline any proposal; nothing commits, and conflicts left unresolved stay escalated until the owner acts.

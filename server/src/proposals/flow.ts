@@ -14,8 +14,11 @@
 // Every write runs in `withShopLock` and revalidates against current state first (invariant 5). Payment calls
 // run after the transaction commits. Approvals are only ever recorded here, from clicks (invariant 3).
 //
-// Not yet: refusals and fallback plans (Scenario 3), counters and re-approval, withdrawal, telling customers
-// (the agent reads the `offer_ready` / `proposal_update` activity events).
+//   affectedRefuse         "Keep my booking as is" → that customer excluded → fallback plan or closest alternative
+//   requesterCancel        the requester backs out before capture
+//
+// Not yet: counters and re-approval, customer-stated constraints. Customers are told by the agent, which reads
+// the activity events (`offer_ready`, `affected_refused`, `proposal_update`, `proposal_ended`).
 
 import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { logActivity } from '../activity.ts';
