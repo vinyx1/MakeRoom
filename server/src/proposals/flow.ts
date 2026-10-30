@@ -361,7 +361,6 @@ export async function markOverdue(
     await tx.update(s.proposals).set({ state: t.to, version: sql`${s.proposals.version} + 1` }).where(eq(s.proposals.id, proposal!.id));
     const p = { ...proposal!, state: t.to };
     await openOffers(tx, idx, p, revisions, rows, now, expiresAt);
-    for (const r of revisions) if (r.needsOwner && !r.envelopeTrips.length) await ensureOwnerApproval(tx, idx, p, r, rows.get(r.id)!, 'approval', now);
     await overdueLog('planned');
 
     // Only notice-only swaps (a same-model unit for the next renter): nobody needs asking.
