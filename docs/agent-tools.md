@@ -24,6 +24,7 @@ The agent runs in **turns**: one tool-runner loop (Anthropic TS SDK, `betaZodToo
 | `customer_message` | Customer | Respond |
 | `offer_ready` | Customer (requester or affected party) | Present the given revision(s) with `present_offer` and explain them |
 | `proposal_update` | Customer | Explain what happened: new revision, owner declined, expired, cancelled, committed, notice of a same-model swap |
+| `request_progress` | Customer (requester) | An affected customer kept their booking and the backend sent a fallback plan to someone else: tell the requester their request and hold stand, and that nothing is needed from them |
 | `payment_result` | Customer (requester) | Explain a failed or declined authorization and offer a retry |
 | `owner_answered` | Customer | Pass on an owner's answer to a question the customer asked |
 | `owner_assist` | Owner assist | Write the summary for the owner card |
