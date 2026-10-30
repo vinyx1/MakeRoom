@@ -194,6 +194,8 @@ async function requestStatuses(tx: Tx, idx: ReturnType<typeof indexSnapshot>, sh
             detail: 'Your booking changes only once everything is confirmed.',
           }
         : { ...base, tone: 'waiting', headline: 'This offer was replaced', detail: 'Your booking stays as it is unless you accept a newer offer.' };
+    if (p.source === 'overdue')
+      return { ...base, tone: 'ended', headline: 'Offer ended', detail: "Your booking stays as it was. If the equipment isn't back in time, the shop will contact you." };
     return { ...base, tone: 'ended', headline: 'Withdrawn', detail: "The other customer's request ended, so your booking stays as it was." };
   });
 }
