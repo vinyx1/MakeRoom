@@ -263,7 +263,7 @@ async function describeEvent(tx: Tx, idx: Index, customerId: string, event: Agen
           : 'Their offer is ready.';
       return `Event offer_ready (request ${turn.ids.of('rq', event.proposalId)}): ${why} Present it with present_offer (${JSON.stringify(ids.slice(0, 1))}) so they can accept and pay, then explain it briefly with send_message.`;
     }
-    return `Event offer_ready: another customer's request (${turn.ids.of('rq', event.proposalId)}) needs this customer's decision. Present options ${JSON.stringify(ids)} with present_offer, then explain them briefly with send_message. Never name the other customer.`;
+    return `Event offer_ready: another customer's request (${turn.ids.of('rq', event.proposalId)}) can only go ahead if this customer's booking changes, so the shop is asking whether they'd accept. The offer comes from the shop, not from the other customer: never say the other customer offered, asked them for or wants anything from them. Present options ${JSON.stringify(ids)} with present_offer, then explain them briefly with send_message. If their terms include "Checked by the shop for your setup", say so: it answers whether the equipment suits what they're shooting. Never name the other customer.`;
   }
   if (event.kind === 'kept_booking')
     return `Event kept_booking: the customer tapped Keep my booking as is on another customer's request (${turn.ids.of('rq', event.proposalId)}). Their booking stays exactly as it was; nothing is charged or refunded. Confirm that in one short message and thank them.`;
@@ -360,7 +360,7 @@ async function templateFor(tx: Tx, shopId: string, customerId: string, event: Ag
       ? event.fallback
         ? `The other customer needs their booking, so I can't do exactly what you asked. The closest I can offer is on the card below${event.holdReleased ? ', and your payment hold has been released' : ''}. If you'd rather not, your original booking stays as it is.`
         : 'The shop has set up your change. Please review it on the card and accept to authorize the payment; nothing is charged until everything is confirmed.'
-      : "Another customer's request affects your booking. Your options are on the card below; nothing changes unless you accept one, and you can tap Keep my booking as is.";
+      : "Another customer's request would need a change to your booking, so the shop is offering you the options on the card below. Nothing changes unless you accept one, and you can tap Keep my booking as is.";
   if (event.kind === 'kept_booking') return 'Got it: your booking stays exactly as it is. Thanks for letting us know!';
   if (event.kind === 'owner_answered') return `The shop has answered your question: ${event.value === 'yes' ? 'yes' : 'no'}.`;
   const idx = indexSnapshot(await loadSnapshot(tx, shopId));
