@@ -177,6 +177,8 @@ describe('Scenario 2: the owner drags, the agent asks', () => {
     const offer = await call('present_offer', { revision_ids: [request.options[0].revision_id] });
     expect(offer).toMatchObject({ ok: true, buttons: ['Accept', 'Keep my booking as is'] });
     expect(offer.shows[0].terms[0]).toContain('Zhiyun Crane 4');
+    // The owner's Yes on this plan answers Eve's real question, though it was never saved as a fact.
+    expect(offer.shows[0].terms.slice(1)).toEqual(['Checked by the shop for your setup: Balances a Canon R5 + RF 24-70', '$20.00 refunded to your original payment']);
   });
 });
 
