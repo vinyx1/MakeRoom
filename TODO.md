@@ -51,6 +51,19 @@ The rule from `CLAUDE.md` still holds: the video scenarios must run reliably bef
 15. **Repricing after authorization** (half a day; C4/C5). A lower price captures less. A higher price needs a new authorization.
 16. **Overdue returns** (D10) and **owner-assist turns** (the agent drafting for the owner).
 
+## P3: security hardening (last)
+
+Checked 2026-10-29. No keys are in git (history scanned). No secrets reach the browser (the frontend reads no `VITE_` variables; the PayPal client ID is public by design). The test card is off in production. The session cookie is `httpOnly`, `SameSite=Lax` and `Secure` in production. A 500 error returns no stack trace. Chat messages are capped at 2,000 characters.
+
+The abuse protections in P0 item 2 (the global spend cap, the per-IP shop limit, shop cleanup) stay in P0: they protect money and uptime on the public URL. The rest:
+
+17. **A separate Anthropic key for the deployment**, with a monthly spend limit set in the Anthropic console: the hard backstop behind the in-app cap. Revoke it after judging.
+18. **Sandbox only, everywhere.** The buyer login shown on the page must be a dedicated sandbox account whose password isn't used anywhere else. No live PayPal credentials, ever.
+19. **Database:** the host's managed Postgres with TLS and a long generated password, not open to the whole internet if the host allows that. `DATABASE_URL` lives only in the host's secret settings.
+20. **Bryntum registry login** kept as a secret in the build environment, never in a committed `.npmrc`. Bryntum's trial code is never committed.
+21. **Host settings:** `NODE_ENV=production`, HTTPS only, installs from the lockfile with `npm ci` (versions are already pinned exactly).
+22. **Optional extras:** security headers (`@fastify/helmet`, with a content security policy that allows PayPal and the Bryntum assets), and a rate limit on chat messages and payment routes per session.
+
 ## Not doing
 
 From `CLAUDE.md` "Out of scope": a multi-business marketplace, shipping, damage claims, late fees, real auth, multi-item kits, and Bryntum's engine moving real bookings.
