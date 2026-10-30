@@ -167,7 +167,7 @@ export type ResolveResult =
  * approval). The owner reviews any plan that needs it while it is still a draft; then the customer gets the card
  * to pay, and affected customers are asked as usual.
  */
-export function resolveDraft(db: Db, shopId: string, input: { draftId: string }): Promise<ResolveResult> {
+export function resolveDraft(db: Db, shopId: string, input: { draftId: string; agreedByPhone?: boolean }): Promise<ResolveResult> {
   return withShopLock(db, shopId, async (tx) => {
     const [draft] = await tx.select().from(s.ownerDrafts).where(and(eq(s.ownerDrafts.id, input.draftId), eq(s.ownerDrafts.shopId, shopId)));
     if (!draft) return refused('draft not found');
@@ -176,8 +176,9 @@ export function resolveDraft(db: Db, shopId: string, input: { draftId: string })
     const now = snapshot.now;
     const booking = idx.bookings.get(draft.bookingId)!;
     if (booking.version !== draft.basedOnVersion) return refused('the booking changed since this draft; drag it again');
-    if (!draft.attestedCustomerIds.includes(booking.customerId))
-      return refused(`tick "agreed by phone" for ${idx.customerName(booking.customerId)} first: the request is on their behalf`);
+    // "Agreed by phone" can be given at the drag or here, when the owner resolves.
+    if (!input.agreedByPhone && !draft.attestedCustomerIds.includes(booking.customerId))
+      return refused(`confirm that ${idx.customerName(booking.customerId)} agreed by phone first: the request is on their behalf`);
     const proposed = { unitId: draft.proposed.unitId ?? booking.unitId, startsAt: new Date(draft.proposed.startsAt!), endsAt: new Date(draft.proposed.endsAt!) };
     if (proposed.unitId !== booking.unitId) return refused('moving a booking to another unit has to be resolved by hand for now');
 

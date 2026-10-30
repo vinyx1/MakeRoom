@@ -8,8 +8,10 @@
 //                                                                      its authorization voided, the edit applied,
 //                                                                      and the requester re-planned
 //   ... while that proposal is CAPTURING                             → refused for those few seconds
+//
+// Undo puts back the owner's latest applied edit unless it overrode a request; Discard throws away a red draft.
 
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { logActivity } from '../activity.ts';
 import type { Db, Tx } from '../db/client.ts';
 import { loadSnapshot } from '../db/load-snapshot.ts';
@@ -169,9 +171,79 @@ async function applyLocked(tx: Tx, shopId: string, edit: OwnerEdit): Promise<Loc
       after: { unitId: after.unitId, startsAt: after.startsAt, endsAt: after.endsAt },
       agreedByPhone: edit.attestedCustomerIds,
       overrode: cancelled.map((p) => p.id),
+      version: updated!.version,
     },
   });
   return { status: 'applied', booking: updated!, cancelled, opIds };
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Undo and discard
+
+export type UndoableEdit = {
+  bookingId: string;
+  customerId: string;
+  before: { unitId: string | null; startsAt: string; endsAt: string };
+  after: { unitId: string | null; startsAt: string; endsAt: string };
+};
+
+/**
+ * The owner's latest edit, if Undo can still put it back exactly: nothing has changed the booking since, and the
+ * edit didn't override a request (that request was cancelled, its hold voided and its customers told, which no undo
+ * can take back).
+ */
+export async function lastUndoableEdit(tx: Tx, shopId: string): Promise<UndoableEdit | null> {
+  const [row] = await tx
+    .select()
+    .from(s.activityLog)
+    .where(and(eq(s.activityLog.shopId, shopId), eq(s.activityLog.kind, 'booking_edited')))
+    .orderBy(desc(s.activityLog.seq))
+    .limit(1);
+  if (!row) return null;
+  const p = row.payload as { bookingId: string; before: UndoableEdit['before']; after: UndoableEdit['after']; overrode?: string[]; version?: number };
+  if (p.overrode?.length || p.version === undefined) return null;
+  const [booking] = await tx.select().from(s.bookings).where(and(eq(s.bookings.id, p.bookingId), eq(s.bookings.shopId, shopId)));
+  if (!booking || booking.version !== p.version) return null;
+  return { bookingId: p.bookingId, customerId: booking.customerId, before: p.before, after: p.after };
+}
+
+/** Puts the booking back where it was before the owner's latest edit, if that slot is still free. */
+export function undoOwnerEdit(db: Db, shopId: string, input: { bookingId: string }) {
+  return withShopLock(db, shopId, async (tx) => {
+    const edit = await lastUndoableEdit(tx, shopId);
+    if (!edit || edit.bookingId !== input.bookingId) return { status: 'refused' as const, reason: 'that change can no longer be undone' };
+    const [booking] = await tx.select().from(s.bookings).where(eq(s.bookings.id, edit.bookingId));
+    const snapshot = await loadSnapshot(tx, shopId);
+    const back: Placement = {
+      unitId: edit.before.unitId,
+      modelId: edit.before.unitId ? snapshot.units.find((u) => u.id === edit.before.unitId)!.modelId : booking!.modelId,
+      startsAt: new Date(edit.before.startsAt),
+      endsAt: new Date(edit.before.endsAt),
+      bufferEndsAt: new Date(new Date(edit.before.endsAt).getTime() + (booking!.bufferEndsAt.getTime() - booking!.endsAt.getTime())),
+    };
+    // The old slot may have been taken since, or have passed: the same checks as any edit, minus "agreed by phone"
+    // (this is the booking the customer agreed to in the first place).
+    const v = validate(snapshot, { changes: [{ bookingId: booking!.id, customerId: booking!.customerId, after: back }], requesterCustomerId: booking!.customerId, allowPickedUpShorten: true });
+    if (v.violations.length) return { status: 'refused' as const, reason: `can't undo: ${[...new Set(v.violations.map((x) => x.message))].join('; ')}` };
+
+    await allowOwnerShorten(tx);
+    await tx
+      .update(s.bookings)
+      .set({ unitId: back.unitId, modelId: back.modelId, startsAt: back.startsAt, endsAt: back.endsAt, bufferEndsAt: back.bufferEndsAt, version: booking!.version + 1 })
+      .where(eq(s.bookings.id, booking!.id));
+    await logActivity(tx, { shopId, at: snapshot.now, actor: 'owner', kind: 'booking_edit_undone', payload: { bookingId: booking!.id, restored: edit.before } });
+    return { status: 'undone' as const };
+  });
+}
+
+/** Throws away a red draft. Drafts hold nothing and block nothing, so this restores the state exactly. */
+export function discardDraft(db: Db, shopId: string, input: { draftId: string }) {
+  return withShopLock(db, shopId, async (tx) => {
+    const [draft] = await tx.delete(s.ownerDrafts).where(and(eq(s.ownerDrafts.id, input.draftId), eq(s.ownerDrafts.shopId, shopId))).returning();
+    if (!draft) return { status: 'refused' as const, reason: 'draft not found' };
+    await logActivity(tx, { shopId, at: (await loadSnapshot(tx, shopId)).now, actor: 'owner', kind: 'draft_discarded', payload: { bookingId: draft.bookingId } });
+    return { status: 'discarded' as const };
+  });
 }
 
 /** Active proposals holding this booking, or holding capacity the edit moves into. */
