@@ -64,7 +64,11 @@ function describe(o: Outcome): Omit<Toast, 'id'> {
     case 'saved':
       return { kind: 'ok', text: 'Saved as a fact.' };
     case 'applied':
-      return { kind: 'ok', text: 'Booking changed.' };
+      return { kind: 'ok', text: 'Booking changed. Undo it from the Owner column if you need to.' };
+    case 'undone':
+      return { kind: 'ok', text: 'Change undone: the booking is back where it was.' };
+    case 'discarded':
+      return { kind: 'ok', text: 'Draft discarded. Nothing changed.' };
     case 'rejected':
       return { kind: 'warn', text: 'Declined: nothing changes, and any payment hold is released.' };
     case 'cancelled':
@@ -137,6 +141,25 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
     [owner, shop.refresh, toast],
   );
 
+  // Resolve with agent acts on the customer's behalf: if their agreement wasn't ticked at the drag, ask now.
+  const onResolveDraft = useCallback(
+    async (draftId: string) => {
+      const draft = owner.drafts.find((d) => d.id === draftId);
+      const booking = owner.bookings.find((b) => b.id === draft?.bookingId);
+      let agreedByPhone = false;
+      if (draft && booking && !draft.attestedCustomerIds.includes(booking.customerId)) {
+        const name = customers.find((c) => c.id === booking.customerId)?.name ?? 'The customer';
+        const zone = owner.shop.timezone;
+        const summary = `${name}'s booking → ${shopTime(draft.proposed.startsAt!, zone)} – ${shopTime(draft.proposed.endsAt!, zone)}`;
+        agreedByPhone = await new Promise<boolean>((resolve) => setPrompt({ step: 'agree', name, summary, resolve }));
+        setPrompt(null);
+        if (!agreedByPhone) return;
+      }
+      onOutcome(await api.resolveDraft(draftId, agreedByPhone));
+    },
+    [owner, customers, onOutcome],
+  );
+
   return (
     <div className="app">
       <Header
@@ -155,9 +178,9 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
         onEquipment={() => setEquipment(true)}
         onHelp={() => setHelp(true)}
       />
-      <Schedule owner={owner} shopNow={shop.shopNow!} onEdit={onEdit} onResolveDraft={async (id) => onOutcome(await api.resolveDraft(id))} />
+      <Schedule owner={owner} shopNow={shop.shopNow!} onEdit={onEdit} onResolveDraft={onResolveDraft} />
       <div className="bottom">
-        <OwnerPanel owner={owner} activity={shop.activity} onOutcome={onOutcome} onOpenChat={setLeft} />
+        <OwnerPanel owner={owner} activity={shop.activity} onOutcome={onOutcome} onOpenChat={setLeft} onResolveDraft={onResolveDraft} />
         {[
           [left, setLeft],
           [right, setRight],
