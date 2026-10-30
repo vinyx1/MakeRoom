@@ -153,7 +153,7 @@ describe('fallbacks (no model)', () => {
     const bobThread = await conversationOf(db, d.shop.id, d.customer('Bob').id, d.now);
     const msgs = await messagesOf(bobThread.id);
     expect(msgs.map((m) => m.cardRevisionIds.length)).toEqual([2, 0]); // the card with both options, then the note
-    expect(msgs[1]!.body).toContain('Your options are on the card');
+    expect(msgs[1]!.body).toContain('the shop is offering you the options on the card');
   });
 
   it('a committed request reaches each party with the backend’s facts', async () => {
