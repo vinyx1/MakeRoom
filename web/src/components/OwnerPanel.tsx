@@ -164,7 +164,8 @@ function PendingRequest({ proposal: p, owner, onOutcome }: { proposal: OwnerView
   return (
     <div className="preq">
       <div>
-        <b>{name}</b>: {what} · <b>{usd(rev.quote.chargeCents)}</b>
+        <b>{name}</b>: {what}
+        {!late && <> · <b>{usd(rev.quote.chargeCents)}</b></>}
         {rev.quote.discountCents > 0 && <span className="muted small"> ({usd(rev.quote.discountCents)} off)</span>}
       </div>
       <div className="muted small">
