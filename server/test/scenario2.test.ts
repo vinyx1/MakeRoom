@@ -13,7 +13,7 @@ import { type AgentConfig, conversationOf } from '../src/agent/turn.ts';
 import { createDb } from '../src/db/client.ts';
 import * as s from '../src/db/schema.ts';
 import { seedShop } from '../src/db/seed.ts';
-import { ownerEditBooking } from '../src/owner/edit-booking.ts';
+import { discardDraft, lastUndoableEdit, ownerEditBooking, undoOwnerEdit } from '../src/owner/edit-booking.ts';
 import { saveFact } from '../src/owner/facts.ts';
 import { seedPrepayments } from '../src/payments/prepay.ts';
 import { affectedAccept, createRequesterOrder, ownerDecision, requestChange, requesterAccept, resolveDraft } from '../src/proposals/flow.ts';
@@ -288,3 +288,56 @@ describe('judge mode: auto-reply customers', () => {
   });
 });
 
+describe('owner undo, discard, and agreement at resolve', () => {
+  it('"agreed by phone" can be given when resolving, if it was not ticked at the drag', async () => {
+    const { d, gateway } = await shop();
+    const dana = d.bookingOf('Dana');
+    const draft = await ownerEditBooking(db, gateway, d.shop.id, {
+      bookingId: dana.id, unitId: dana.unitId!, startsAt: dana.startsAt, endsAt: at(d, 'Fri', 9), basedOnVersion: dana.version, attestedCustomerIds: [],
+    });
+    if (draft.status !== 'draft') throw new Error(draft.status);
+    expect((await resolveDraft(db, d.shop.id, { draftId: draft.draftId })).status).toBe('refused');
+    expect((await resolveDraft(db, d.shop.id, { draftId: draft.draftId, agreedByPhone: true })).status).toBe('resolved');
+  });
+
+  it('discarding a red draft leaves everything as it was', async () => {
+    const { d, gateway } = await shop();
+    const draftId = await danaDragged(d, gateway);
+    expect(await discardDraft(db, d.shop.id, { draftId })).toEqual({ status: 'discarded' });
+    expect(await db.select().from(s.ownerDrafts).where(eq(s.ownerDrafts.shopId, d.shop.id))).toEqual([]);
+    const [dana] = await db.select().from(s.bookings).where(eq(s.bookings.id, d.bookingOf('Dana').id));
+    expect([dana!.endsAt, dana!.version]).toEqual([d.bookingOf('Dana').endsAt, 1]);
+  });
+
+  it('undo puts an applied edit back, once', async () => {
+    const { d, gateway } = await shop();
+    const dana = d.bookingOf('Dana');
+    // Thu 10am + the 4h buffer ends exactly at Eve's 2pm pickup: a clean edit, applied at once.
+    const edit = await ownerEditBooking(db, gateway, d.shop.id, {
+      bookingId: dana.id, unitId: dana.unitId!, startsAt: dana.startsAt, endsAt: at(d, 'Thu', 10), basedOnVersion: dana.version, attestedCustomerIds: [dana.customerId],
+    });
+    expect(edit.status).toBe('applied');
+    expect(await db.transaction((tx) => lastUndoableEdit(tx, d.shop.id))).toMatchObject({ bookingId: dana.id, before: { endsAt: dana.endsAt.toISOString() } });
+
+    // Shortening a picked-up rental back is allowed: the owner is undoing their own change.
+    expect(await undoOwnerEdit(db, d.shop.id, { bookingId: dana.id })).toEqual({ status: 'undone' });
+    const [after] = await db.select().from(s.bookings).where(eq(s.bookings.id, dana.id));
+    expect([after!.endsAt, after!.bufferEndsAt]).toEqual([dana.endsAt, dana.bufferEndsAt]);
+    expect(await db.transaction((tx) => lastUndoableEdit(tx, d.shop.id))).toBeNull();
+    expect((await undoOwnerEdit(db, d.shop.id, { bookingId: dana.id })).status).toBe('refused');
+  });
+
+  it("an edit that overrode a request can't be undone", async () => {
+    const { d, gateway } = await shop();
+    const alice = d.bookingOf('Alice'), bob = d.bookingOf('Bob');
+    const req = await requestChange(db, d.shop.id, { customerId: alice.customerId, request: { kind: 'extend', bookingId: alice.id, newEndsAt: at(d, 'Thu', 10) } });
+    if (req.status !== 'offered') throw new Error(req.status);
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: req.proposal.id, customerId: alice.customerId });
+    await requesterAccept(db, gateway, d.shop.id, { proposalId: req.proposal.id, customerId: alice.customerId });
+    const moved = await ownerEditBooking(db, gateway, d.shop.id, {
+      bookingId: bob.id, unitId: bob.unitId!, startsAt: at(d, 'Thu', 15), endsAt: bob.endsAt, basedOnVersion: bob.version, attestedCustomerIds: [bob.customerId], override: true,
+    });
+    expect(moved.status).toBe('applied');
+    expect(await db.transaction((tx) => lastUndoableEdit(tx, d.shop.id))).toBeNull();
+  });
+});
