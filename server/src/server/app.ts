@@ -16,7 +16,8 @@ import { conversationOf } from '../agent/turn.ts';
 import type { PaymentGateway } from '../payments/gateway.ts';
 import { saveFact } from '../owner/facts.ts';
 import {
-  affectedAccept, affectedRefuse, createRequesterOrder, expireDue, ownerDecision, ownerSetPrice, requestChange, requesterAccept, requesterCancel, resolveDraft,
+  affectedAccept, affectedRefuse, createRequesterOrder, expireDue, markOverdue, markReturned, ownerDecision, ownerSetPrice, requestChange, requesterAccept,
+  requesterCancel, resolveDraft,
 } from '../proposals/flow.ts';
 import { resetShop, shopForSession, newSessionToken } from './shops.ts';
 import { customerView, ownerView } from './views.ts';
@@ -264,6 +265,18 @@ export function buildApp(opts: AppOptions) {
     const { bookingId } = parse(z.object({ bookingId: id }), req.params);
     const body = parse(EditBody, req.body);
     return ownerEditBooking(db, gateway, req.shop.id, { bookingId, ...body });
+  });
+
+  // A late return: re-plan the next renters around the expected time.
+  app.post('/api/bookings/:bookingId/overdue', async (req) => {
+    const { bookingId } = parse(z.object({ bookingId: id }), req.params);
+    const { expectedReturnAt } = parse(z.object({ expectedReturnAt: isoDate }), req.body);
+    return markOverdue(db, gateway, req.shop.id, { bookingId, expectedReturnAt });
+  });
+
+  app.post('/api/bookings/:bookingId/returned', async (req) => {
+    const { bookingId } = parse(z.object({ bookingId: id }), req.params);
+    return markReturned(db, gateway, req.shop.id, { bookingId });
   });
 
   app.post('/api/bookings/:bookingId/undo', async (req) => {

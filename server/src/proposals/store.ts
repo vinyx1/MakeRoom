@@ -191,7 +191,25 @@ export async function endProposal(tx: Tx, proposal: Proposal, event: ProposalEve
     shopId: proposal.shopId, at, actor, kind: 'proposal_ended', proposalId: proposal.id,
     payload: { event, from: proposal.state, to: t.to, reason },
   });
+  // An overdue plan nobody agreed to leaves the next renter without equipment: the owner has to step in. (The owner
+  // ending it themselves, by declining or marking it returned, needs no alert.)
+  if (proposal.source === 'overdue' && actor !== 'owner' && (event === 'reject' || event === 'expire')) await alertOverdueUnresolved(tx, proposal, at);
   return { to: t.to, opIds };
+}
+
+async function alertOverdueUnresolved(tx: Tx, proposal: Proposal, at: Date) {
+  const [late] = proposal.subjectBookingId ? await tx.select().from(s.bookings).where(eq(s.bookings.id, proposal.subjectBookingId)) : [];
+  const asked = await tx.selectDistinct({ customerId: s.approvals.customerId }).from(s.approvals)
+    .where(and(eq(s.approvals.proposalId, proposal.id), eq(s.approvals.role, 'affected')));
+  const ids = [...new Set([late?.customerId, ...asked.map((a) => a.customerId)].filter((x): x is string => !!x))];
+  const names = new Map((ids.length ? await tx.select().from(s.customers).where(inArray(s.customers.id, ids)) : []).map((c) => [c.id, c.name]));
+  const next = asked.map((a) => names.get(a.customerId!)).filter(Boolean);
+  const [conversation] = asked[0]?.customerId ? await tx.select().from(s.conversations).where(eq(s.conversations.customerId, asked[0].customerId)) : [];
+  await tx.insert(s.escalations).values({
+    shopId: proposal.shopId, kind: 'overdue', proposalId: proposal.id, bookingId: proposal.subjectBookingId, conversationId: conversation?.id ?? null,
+    reasons: ['overdue', 'unresolved'], at,
+    summary: `${names.get(late?.customerId ?? '') ?? 'A customer'} is still out with the equipment, and no rearrangement was agreed${next.length ? ` with ${next.join(' and ')}` : ''}. Their booking may not have equipment: contact them to cancel with a full refund, or find other gear.`,
+  });
 }
 
 /** Creates the owner's pending approval on a revision, with its escalation card, once. */
@@ -242,6 +260,12 @@ export function ownerSummary(idx: Index, proposal: Proposal, revision: Revision,
       return out.length ? [out.join(', ')] : [];
     });
   const net = revision.quote.netRevenueCents;
+  // An overdue plan opens with whose rental is late, since no one asked for this change.
+  const late = proposal.source === 'overdue' && proposal.subjectBookingId ? idx.bookings.get(proposal.subjectBookingId) : undefined;
+  if (late) {
+    const lateChange = rows.find((c) => c.bookingId === late.id);
+    parts.unshift(`${idx.customerName(late.customerId)} is overdue${lateChange?.newEndsAt ? `, expected back ${t(lateChange.newEndsAt)}` : ''} (no charge to them)`);
+  }
   // Unknown facts the plan relies on, as questions, with the booking note that explains why it matters.
   const questions = idx.snap.facts
     .filter((f) => revision.factDependencies.includes(f.id) && f.value !== 'yes')
