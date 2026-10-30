@@ -3,7 +3,7 @@
 import type { Request } from '../optimizer/optimizer.ts';
 
 export type StoredRequest =
-  | { kind: 'extend'; bookingId: string; newEndsAt: string }
+  | { kind: 'extend'; bookingId: string; newEndsAt: string; forced?: boolean }
   | { kind: 'shift'; bookingId: string; newStartsAt?: string; newEndsAt?: string }
   | { kind: 'new_booking'; customerId: string; modelId: string; startsAt: string; endsAt: string };
 

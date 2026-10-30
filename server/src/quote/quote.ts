@@ -22,6 +22,8 @@ export type MoneyTrip = 'compensation_over_revenue';
 export type QuoteOptions = {
   /** Discount on the requester's charge, in percent. Above `policy.discount_band_pct` it needs the owner. */
   requesterDiscountPct?: number;
+  /** false for an overdue return: the late customer's extra time isn't charged (no late fees in the PoC). */
+  chargeRequester?: boolean;
 };
 
 export type QuoteResult = {
@@ -32,14 +34,14 @@ export type QuoteResult = {
   compensationCents: number;
 };
 
-export function quotePlan(idx: Index, changes: PlanChange[], { requesterDiscountPct = 0 }: QuoteOptions = {}): QuoteResult {
+export function quotePlan(idx: Index, changes: PlanChange[], { requesterDiscountPct = 0, chargeRequester = true }: QuoteOptions = {}): QuoteResult {
   const { policy } = idx;
   const triggers = new Set<MoneyTrigger>();
   const trips = new Set<MoneyTrip>();
   const t = (d: Date) => formatShopTime(d, idx.snap.shop);
 
   const lines: Quote['lines'] = changes
-    .filter((c) => c.isRequester && c.priceDeltaCents !== 0)
+    .filter((c) => chargeRequester && c.isRequester && c.priceDeltaCents !== 0)
     .map((c) => ({ customerId: c.customerId, label: requesterLabel(idx, c, t), amountCents: c.priceDeltaCents }));
   const linesTotal = lines.reduce((sum, l) => sum + l.amountCents, 0);
 

@@ -28,7 +28,9 @@ import {
 } from './validator.ts';
 
 export type Request =
-  | { kind: 'extend'; bookingId: string; newEndsAt: Date }
+  /** `forced`: an overdue return. The rental runs late whether anyone agrees or not: the late customer isn't
+   * charged (no late fees in the PoC) and there is no "closest alternative" to offer them. */
+  | { kind: 'extend'; bookingId: string; newEndsAt: Date; forced?: boolean }
   | { kind: 'shift'; bookingId: string; newStartsAt?: Date; newEndsAt?: Date }
   | { kind: 'new_booking'; customerId: string; modelId: string; startsAt: Date; endsAt: Date };
 
@@ -84,7 +86,7 @@ const REQUEST_RULES: ReadonlySet<Rule> = new Set(['bad_duration', 'outside_shop_
 /** Other bookings a plan may move. The envelope still flags plans over `policy.max_bookings_touched`. */
 const MAX_MOVED = 3;
 
-type Requester = { bookingId: string | null; customerId: string; placements: Placement[] };
+type Requester = { bookingId: string | null; customerId: string; placements: Placement[]; pays: boolean };
 
 export function optimize(snapshot: Snapshot, request: Request): OptimizeResult {
   const idx = indexSnapshot(snapshot);
@@ -114,6 +116,7 @@ function requesterPlacements(idx: Index, request: Request): Requester {
     return {
       bookingId: null,
       customerId: request.customerId,
+      pays: true,
       placements: idx.unitsOfModel(request.modelId).map((u) => ({
         unitId: u.id,
         modelId: request.modelId,
@@ -124,7 +127,7 @@ function requesterPlacements(idx: Index, request: Request): Requester {
     };
   }
   const b = idx.bookings.get(request.bookingId);
-  if (!b) return { bookingId: request.bookingId, customerId: '', placements: [] };
+  if (!b) return { bookingId: request.bookingId, customerId: '', placements: [], pays: true };
   const startsAt = request.kind === 'shift' ? (request.newStartsAt ?? b.startsAt) : b.startsAt;
   const endsAt = request.kind === 'shift' ? (request.newEndsAt ?? b.endsAt) : request.newEndsAt;
   const times = { startsAt, endsAt, bufferEndsAt: new Date(endsAt.getTime() + bufferOf(b)) };
@@ -134,7 +137,10 @@ function requesterPlacements(idx: Index, request: Request): Requester {
     ...(b.unitId ? [b.unitId] : []),
     ...idx.unitsOfModel(b.modelId).map((u) => u.id).filter((id) => id !== b.unitId),
   ];
-  return { bookingId: b.id, customerId: b.customerId, placements: units.map((unitId) => ({ unitId, modelId: b.modelId, ...times })) };
+  return {
+    bookingId: b.id, customerId: b.customerId, pays: !(request.kind === 'extend' && request.forced),
+    placements: units.map((unitId) => ({ unitId, modelId: b.modelId, ...times })),
+  };
 }
 
 const bufferOf = (b: Booking) => b.bufferEndsAt.getTime() - b.endsAt.getTime();
@@ -165,7 +171,7 @@ function runSearch(idx: Index, requester: Requester, budget: number) {
     const conflictIds = [...new Set(v.violations.map((x) => x.otherBookingId!))]
       .map((id) => idx.bookings.get(id)!)
       .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime() || cmp(a.id, b.id));
-    if (!conflictIds.length) return addPlan(idx, plans, changes, requester.customerId, v);
+    if (!conflictIds.length) return addPlan(idx, plans, changes, requester.customerId, v, false, requester.pays);
 
     const moved = changes.length - 1;
     if (moved + conflictIds.length > budget) return prune(last, v.violations);
@@ -251,6 +257,7 @@ function addPlan(
   requesterCustomerId: string,
   v: { factDependencies: FactDependency[]; conditionNoteUnitIds: string[] },
   isAlternative = false,
+  requesterPays = true,
 ) {
   const planChanges: PlanChange[] = changes.map((c, i) => {
     const booking = c.bookingId ? idx.bookings.get(c.bookingId)! : null;
@@ -275,7 +282,7 @@ function addPlan(
 
   const others = planChanges.filter((c) => !c.isRequester);
   const assessed = assess(idx, planChanges, v.factDependencies, v.conditionNoteUnitIds);
-  const priced = quotePlan(idx, planChanges);
+  const priced = quotePlan(idx, planChanges, { chargeRequester: requesterPays });
   const ownerTriggers = [...assessed.ownerTriggers, ...priced.ownerTriggers];
   const envelopeTrips = [...assessed.envelopeTrips, ...priced.envelopeTrips];
   plans.set(key, {
@@ -318,7 +325,7 @@ export function nearestAlternative(snapshot: Snapshot, request: Request): Plan |
 }
 
 function nearestExtension(idx: Index, request: Request): Plan | null {
-  if (request.kind !== 'extend') return null;
+  if (request.kind !== 'extend' || request.forced) return null;
   const b = idx.bookings.get(request.bookingId);
   if (!b?.unitId) return null;
   const blockStarts = [
