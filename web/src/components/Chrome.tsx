@@ -144,10 +144,31 @@ export function Toasts({ toasts }: { toasts: Toast[] }) {
 /** Owner edit flow: "agreed by phone?", then the pending-request warning with Override. */
 export type EditPrompt =
   | { step: 'confirm'; name: string; summary: string; resolve: (answer: { agreed: boolean } | null) => void }
-  | { step: 'claimed'; name: string; requesters: string[]; resolve: (override: boolean) => void };
+  | { step: 'claimed'; name: string; requesters: string[]; resolve: (override: boolean) => void }
+  /** Resolve with agent on a draft whose customer's agreement wasn't ticked at the drag. */
+  | { step: 'agree'; name: string; summary: string; resolve: (agreed: boolean) => void };
 
 export function EditDialog({ prompt }: { prompt: EditPrompt }) {
   const [agreed, setAgreed] = useState(false);
+  if (prompt.step === 'agree')
+    return (
+      <div className="modal-back">
+        <div className="modal">
+          <h3>Did {prompt.name} agree to this change?</h3>
+          <p>{prompt.summary}</p>
+          <p className="muted small">
+            The assistant arranges the change on {prompt.name}'s behalf, so it needs their agreement, for example by phone. {prompt.name} still pays
+            on their own card, and anyone else affected is asked as usual.
+          </p>
+          <div className="row">
+            <button className="primary" onClick={() => prompt.resolve(true)}>
+              Yes, {prompt.name} agreed: resolve
+            </button>
+            <button onClick={() => prompt.resolve(false)}>Cancel</button>
+          </div>
+        </div>
+      </div>
+    );
   if (prompt.step === 'confirm')
     return (
       <div className="modal-back">
@@ -175,6 +196,7 @@ export function EditDialog({ prompt }: { prompt: EditPrompt }) {
           {prompt.requesters.join(', ')}'s request depends on it. Overriding cancels that request and releases their payment hold; they'll be
           offered a new plan against your change.
         </p>
+        <p className="muted small">This can't be undone: the customers are told straight away.</p>
         <div className="row">
           <button className="danger" onClick={() => prompt.resolve(true)}>
             Override

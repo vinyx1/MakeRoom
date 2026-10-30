@@ -6,6 +6,7 @@ import type { Tx } from '../db/client.ts';
 import { loadSnapshot } from '../db/load-snapshot.ts';
 import * as s from '../db/schema.ts';
 import { indexSnapshot } from '../optimizer/snapshot.ts';
+import { lastUndoableEdit } from '../owner/edit-booking.ts';
 import { formatShopTime } from '../optimizer/time.ts';
 import { type CardOption, type CardRole, renderOption } from '../proposals/cards.ts';
 import { ACTIVE_STATES } from '../proposals/state-machine.ts';
@@ -69,6 +70,8 @@ export async function ownerView(tx: Tx, shopId: string) {
       claims: claims.filter((c) => c.proposalId === p.id),
     })),
     drafts,
+    /** The owner's latest edit, while Undo can still put it back. */
+    lastEdit: await lastUndoableEdit(tx, shopId),
     escalations,
     /** Every chat thread, including the agent's drafts during a handoff. */
     conversations: conversations.map((c) => ({ ...c, messages: messages.filter((m) => m.conversationId === c.id) })),

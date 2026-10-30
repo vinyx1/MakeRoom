@@ -10,7 +10,7 @@ import { z } from 'zod';
 import type { Db } from '../db/client.ts';
 import { withShopLock } from '../db/lock.ts';
 import * as s from '../db/schema.ts';
-import { ownerEditBooking } from '../owner/edit-booking.ts';
+import { discardDraft, ownerEditBooking, undoOwnerEdit } from '../owner/edit-booking.ts';
 import type { AgentService } from '../agent/service.ts';
 import { conversationOf } from '../agent/turn.ts';
 import type { PaymentGateway } from '../payments/gateway.ts';
@@ -244,7 +244,13 @@ export function buildApp(opts: AppOptions) {
   // "Resolve with agent" on a red draft.
   app.post('/api/drafts/:draftId/resolve', async (req) => {
     const { draftId } = parse(z.object({ draftId: id }), req.params);
-    return resolveDraft(db, req.shop.id, { draftId });
+    const { agreedByPhone } = parse(z.object({ agreedByPhone: z.boolean().default(false) }), req.body ?? {});
+    return resolveDraft(db, req.shop.id, { draftId, agreedByPhone });
+  });
+
+  app.post('/api/drafts/:draftId/discard', async (req) => {
+    const { draftId } = parse(z.object({ draftId: id }), req.params);
+    return discardDraft(db, req.shop.id, { draftId });
   });
 
   // "Save as fact": the owner's answer is stored, so the question isn't asked again.
@@ -258,6 +264,11 @@ export function buildApp(opts: AppOptions) {
     const { bookingId } = parse(z.object({ bookingId: id }), req.params);
     const body = parse(EditBody, req.body);
     return ownerEditBooking(db, gateway, req.shop.id, { bookingId, ...body });
+  });
+
+  app.post('/api/bookings/:bookingId/undo', async (req) => {
+    const { bookingId } = parse(z.object({ bookingId: id }), req.params);
+    return undoOwnerEdit(db, req.shop.id, { bookingId });
   });
 
   // --- Judge-mode controls ----------------------------------------------------------------------------------

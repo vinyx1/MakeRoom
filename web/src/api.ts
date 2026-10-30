@@ -69,6 +69,12 @@ export type Escalation = {
   at: string;
 };
 export type Draft = { id: string; bookingId: string; proposed: { unitId?: string | null; startsAt?: string; endsAt?: string }; attestedCustomerIds: string[] };
+export type LastEdit = {
+  bookingId: string;
+  customerId: string;
+  before: { unitId: string | null; startsAt: string; endsAt: string };
+  after: { unitId: string | null; startsAt: string; endsAt: string };
+};
 export type Activity = { seq: number; at: string; actor: string; kind: string; proposalId: string | null; payload: Record<string, any> };
 export type Message = { id: string; author: 'customer' | 'agent' | 'owner' | 'system'; body: string; cardRevisionIds: string[]; at: string; isOwnerDraft?: boolean };
 export type Conversation = { id: string; customerId: string; handedOffAt: string | null; messages: Message[] };
@@ -84,6 +90,8 @@ export type OwnerView = {
   facts: Fact[];
   proposals: Proposal[];
   drafts: Draft[];
+  /** The owner's latest edit, while Undo can still put it back. */
+  lastEdit: LastEdit | null;
   escalations: Escalation[];
   conversations: Conversation[];
   /** Newest first. */
@@ -140,7 +148,9 @@ export const api = {
   editBooking: (bookingId: string, body: { unitId: string; startsAt: string; endsAt: string; basedOnVersion: number; attestedCustomerIds: string[]; override?: boolean }) =>
     call<Outcome & { proposals?: { id: string; requesterName: string | null }[]; violations?: { message: string }[] }>('POST', `/api/bookings/${bookingId}/edit`, body),
   setPrice: (proposalId: string, priceCents: number) => call<Outcome>('POST', `/api/proposals/${proposalId}/price`, { priceCents }),
-  resolveDraft: (draftId: string) => call<Outcome>('POST', `/api/drafts/${draftId}/resolve`),
+  resolveDraft: (draftId: string, agreedByPhone = false) => call<Outcome>('POST', `/api/drafts/${draftId}/resolve`, { agreedByPhone }),
+  discardDraft: (draftId: string) => call<Outcome>('POST', `/api/drafts/${draftId}/discard`),
+  undoEdit: (bookingId: string) => call<Outcome>('POST', `/api/bookings/${bookingId}/undo`),
   saveFact: (factId: string, value: 'yes' | 'no') => call<Outcome>('POST', `/api/facts/${factId}`, { value }),
 
   reset: () => call<Outcome>('POST', '/api/demo/reset'),
