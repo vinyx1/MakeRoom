@@ -10,6 +10,7 @@ import { loadSnapshot } from '../db/load-snapshot.ts';
 import * as s from '../db/schema.ts';
 import { type Index, indexSnapshot } from '../optimizer/snapshot.ts';
 import { renderOption } from '../proposals/cards.ts';
+import type { StoredRequest } from '../proposals/request.ts';
 import { ACTIVE_STATES } from '../proposals/state-machine.ts';
 import { LIVE_REVISION_STATUSES, afterOf } from '../proposals/store.ts';
 import { shopTime, usd } from './scope.ts';
@@ -208,7 +209,7 @@ async function buildPrompt(tx: Tx, shopId: string, customerId: string, conversat
     .map((b) => `- ${turn.ids.of('bk', b.id)}: ${idx.models.get(b.modelId)?.name} (${idx.unitLabel(b.unitId)}), ${t.display(b.startsAt)} → ${t.display(b.endsAt)}, ${b.status.replace('_', ' ')}, paid ${usd(b.priceCents)}`);
 
   const requests = (await activeRequestsOf(tx, shopId, customerId)).map(({ proposal, role, waitingOn, options }) => {
-    const whose = role === 'requester' ? 'their request' : "another customer's request that affects their booking";
+    const whose = role === 'requester' ? 'their request' : `another customer's request that affects their booking (${wantsTo(proposal)})`;
     // Their terms, as the card shows them, so a new turn can repeat an offer's amounts without a tool call.
     const terms = options
       .map((o) => `    ${o.option ? `Option ${o.option}` : 'Offer'} (${turn.ids.of('rv', o.revisionId)}): ${o.lines.join('; ')}${o.needsShop ? ' [pending shop confirmation]' : ''}`)
@@ -263,7 +264,12 @@ async function describeEvent(tx: Tx, idx: Index, customerId: string, event: Agen
           : 'Their offer is ready.';
       return `Event offer_ready (request ${turn.ids.of('rq', event.proposalId)}): ${why} Present it with present_offer (${JSON.stringify(ids.slice(0, 1))}) so they can accept and pay, then explain it briefly with send_message.`;
     }
-    return `Event offer_ready: another customer's request (${turn.ids.of('rq', event.proposalId)}) can only go ahead if this customer's booking changes, so the shop is asking whether they'd accept. The offer comes from the shop, not from the other customer: never say the other customer offered, asked them for or wants anything from them. Present options ${JSON.stringify(ids)} with present_offer, then explain them briefly with send_message. If their terms include "Checked by the shop for your setup", say so: it answers whether the equipment suits what they're shooting. Never name the other customer.`;
+    const [p] = await tx.select().from(s.proposals).where(eq(s.proposals.id, event.proposalId));
+    return `Event offer_ready: ${p ? wantsTo(p) : 'another customer would like a change'} (request ${turn.ids.of('rq', event.proposalId)}), and that overlaps this customer's booking, so the shop is asking whether they'd be willing to change theirs. In your message:
+1. Start with why you're writing: say what the other customer would like (as above, nothing more about them) and that it overlaps their booking.
+2. Say clearly that their booking is confirmed, nothing changes unless they agree, and they're completely free to decline by tapping Keep my booking as is.
+3. Then what the shop can offer in return, in a sentence per option. The offer is the shop's, not the other customer's: never say the other customer offered anything.
+Present options ${JSON.stringify(ids)} with present_offer first, then send_message. If their terms include "Checked by the shop for your setup", say so: it answers whether the equipment suits what they're shooting. Never name the other customer.`;
   }
   if (event.kind === 'kept_booking')
     return `Event kept_booking: the customer tapped Keep my booking as is on another customer's request (${turn.ids.of('rq', event.proposalId)}). Their booking stays exactly as it was; nothing is charged or refunded. Confirm that in one short message and thank them.`;
@@ -332,6 +338,15 @@ async function activeRequestsOf(tx: Tx, shopId: string, customerId: string) {
   return out;
 }
 
+/** What the other customer wants, as an affected customer may hear it: the kind of change only, never who or when. */
+function wantsTo(p: typeof s.proposals.$inferSelect) {
+  const kind = (p.request as StoredRequest | null)?.kind;
+  return kind === 'extend' ? 'another customer would like to keep their rental longer'
+    : kind === 'shift' ? 'another customer would like to change the times of their rental'
+    : kind === 'new_booking' ? 'another customer would like to book the same equipment'
+    : 'another customer would like a change';
+}
+
 /** The customer still has a decision to make on these revisions (or, as requester, the draft is still open). */
 async function offerStillOpen(db: Db, customerId: string, event: Extract<AgentEvent, { kind: 'offer_ready' }>) {
   const [p] = await db.select().from(s.proposals).where(eq(s.proposals.id, event.proposalId));
@@ -360,7 +375,7 @@ async function templateFor(tx: Tx, shopId: string, customerId: string, event: Ag
       ? event.fallback
         ? `The other customer needs their booking, so I can't do exactly what you asked. The closest I can offer is on the card below${event.holdReleased ? ', and your payment hold has been released' : ''}. If you'd rather not, your original booking stays as it is.`
         : 'The shop has set up your change. Please review it on the card and accept to authorize the payment; nothing is charged until everything is confirmed.'
-      : "Another customer's request would need a change to your booking, so the shop is offering you the options on the card below. Nothing changes unless you accept one, and you can tap Keep my booking as is.";
+      : "Another customer's request overlaps your booking, so the shop is asking whether you'd be willing to change it. Your booking is confirmed and nothing changes unless you agree: you're free to decline by tapping Keep my booking as is. What the shop can offer in return is on the card below.";
   if (event.kind === 'kept_booking') return 'Got it: your booking stays exactly as it is. Thanks for letting us know!';
   if (event.kind === 'owner_answered') return `The shop has answered your question: ${event.value === 'yes' ? 'yes' : 'no'}.`;
   const idx = indexSnapshot(await loadSnapshot(tx, shopId));

@@ -76,6 +76,9 @@ export function renderOption(
   if (role === 'requester') {
     const charge = revision.quote.chargeCents;
     lines.push(charge > 0 ? `${usd(charge)}, only charged if it goes ahead` : 'No extra charge');
+    // Why the requester pays before anyone else hears of it (docs/conflict-model.md §5).
+    if (charge > 0 && rows.some((c) => c.partyCustomerId !== customerId && c.requiresApproval))
+      lines.push('Held on your PayPal account first, so the other customer is only asked to change their booking for a request that is ready to go ahead. The hold is released if it doesn’t.');
     if (revision.quote.discountCents > 0) lines.push(`Includes a ${usd(revision.quote.discountCents)} discount`);
   } else {
     // Only cash is shown as an amount; an upgrade is described as free, not by its value to the shop.

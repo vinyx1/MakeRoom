@@ -407,6 +407,8 @@ export function makeTools(scope: ToolScope) {
           turn.cardsPosted++;
           const shows = await Promise.all((role === 'requester' ? cardIds.slice(0, 1) : cardIds).map((id) => terms(tx, idx, id, role)));
           const charge = live[0]!.quote.chargeCents;
+          const othersAsked = (await tx.select().from(s.revisionChanges).where(inArray(s.revisionChanges.revisionId, live.map((r) => r.id))))
+            .some((c) => c.partyCustomerId !== me && c.requiresApproval);
           const held = (await tx.select().from(s.paypalOrders).where(and(eq(s.paypalOrders.proposalId, p!.id), eq(s.paypalOrders.status, 'authorized')))).length > 0;
           return ok({
             card: 'posted',
@@ -415,9 +417,9 @@ export function makeTools(scope: ToolScope) {
               : [...shows.map((o) => (o.option ? `Accept option ${o.option}` : 'Accept')), 'Keep my booking as is'],
             shows: role === 'requester' ? { ...shows[0], option: null } : shows,
             hint: role === 'affected'
-              ? 'Explain each option in a sentence; mark any needing shop confirmation as pending. If they want none of them, they tap Keep my booking as is and nothing about their booking changes. Never name the other customer.'
+              ? 'Say why the shop is asking (what the other customer would like, from the context) and that their booking stands unless they agree: they are free to decline with Keep my booking as is. Then explain each option in a sentence; mark any needing shop confirmation as pending. Never name the other customer.'
               : charge > 0 && !held
-                ? 'Tell them to use the card. Authorizing only places a hold: nothing is charged until everything is confirmed, and the hold is released if it does not go ahead.'
+                ? `Tell them to use the card. Authorizing only places a hold: nothing is charged until everything is confirmed, and the hold is released if it does not go ahead.${othersAsked ? ' Say why the hold comes first: the shop places it before asking the other customer, so that customer is only asked to change their plans for a request that is ready to go ahead.' : ''}`
                 : 'Tell them to use the card.',
           });
         }));
