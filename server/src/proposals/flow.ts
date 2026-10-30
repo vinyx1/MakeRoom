@@ -740,11 +740,14 @@ async function planFallback(tx: Tx, p: Proposal, now: Date): Promise<{ result?: 
       return null;
     });
     if (ok) {
-      const [carried] = await tx.select().from(s.approvals).where(and(eq(s.approvals.proposalId, p.id), eq(s.approvals.role, 'requester'), eq(s.approvals.status, 'approved')));
-      await tx.insert(s.approvals).values(ok.revs.map((r) => ({
-        shopId: p.shopId, revisionId: r.id, proposalId: p.id, role: 'requester' as const, customerId: p.requesterCustomerId,
-        status: 'approved' as const, source: 'carried_over' as const, carriedFromId: carried?.id ?? null, requestedAt: now, respondedAt: now,
-      })));
+      // An overdue request has no requester whose approval could carry over.
+      if (p.requesterCustomerId) {
+        const [carried] = await tx.select().from(s.approvals).where(and(eq(s.approvals.proposalId, p.id), eq(s.approvals.role, 'requester'), eq(s.approvals.status, 'approved')));
+        await tx.insert(s.approvals).values(ok.revs.map((r) => ({
+          shopId: p.shopId, revisionId: r.id, proposalId: p.id, role: 'requester' as const, customerId: p.requesterCustomerId,
+          status: 'approved' as const, source: 'carried_over' as const, carriedFromId: carried?.id ?? null, requestedAt: now, respondedAt: now,
+        })));
+      }
       await tx
         .update(s.proposals)
         .set({ revisionSeq: seq, fallbackPlansUsed: p.fallbackPlansUsed + 1, expiresAt, version: sql`${s.proposals.version} + 1` })
