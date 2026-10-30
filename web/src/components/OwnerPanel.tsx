@@ -10,16 +10,19 @@ type Props = {
   onOutcome: (o: Outcome) => void;
   onOpenChat: (customerId: string) => void;
   onResolveDraft: (draftId: string) => void;
+  onMarkOverdue: (bookingId: string) => void;
 };
 
 type SaveOffer = { factId: string; value: 'yes' | 'no'; label: string };
 
-export function OwnerPanel({ owner, activity, onOutcome, onOpenChat, onResolveDraft }: Props) {
+export function OwnerPanel({ owner, activity, onOutcome, onOpenChat, onResolveDraft, onMarkOverdue }: Props) {
   const [saveOffers, setSaveOffers] = useState<SaveOffer[]>([]);
   const nameOf = (id: string | null | undefined) => owner.customers.find((c) => c.id === id)?.name ?? 'A customer';
   const zone = owner.shop.timezone;
   const unitOf = (id: string | null) => owner.units.find((u) => u.id === id)?.label ?? 'Unassigned';
-  const waiting = owner.escalations.length + owner.drafts.length + saveOffers.length;
+  // Rentals still out past their return time: the owner marks them returned, or overdue with a new expected time.
+  const dueBack = owner.bookings.filter((b) => b.status === 'picked_up' && new Date(b.endsAt) <= new Date(owner.shop.now));
+  const waiting = owner.escalations.length + owner.drafts.length + saveOffers.length + dueBack.length;
 
   return (
     <section className="pane owner">
@@ -61,6 +64,20 @@ export function OwnerPanel({ owner, activity, onOutcome, onOpenChat, onResolveDr
               }}
               onOpenChat={onOpenChat}
             />
+          ))}
+          {dueBack.map((b) => (
+            <div className={`ocard ${b.overdueMarkedAt ? 'overdue' : 'due'}`} key={`due-${b.id}`}>
+              <div className="ocard-kind">{b.overdueMarkedAt ? 'Overdue' : 'Due back'}</div>
+              <div>
+                {nameOf(b.customerId)}'s {owner.models.find((m) => m.id === b.modelId)?.name} ({unitOf(b.unitId)}) was due back {shopTime(b.endsAt, zone)}.
+              </div>
+              <div className="row">
+                <button className="primary" onClick={async () => onOutcome(await api.markReturned(b.id))}>
+                  Mark returned
+                </button>
+                <button onClick={() => onMarkOverdue(b.id)}>{b.overdueMarkedAt ? 'Update expected return…' : 'Mark overdue…'}</button>
+              </div>
+            </div>
           ))}
           {owner.drafts.map((d) => {
             const b = owner.bookings.find((x) => x.id === d.bookingId);
@@ -126,8 +143,11 @@ function PendingRequest({ proposal: p, owner, onOutcome }: { proposal: OwnerView
   const [busy, setBusy] = useState(false);
   const rev = p.revisions[0];
   if (!rev) return null;
-  const name = owner.customers.find((c) => c.id === p.requesterCustomerId)?.name ?? 'The shop';
-  const what = rev.isAlternative ? 'closest alternative' : rev.quote.lines.map((l) => l.label).join(', ') || 'change';
+  const late = p.source === 'overdue' ? owner.bookings.find((b) => b.id === p.subjectBookingId) : undefined;
+  const name = late
+    ? `${owner.customers.find((c) => c.id === late.customerId)?.name ?? 'A customer'}'s late return`
+    : (owner.customers.find((c) => c.id === p.requesterCustomerId)?.name ?? 'The shop');
+  const what = late ? 'next booking re-planned' : rev.isAlternative ? 'closest alternative' : rev.quote.lines.map((l) => l.label).join(', ') || 'change';
   const free = rev.quote.chargeCents === 0;
   const save = async () => {
     const cents = Math.round(Number(dollars) * 100);
@@ -147,7 +167,9 @@ function PendingRequest({ proposal: p, owner, onOutcome }: { proposal: OwnerView
         <b>{name}</b>: {what} · <b>{usd(rev.quote.chargeCents)}</b>
         {rev.quote.discountCents > 0 && <span className="muted small"> ({usd(rev.quote.discountCents)} off)</span>}
       </div>
-      <div className="muted small">{p.state === 'DRAFT' && free ? 'waiting for the customer to accept' : (STATE[p.state] ?? p.state.toLowerCase())}</div>
+      <div className="muted small">
+        {late ? (p.state === 'CAPTURING' ? 'being confirmed' : 'waiting on you or the next customer') : p.state === 'DRAFT' && free ? 'waiting for the customer to accept' : (STATE[p.state] ?? p.state.toLowerCase())}
+      </div>
       {p.state === 'DRAFT' && p.requesterCustomerId && !free && !editing && (
         <button className="link" onClick={() => { setDollars((rev.quote.chargeCents / 100).toFixed(2)); setEditing(true); }}>
           Adjust price
@@ -229,7 +251,7 @@ function OwnerCard({ escalation: e, owner, onOutcome, onOpenChat }: { escalation
             <span className="muted small">Saved as a fact; the customer is told.</span>
           </>
         )}
-        {customerOfThread && (e.kind === 'handoff' || e.kind === 'customer_issue') && (
+        {customerOfThread && (e.kind === 'handoff' || e.kind === 'customer_issue' || e.kind === 'overdue') && (
           <button onClick={() => onOpenChat(customerOfThread)}>Open the chat</button>
         )}
       </div>
@@ -244,6 +266,7 @@ const LABEL: Record<string, string> = {
   handoff: 'Handed to you',
   customer_issue: 'Needs a person',
   payment_failure: 'Payment problem',
+  overdue: 'Late return: needs you',
 };
 
 function FeedLine({ a, owner }: { a: Activity; owner: OwnerView }) {
@@ -303,6 +326,10 @@ function FeedLine({ a, owner }: { a: Activity; owner: OwnerView }) {
       return line('dim', <>Telling {name(p.customerId)} the outcome</>);
     case 'booking_edited':
       return line('', <>Owner changed a booking{p.overrode?.length ? ' (override)' : ''}</>);
+    case 'overdue_marked':
+      return line('warn', <>{name(p.customerId)} marked overdue, expected back {shopTime(p.expectedReturnAt, owner.shop.timezone)}{p.outcome === 'extended' ? ': nothing else affected' : p.outcome === 'no_plan' ? ': no plan makes room' : ''}</>);
+    case 'booking_returned':
+      return line('ok', <>{name(p.customerId)} returned their rental{p.late ? ' (late)' : ''}</>);
     case 'draft_discarded':
       return line('', <>Owner discarded a red draft</>);
     case 'booking_edit_undone':
