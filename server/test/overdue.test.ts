@@ -96,7 +96,9 @@ describe('overdue returns', () => {
 
     // There is no "closest alternative" for a late return: the owner has to step in.
     const [alert] = await load.escalations(d, 'overdue');
-    expect(alert!.summary).toContain('Alice is still out with the equipment, and no rearrangement was agreed with Bob and Charlie');
+    expect(alert!.summary).toBe(
+      "Alice is still out with A7IV-1, and no rearrangement was agreed (asked: Bob, then Charlie). Bob's booking may not have equipment: contact them to cancel with a full refund, or find other gear.",
+    );
     expect((await load.booking(d.bookingOf('Bob').id)).version).toBe(1);
   });
 

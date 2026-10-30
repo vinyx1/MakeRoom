@@ -1,7 +1,7 @@
 // Proposal persistence: plans become immutable revisions, revisions take claims, proposals end cleanly.
 // Everything here runs inside a `withShopLock` transaction; callers run any returned payment ops after commit.
 
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 import { logActivity } from '../activity.ts';
 import type { Tx } from '../db/client.ts';
 import * as s from '../db/schema.ts';
@@ -199,16 +199,25 @@ export async function endProposal(tx: Tx, proposal: Proposal, event: ProposalEve
 
 async function alertOverdueUnresolved(tx: Tx, proposal: Proposal, at: Date) {
   const [late] = proposal.subjectBookingId ? await tx.select().from(s.bookings).where(eq(s.bookings.id, proposal.subjectBookingId)) : [];
-  const asked = await tx.selectDistinct({ customerId: s.approvals.customerId }).from(s.approvals)
-    .where(and(eq(s.approvals.proposalId, proposal.id), eq(s.approvals.role, 'affected')));
-  const ids = [...new Set([late?.customerId, ...asked.map((a) => a.customerId)].filter((x): x is string => !!x))];
+  // The booking at risk: the next one on the late rental's unit.
+  const [next] = late?.unitId
+    ? await tx.select().from(s.bookings)
+        .where(and(eq(s.bookings.unitId, late.unitId), eq(s.bookings.status, 'confirmed'), gte(s.bookings.startsAt, late.endsAt)))
+        .orderBy(asc(s.bookings.startsAt)).limit(1)
+    : [];
+  // Who was asked, in the order they were asked.
+  const asked = [...new Set((await tx.select().from(s.approvals)
+    .where(and(eq(s.approvals.proposalId, proposal.id), eq(s.approvals.role, 'affected')))
+    .orderBy(asc(s.approvals.requestedAt), asc(s.approvals.id))).map((a) => a.customerId!))];
+  const ids = [...new Set([late?.customerId, next?.customerId, ...asked].filter((x): x is string => !!x))];
   const names = new Map((ids.length ? await tx.select().from(s.customers).where(inArray(s.customers.id, ids)) : []).map((c) => [c.id, c.name]));
-  const next = asked.map((a) => names.get(a.customerId!)).filter(Boolean);
-  const [conversation] = asked[0]?.customerId ? await tx.select().from(s.conversations).where(eq(s.conversations.customerId, asked[0].customerId)) : [];
+  const [unit] = late?.unitId ? await tx.select().from(s.units).where(eq(s.units.id, late.unitId)) : [];
+  const [conversation] = next ? await tx.select().from(s.conversations).where(eq(s.conversations.customerId, next.customerId)) : [];
+  const nextName = next ? names.get(next.customerId) : undefined;
   await tx.insert(s.escalations).values({
     shopId: proposal.shopId, kind: 'overdue', proposalId: proposal.id, bookingId: proposal.subjectBookingId, conversationId: conversation?.id ?? null,
     reasons: ['overdue', 'unresolved'], at,
-    summary: `${names.get(late?.customerId ?? '') ?? 'A customer'} is still out with the equipment, and no rearrangement was agreed${next.length ? ` with ${next.join(' and ')}` : ''}. Their booking may not have equipment: contact them to cancel with a full refund, or find other gear.`,
+    summary: `${names.get(late?.customerId ?? '') ?? 'A customer'} is still out with ${unit?.label ?? 'the equipment'}, and no rearrangement was agreed${asked.length ? ` (asked: ${asked.map((id) => names.get(id)).join(', then ')})` : ''}. ${nextName ? `${nextName}'s booking` : 'The next booking'} may not have equipment: contact them to cancel with a full refund, or find other gear.`,
   });
 }
 
