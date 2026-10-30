@@ -701,7 +701,8 @@ async function planFallback(tx: Tx, p: Proposal, now: Date): Promise<{ result?: 
     .where(and(eq(s.revisions.proposalId, p.id), inArray(s.revisions.status, ['dropped', 'superseded'])))
     .orderBy(desc(s.revisions.seq));
   const beforeRows = before ? (await changesByRevision(tx, [before.id])).get(before.id)! : [];
-  const was = beforeRows.find((c) => c.partyCustomerId === p.requesterCustomerId && c.bookingId === p.subjectBookingId);
+  // The change the request is about (an overdue request has no requester, only the late booking).
+  const was = beforeRows.find((c) => c.bookingId === p.subjectBookingId);
   const sameForRequester = (plan: Plan) =>
     !!was && plan.quote.chargeCents === before!.quote.chargeCents && placementKey(plan.changes.find((c) => c.isRequester)!.after) === placementKey(afterOf(was));
 

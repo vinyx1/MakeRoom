@@ -72,7 +72,9 @@ describe('overdue returns', () => {
     // Nothing reaches Bob until the owner approves a plan.
     expect((await db.transaction((tx) => customerView(tx, d.shop.id, bob.customerId)))!.cards).toEqual([]);
 
-    const planA = r.revisions.find((x) => x.optionLabel === 'A')!;
+    // Both plans need the owner, so they're in rank order: A moves Bob to 2pm, B upgrades him. Take the upgrade.
+    const upgrades = await db.select().from(s.revisionChanges).where(and(eq(s.revisionChanges.partyCustomerId, bob.customerId), eq(s.revisionChanges.kind, 'model_change')));
+    const planA = r.revisions.find((x) => upgrades.some((c) => c.revisionId === x.id))!;
     await ownerDecision(db, gateway, d.shop.id, { proposalId: r.proposal.id, revisionId: planA.id, decision: 'approve' });
     expect((await db.transaction((tx) => customerView(tx, d.shop.id, bob.customerId)))!.cards.map((c) => c.options.map((o) => o.revisionId))).toEqual([[planA.id]]);
 
