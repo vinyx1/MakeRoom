@@ -4,14 +4,21 @@ import { useState } from 'react';
 import { type Activity, type Escalation, type Fact, type Outcome, type OwnerView, api } from '../api';
 import { shopTime, usd } from '../live';
 
-type Props = { owner: OwnerView; activity: Activity[]; onOutcome: (o: Outcome) => void; onOpenChat: (customerId: string) => void };
+type Props = {
+  owner: OwnerView;
+  activity: Activity[];
+  onOutcome: (o: Outcome) => void;
+  onOpenChat: (customerId: string) => void;
+  onResolveDraft: (draftId: string) => void;
+};
 
 type SaveOffer = { factId: string; value: 'yes' | 'no'; label: string };
 
-export function OwnerPanel({ owner, activity, onOutcome, onOpenChat }: Props) {
+export function OwnerPanel({ owner, activity, onOutcome, onOpenChat, onResolveDraft }: Props) {
   const [saveOffers, setSaveOffers] = useState<SaveOffer[]>([]);
   const nameOf = (id: string | null | undefined) => owner.customers.find((c) => c.id === id)?.name ?? 'A customer';
   const zone = owner.shop.timezone;
+  const unitOf = (id: string | null) => owner.units.find((u) => u.id === id)?.label ?? 'Unassigned';
   const waiting = owner.escalations.length + owner.drafts.length + saveOffers.length;
 
   return (
@@ -63,13 +70,27 @@ export function OwnerPanel({ owner, activity, onOutcome, onOpenChat }: Props) {
                   <b>Red draft:</b> {nameOf(b?.customerId)}'s booking → {d.proposed.startsAt && shopTime(d.proposed.startsAt, zone)} – {d.proposed.endsAt && shopTime(d.proposed.endsAt, zone)} conflicts with another booking.
                 </div>
                 <div className="row">
-                  <button className="primary" onClick={async () => onOutcome(await api.resolveDraft(d.id))}>
+                  <button className="primary" onClick={() => onResolveDraft(d.id)}>
                     Resolve with agent
                   </button>
+                  <button onClick={async () => onOutcome(await api.discardDraft(d.id))}>Discard</button>
                 </div>
               </div>
             );
           })}
+          {owner.lastEdit && (
+            <div className="ocard" key={`undo-${owner.lastEdit.bookingId}`}>
+              <div>
+                <b>Last change:</b> {nameOf(owner.lastEdit.customerId)}'s booking {shopTime(owner.lastEdit.before.startsAt, zone)} – {shopTime(owner.lastEdit.before.endsAt, zone)}
+                {' → '}
+                {shopTime(owner.lastEdit.after.startsAt, zone)} – {shopTime(owner.lastEdit.after.endsAt, zone)}
+                {owner.lastEdit.before.unitId !== owner.lastEdit.after.unitId && ` (${unitOf(owner.lastEdit.before.unitId)} → ${unitOf(owner.lastEdit.after.unitId)})`}
+              </div>
+              <div className="row">
+                <button onClick={async () => onOutcome(await api.undoEdit(owner.lastEdit!.bookingId))}>Undo</button>
+              </div>
+            </div>
+          )}
           {!waiting && <div className="muted small">Nothing needs you right now. Drag a booking on the schedule to change it.</div>}
           {owner.proposals.length > 0 && (
             <div className="pending">
@@ -282,6 +303,10 @@ function FeedLine({ a, owner }: { a: Activity; owner: OwnerView }) {
       return line('dim', <>Telling {name(p.customerId)} the outcome</>);
     case 'booking_edited':
       return line('', <>Owner changed a booking{p.overrode?.length ? ' (override)' : ''}</>);
+    case 'draft_discarded':
+      return line('', <>Owner discarded a red draft</>);
+    case 'booking_edit_undone':
+      return line('', <>Owner undid their last change</>);
     case 'draft_saved':
       return line('warn', <>Owner edit kept as a red draft: {(p.violations ?? []).join('; ')}</>);
     case 'fact_saved':
