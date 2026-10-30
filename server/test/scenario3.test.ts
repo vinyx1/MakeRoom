@@ -3,9 +3,11 @@
 // at no extra charge, with her hold released. Plus withdrawal (judge B5), the requester cancelling, and expiry.
 
 import { randomUUID } from 'node:crypto';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 import { afterAll, describe, expect, it } from 'vitest';
+import { createAgentService } from '../src/agent/service.ts';
+import { type AgentConfig, conversationOf } from '../src/agent/turn.ts';
 import { createDb } from '../src/db/client.ts';
 import * as s from '../src/db/schema.ts';
 import { seedShop } from '../src/db/seed.ts';
@@ -19,6 +21,7 @@ import {
   requesterAccept,
   requesterCancel,
 } from '../src/proposals/flow.ts';
+import { customerView } from '../src/server/views.ts';
 import { fakeGateway } from './fake-gateway.ts';
 
 const { db, pool } = createDb();
@@ -167,5 +170,40 @@ describe('withdrawing and cancelling', () => {
     expect((await load.order(proposalId)).status).toBe('voided');
     expect(await load.activeClaims(proposalId)).toEqual([]);
     expect((await requesterCancel(db, gateway, d.shop.id, { proposalId, customerId: d.customer('Bob').id })).status).toBe('refused');
+  });
+});
+
+describe('the requester is kept informed', () => {
+  const templates: AgentConfig = { client: null, model: 'none', effort: 'low', turnCap: 60 };
+  const view = (d: Seeded, name: string) => db.transaction((tx) => customerView(tx, d.shop.id, d.customer(name).id));
+
+  it('when Bob keeps his booking and another plan goes out, Alice hears her request and hold stand, and her card says so', async () => {
+    const { gateway, d, proposalId } = await setup();
+    const agent = createAgentService(db, templates, undefined, { shopId: d.shop.id });
+    await agent.poll(); // from now on
+
+    // Paid and waiting: no "Offer closed", a status with the hold and a way out.
+    const waiting = (await view(d, 'Alice'))!.requests.find((r) => r.proposalId === proposalId)!;
+    expect(waiting).toMatchObject({ tone: 'waiting', headline: 'Accepted: waiting on another customer', canCancel: true, detail: expect.stringContaining('$45.00 is held on PayPal') });
+
+    await affectedRefuse(db, gateway, d.shop.id, { proposalId, customerId: d.customer('Bob').id });
+    await agent.poll();
+    await agent.drain();
+    const conversation = await conversationOf(db, d.shop.id, d.customer('Alice').id, d.now);
+    const [last] = await db.select().from(s.messages).where(eq(s.messages.conversationId, conversation.id)).orderBy(desc(s.messages.at)).limit(1);
+    expect(last!.body).toContain('the shop is trying another arrangement');
+    expect(last!.body).not.toContain('Bob');
+
+    // Still waiting, now on Charlie; Bob's card says he kept his booking.
+    expect((await view(d, 'Alice'))!.requests.find((r) => r.proposalId === proposalId)).toMatchObject({ tone: 'waiting', headline: 'Accepted: waiting on another customer' });
+    expect((await view(d, 'Bob'))!.requests.find((r) => r.proposalId === proposalId)).toMatchObject({ tone: 'ended', headline: 'You kept your booking as is' });
+  });
+
+  it('after she cancels, her card says it ended and the hold was released', async () => {
+    const { gateway, d, proposalId } = await setup();
+    await requesterCancel(db, gateway, d.shop.id, { proposalId, customerId: d.customer('Alice').id });
+    expect((await view(d, 'Alice'))!.requests.find((r) => r.proposalId === proposalId)).toMatchObject({
+      tone: 'ended', headline: "Didn't go ahead", canCancel: false, detail: expect.stringContaining('any hold was released'),
+    });
   });
 });
