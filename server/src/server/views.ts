@@ -92,6 +92,114 @@ export type CustomerCard = {
   expiresAt: Date | null;
 };
 
+/**
+ * Where a request stands for one customer, once their card is no longer asking them anything: shown in the chat in
+ * place of a closed card, so a requester waiting on others (or one whose request ended) is never left guessing.
+ */
+export type RequestStatus = {
+  proposalId: string;
+  role: CardRole;
+  state: string;
+  /** Every revision of the request, to match the chat's card messages. */
+  revisionIds: string[];
+  tone: 'waiting' | 'done' | 'ended';
+  headline: string;
+  detail: string | null;
+  /** This customer's terms, as their card showed them. */
+  lines: string[];
+  /** The requester can still back out (before the charge). */
+  canCancel: boolean;
+};
+
+const ENDED_HEADLINE: Record<string, string> = {
+  REJECTED: "Didn't go ahead",
+  EXPIRED: 'Expired',
+  CANCELLED: 'Cancelled by the shop',
+  FAILED: "Couldn't be completed",
+};
+
+async function requestStatuses(tx: Tx, idx: ReturnType<typeof indexSnapshot>, shopId: string, customerId: string): Promise<RequestStatus[]> {
+  const t = (d: Date) => formatShopTime(d, idx.snap.shop);
+  const mine = await tx.select().from(s.approvals).where(and(eq(s.approvals.shopId, shopId), eq(s.approvals.customerId, customerId)));
+  const asRequester = await tx.select().from(s.proposals).where(and(eq(s.proposals.shopId, shopId), eq(s.proposals.requesterCustomerId, customerId)));
+  const ids = [...new Set([...asRequester.map((p) => p.id), ...mine.map((a) => a.proposalId)])];
+  if (!ids.length) return [];
+  const [proposals, revisions, approvals, changes, exclusions, orders] = await Promise.all([
+    tx.select().from(s.proposals).where(inArray(s.proposals.id, ids)),
+    tx.select().from(s.revisions).where(inArray(s.revisions.proposalId, ids)).orderBy(desc(s.revisions.seq)),
+    tx.select().from(s.approvals).where(inArray(s.approvals.proposalId, ids)),
+    tx.select({ change: s.revisionChanges }).from(s.revisionChanges).innerJoin(s.revisions, eq(s.revisionChanges.revisionId, s.revisions.id)).where(inArray(s.revisions.proposalId, ids)),
+    tx.select().from(s.proposalExclusions).where(and(inArray(s.proposalExclusions.proposalId, ids), eq(s.proposalExclusions.customerId, customerId))),
+    tx.select().from(s.paypalOrders).where(and(inArray(s.paypalOrders.proposalId, ids), eq(s.paypalOrders.status, 'authorized'))),
+  ]);
+
+  return proposals.map((p) => {
+    const role: CardRole = p.requesterCustomerId === customerId ? 'requester' : 'affected';
+    const revs = revisions.filter((r) => r.proposalId === p.id);
+    const live = revs.filter((r) => (LIVE_REVISION_STATUSES as readonly string[]).includes(r.status));
+    const own = approvals.filter((a) => a.proposalId === p.id && a.customerId === customerId);
+    const picked = own.find((a) => a.role === 'affected' && a.status === 'approved' && live.some((r) => r.id === a.revisionId));
+    const shownRev =
+      revs.find((r) => r.status === 'selected') ??
+      (picked && live.find((r) => r.id === picked.revisionId)) ??
+      live.find((r) => own.some((a) => a.revisionId === r.id)) ??
+      revs.find((r) => own.some((a) => a.revisionId === r.id)) ??
+      revs[0];
+    const rows = shownRev ? changes.map((c) => c.change).filter((c) => c.revisionId === shownRev.id) : [];
+    const ownerApproved = !!shownRev && approvals.some((a) => a.revisionId === shownRev.id && a.role === 'owner' && a.status === 'approved');
+    const lines = shownRev && rows.some((c) => c.partyCustomerId === customerId) ? renderOption(idx, shownRev, rows, customerId, role, ownerApproved).lines : [];
+    const waitingOn = [...new Set(
+      approvals
+        .filter((a) => live.some((r) => r.id === a.revisionId) && a.status === 'pending' && a.customerId !== customerId)
+        .map((a) => (a.role === 'owner' ? 'the shop' : 'another customer')),
+    )];
+    const waiting = waitingOn.length ? `waiting on ${waitingOn.join(' and ')}` : 'waiting for confirmation';
+    const held = orders.find((o) => o.proposalId === p.id);
+    const base = { proposalId: p.id, role, state: p.state, revisionIds: revs.map((r) => r.id), lines, canCancel: false };
+
+    if (role === 'requester') {
+      if (p.state === 'DRAFT') return { ...base, tone: 'waiting', headline: 'This offer was replaced', detail: 'The latest offer is further down.', canCancel: false };
+      if (p.state === 'AWAITING_APPROVALS')
+        return {
+          ...base, tone: 'waiting', canCancel: true,
+          headline: `Accepted: ${waiting}`,
+          detail: held
+            ? `${usd(held.amountCents)} is held on PayPal, not charged. If this can't go ahead, or nobody answers by ${t(p.expiresAt!)}, the hold is released automatically.`
+            : `Nothing is charged. If nobody answers by ${t(p.expiresAt!)}, the request lapses and your booking stays as it was.`,
+        };
+      if (p.state === 'CAPTURING') return { ...base, tone: 'waiting', headline: 'Everyone agreed: confirming now', detail: null };
+      if (p.state === 'COMMITTED') {
+        const charge = shownRev?.quote.chargeCents ?? 0;
+        return { ...base, tone: 'done', headline: 'Confirmed: the schedule is updated', detail: charge > 0 ? `${usd(charge)} charged to your PayPal.` : null };
+      }
+      return {
+        ...base, tone: 'ended', headline: ENDED_HEADLINE[p.state] ?? 'Ended',
+        detail: p.state === 'FAILED'
+          ? `${p.endedReason ?? 'Something went wrong'}. Your booking stays as it was.`
+          : `${p.endedReason ? `${p.endedReason}. ` : ''}Nothing was charged, any hold was released, and your booking stays as it was.`,
+      };
+    }
+
+    if (exclusions.some((e) => e.proposalId === p.id))
+      return { ...base, tone: 'ended', headline: 'You kept your booking as is', detail: 'Nothing about your booking changes.' };
+    if (p.state === 'COMMITTED')
+      return shownRev?.status === 'selected' && rows.some((c) => c.partyCustomerId === customerId)
+        ? { ...base, tone: 'done', headline: 'Confirmed: your booking is updated', detail: null }
+        : { ...base, tone: 'ended', headline: 'Sorted without changing your booking', detail: 'Your booking stays as it was.' };
+    if (p.state === 'AWAITING_APPROVALS' || p.state === 'CAPTURING')
+      return picked
+        ? {
+            ...base, tone: 'waiting',
+            headline: `You chose ${shownRev?.optionLabel ? `option ${shownRev.optionLabel}` : 'the offer'}: ${p.state === 'CAPTURING' ? 'confirming now' : waiting}`,
+            detail: 'Your booking changes only once everything is confirmed.',
+          }
+        : { ...base, tone: 'waiting', headline: 'This offer was replaced', detail: 'Your booking stays as it is unless you accept a newer offer.' };
+    return { ...base, tone: 'ended', headline: 'Withdrawn', detail: "The other customer's request ended, so your booking stays as it was." };
+  });
+}
+
+const usd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+
 /** One customer's chat-side view: their bookings, their pending cards, and what's in progress. */
 export async function customerView(tx: Tx, shopId: string, customerId: string) {
   const snapshot = await loadSnapshot(tx, shopId);
@@ -186,5 +294,7 @@ export async function customerView(tx: Tx, shopId: string, customerId: string) {
     handedOff: !!conversation?.handedOffAt,
     bookings,
     cards: [...cards.values()],
+    /** For card messages whose card is no longer open: where that request stands now. */
+    requests: await requestStatuses(tx, idx, shopId, customerId),
   };
 }
