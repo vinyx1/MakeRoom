@@ -19,6 +19,21 @@ export type CardOption = {
 
 const usd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
+/**
+ * What the customer's booking needs from the equipment it moves to (Eve's "for Canon R5 + RF 24-70"), stated only
+ * once it is known: a stored `yes`, or an unknown fact the owner answered on this plan. Approving a plan takes a Yes
+ * to each of its unknown facts (a No declines it), so the owner's approval is that answer. Invariant 11.
+ */
+function checkedFacts(idx: Index, revision: Revision, c: RevisionChange, ownerApproved: boolean): string[] {
+  const booking = c.bookingId ? idx.bookings.get(c.bookingId) : undefined;
+  if (!booking || !c.newUnitId) return [];
+  return booking.requiredFacts.flatMap((key) => {
+    const fact = idx.fact(c.newUnitId!, key);
+    const known = fact?.value === 'yes' || (!!fact && ownerApproved && revision.factDependencies.includes(fact.id));
+    return known ? [`Checked by the shop for your setup: ${fact!.label ?? key.replaceAll('_', ' ')}`] : [];
+  });
+}
+
 export function renderOption(
   idx: Index,
   revision: Revision,
@@ -47,6 +62,7 @@ export function renderOption(
     if (c.kind === 'model_change') {
       const upgrade = (toModel?.tier ?? 0) > (fromModel?.tier ?? 0);
       lines.push(`${upgrade ? 'Free upgrade' : 'Switch'} to the ${model}, same times (${t(after.startsAt)} → ${t(after.endsAt)})`);
+      lines.push(...checkedFacts(idx, revision, c, ownerApproved));
     } else if (c.kind === 'same_model_swap') {
       lines.push(`Same ${model}, a different unit. Nothing else changes.`);
     } else {
