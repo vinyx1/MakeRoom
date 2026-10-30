@@ -73,7 +73,7 @@ describe('tools', () => {
     const thu10 = DateTime.fromJSDate(at(d, 'Thu', 10), { zone: d.shop.timezone }).toFormat("yyyy-LL-dd'T'HH:mm");
     const r = await call('request_change', { booking_id: bk, change: { type: 'extend', new_end: thu10 } });
     expect(r.ok).toBe(true);
-    expect(r.offer).toMatchObject({ price: '$45.00', price_status: 'offered', option: null, needs_shop_confirmation: false, terms: ['Keep the Sony A7 IV until Thu 10:00am', expect.stringContaining('$45.00')] });
+    expect(r.offer).toMatchObject({ price: '$45.00', price_status: 'offered', option: null, needs_shop_confirmation: false, terms: ['Keep the Sony A7 IV until Thu 10:00am', expect.stringContaining('$45.00'), expect.stringContaining('Held on your PayPal account first')] });
     expect(r.another_customer_must_agree).toBe(true);
     expect(r.hint).toContain(r.offer.revision_id);
 
@@ -153,7 +153,7 @@ describe('fallbacks (no model)', () => {
     const bobThread = await conversationOf(db, d.shop.id, d.customer('Bob').id, d.now);
     const msgs = await messagesOf(bobThread.id);
     expect(msgs.map((m) => m.cardRevisionIds.length)).toEqual([2, 0]); // the card with both options, then the note
-    expect(msgs[1]!.body).toContain('the shop is offering you the options on the card');
+    expect(msgs[1]!.body).toContain("you're free to decline by tapping Keep my booking as is");
   });
 
   it('a committed request reaches each party with the backend’s facts', async () => {

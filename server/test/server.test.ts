@@ -107,7 +107,7 @@ describe('Scenario 1 over HTTP', () => {
         proposalId, role: 'requester', chargeCents: 4500, heldCents: 0, expiresAt: expect.any(String),
         options: [{
           revisionId: expect.any(String), option: null, needsShop: false, isAlternative: false,
-          lines: ['Keep the Sony A7 IV until Thu 10:00am', '$45.00, only charged if it goes ahead'],
+          lines: ['Keep the Sony A7 IV until Thu 10:00am', '$45.00, only charged if it goes ahead', expect.stringContaining('Held on your PayPal account first')],
         }],
       },
     ]);
