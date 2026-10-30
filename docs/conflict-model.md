@@ -167,6 +167,8 @@ The requester always gets the closest feasible alternative, never a bare denial.
 - At return time plus 1h grace, an unreturned booking becomes **overdue**: owner escalation, and the agent re-plans the next customer treating the late return as fixed. No automatic late fees or chasing in the PoC.
 - No-show: at pickup time plus 1h grace, the owner is asked whether to release the unit.
 
+**Built (2026-10-30, `markOverdue` / `markReturned` in `server/src/proposals/flow.ts`):** once a picked-up rental is past its return time, the Owner column shows it as **Due back**, with **Mark returned** and **Mark overdue…** (with the time the customer now expects to return). Overdue is planned as an extension that happens regardless (`forced`): the late customer isn't charged, there is no "closest alternative" for them, and the proposal has no requester. If nothing else is affected, the booking just runs later. Otherwise the next renters are re-planned; with nobody paying, any plan that compensates someone is outside the envelope, so the owner reviews it before the customer is asked. A refusal tries fallback plans as usual; if none is agreed, or nobody answers before the timeout, the owner gets a "late return" alert to sort it out with the next renter (cancel with a full refund, or find other gear). Marking it overdue again with a new time replaces the plan. **Mark returned** records the return now and ends any request planned around the rental. Not built: the automatic timers, late fees.
+
 ## 9. Time
 
 All times stored in UTC, displayed and validated in the shop's time zone (DST-aware). Timeouts, grace periods and claim expiry read an injectable clock, so tests and the demo can jump ahead.

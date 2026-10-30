@@ -49,7 +49,7 @@ The rule from `CLAUDE.md` still holds: the video scenarios must run reliably bef
 13. **Scenario 4: a unit goes down** (1–2 days). Owner UI to mark a unit unavailable, the Unassigned row, a multi-booking plan for owner review, notice-only swaps.
 14. **Scenario 5: above the agent's pay grade** (1 day). Compensation over the cap plus an angry customer leads to escalation and handoff. Most of the parts already exist.
 15. **Repricing after authorization** (half a day; C4/C5). A lower price captures less. A higher price needs a new authorization.
-16. **Overdue returns** (D10) and **owner-assist turns** (the agent drafting for the owner).
+16. ~~**Overdue returns** (D10)~~ done 2026-10-30 (see `docs/conflict-model.md` §8). Still open: **owner-assist turns** (the agent drafting for the owner), and automatic overdue/no-show timers (the owner marks them by hand).
 17. **Better options for affected customers** (half a day to a day). Today `chooseOptions` (`server/src/proposals/flow.ts`) keeps the top 2 plans by rank. A model change carries a 6h ranking penalty, so a free upgrade can lose its slot to a time shift, and plans that fail the plausibility envelope are dropped whenever one passes. Instead:
     - reserve one slot for the best upgrade that stays within limits: at most one tier up, upgrade value under the $50 cap, and compensation no more than what the requester pays;
     - raise the cap to 3 options per card (each option claims its unit, so keep it small);
