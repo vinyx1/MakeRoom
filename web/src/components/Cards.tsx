@@ -4,7 +4,7 @@
 
 import { INSTANCE_LOADING_STATE, PayPalOneTimePaymentButton, usePayPal } from '@paypal/react-paypal-js/sdk-v6';
 import { useState } from 'react';
-import { type Config, type CustomerCard, type Outcome, api } from '../api';
+import { type Config, type CustomerCard, type Outcome, type RequestStatus, api } from '../api';
 import { usd } from '../live';
 
 type CardProps = { card: CustomerCard; customerId: string; config: Config; zone: string; onOutcome: (o: Outcome) => void };
@@ -153,6 +153,42 @@ function AffectedCard({ card, customerId, onOutcome }: CardProps) {
         </button>
         <div className="muted small">Nothing about your booking changes.</div>
       </div>
+    </div>
+  );
+}
+
+/** A request this customer is part of, after their card stopped asking them anything (rendered by the server). */
+export function StatusCard({ status, customerId, onOutcome }: { status: RequestStatus; customerId: string; onOutcome: (o: Outcome) => void }) {
+  const [busy, setBusy] = useState(false);
+  const cancel = async () => {
+    setBusy(true);
+    try {
+      const r = await api.cancel(status.proposalId, customerId);
+      onOutcome(r.status === 'rejected' ? { status: 'cancelled', reason: 'Request cancelled: your booking stays as it was, and the payment hold is released.' } : r);
+    } catch (e) {
+      onOutcome({ status: 'error', reason: (e as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className={`card status ${status.tone}`}>
+      <div className="card-head">{status.headline}</div>
+      {status.lines.length > 0 && (
+        <ul className="terms">
+          {status.lines.map((l) => (
+            <li key={l}>{l}</li>
+          ))}
+        </ul>
+      )}
+      {status.detail && <div className="status-detail">{status.detail}</div>}
+      {status.canCancel && (
+        <div className="card-actions">
+          <button className="link" disabled={busy} onClick={cancel}>
+            Cancel my request
+          </button>
+        </div>
+      )}
     </div>
   );
 }

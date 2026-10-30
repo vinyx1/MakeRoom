@@ -105,6 +105,12 @@ code { font-size: 12px; background: #f0f2f5; padding: 1px 4px; border-radius: 4p
 .card.requester { border-top: 3px solid var(--accent); }
 .card.affected { border-top: 3px solid var(--ghost); }
 .card.closed { color: var(--muted); font-size: 12px; padding: 8px 12px; }
+.card.status { border-left: 3px solid var(--line); }
+.card.status.waiting { border-left-color: var(--accent); }
+.card.status.done { border-left-color: #2f9e44; }
+.card.status.ended { border-left-color: var(--muted); }
+.card.status .card-head { font-size: 13px; }
+.status-detail { color: var(--muted); font-size: 12px; margin-top: 4px; }
 .card-head { font-weight: 600; margin-bottom: 6px; }
 .terms { margin: 4px 0 8px; padding-left: 18px; }
 .terms li { margin: 2px 0; }

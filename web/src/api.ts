@@ -100,7 +100,26 @@ export type OwnerView = {
 
 export type CardOption = { revisionId: string; option: string | null; lines: string[]; needsShop: boolean; isAlternative: boolean };
 export type CustomerCard = { proposalId: string; role: 'requester' | 'affected'; chargeCents: number; heldCents: number; options: CardOption[]; expiresAt: string | null };
-export type CustomerView = { customer: { id: string; name: string }; now: string; messages: Message[]; handedOff: boolean; cards: CustomerCard[] };
+/** Where a request stands for this customer once their card isn't asking them anything. */
+export type RequestStatus = {
+  proposalId: string;
+  role: 'requester' | 'affected';
+  state: string;
+  revisionIds: string[];
+  tone: 'waiting' | 'done' | 'ended';
+  headline: string;
+  detail: string | null;
+  lines: string[];
+  canCancel: boolean;
+};
+export type CustomerView = {
+  customer: { id: string; name: string };
+  now: string;
+  messages: Message[];
+  handedOff: boolean;
+  cards: CustomerCard[];
+  requests: RequestStatus[];
+};
 
 export type Config = {
   paypalClientId: string | null;

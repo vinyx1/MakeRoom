@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { type Config, type Customer, type CustomerView, type Outcome, api } from '../api';
 import { shopTime } from '../live';
-import { Card } from './Cards';
+import { Card, StatusCard } from './Cards';
 
 type Props = {
   customerId: string;
@@ -50,7 +50,20 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
 
   const name = view?.customer.name ?? customers.find((c) => c.id === customerId)?.name ?? '';
   const cardFor = (ids: string[]) => view?.cards.find((c) => c.options.some((o) => ids.includes(o.revisionId)));
+  const statusFor = (ids: string[]) => view?.requests.find((r) => r.revisionIds.some((id) => ids.includes(id)));
+  // A request can post several cards (a fallback, a new price); only its latest one shows where it stands now.
+  const latestCard = new Map<string, string>();
+  for (const m of view?.messages ?? []) {
+    const r = m.cardRevisionIds.length ? statusFor(m.cardRevisionIds) : undefined;
+    if (r) latestCard.set(r.proposalId, m.id);
+  }
   const shown = new Set<string>();
+
+  const closedCard = (messageId: string, status: ReturnType<typeof statusFor>) => {
+    if (!status) return <div className="card closed">Offer closed</div>;
+    if (latestCard.get(status.proposalId) !== messageId) return <div className="card closed">Earlier offer, replaced below</div>;
+    return <StatusCard status={status} customerId={customerId} onOutcome={onOutcome} />;
+  };
 
   return (
     <section className="pane chat">
@@ -79,7 +92,11 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
             if (card) shown.add(card.proposalId + card.role);
             return (
               <div className="msg card-msg" key={m.id}>
-                {card ? <Card card={card} customerId={customerId} config={config} zone={zone} onOutcome={onOutcome} /> : <div className="card closed">Offer closed</div>}
+                {card ? (
+                  <Card card={card} customerId={customerId} config={config} zone={zone} onOutcome={onOutcome} />
+                ) : (
+                  closedCard(m.id, statusFor(m.cardRevisionIds))
+                )}
               </div>
             );
           }
