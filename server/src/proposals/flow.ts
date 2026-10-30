@@ -16,6 +16,8 @@
 //
 //   affectedRefuse         "Keep my booking as is" → that customer excluded → fallback plan or closest alternative
 //   requesterCancel        the requester backs out before capture
+//   markOverdue            a late return: the next renters re-planned around it, with no one paying
+//   markReturned           the rental is back; anything planned around it ends
 //
 // Not yet: counters and re-approval, customer-stated constraints. Customers are told by the agent, which reads
 // the activity events (`offer_ready`, `affected_refused`, `proposal_update`, `proposal_ended`).
@@ -24,10 +26,11 @@ import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { logActivity } from '../activity.ts';
 import type { Db, Tx } from '../db/client.ts';
 import { loadSnapshot } from '../db/load-snapshot.ts';
-import { withShopLock } from '../db/lock.ts';
+import { allowOwnerShorten, withShopLock } from '../db/lock.ts';
 import * as s from '../db/schema.ts';
 import { type Plan, type Pruned, type Request, nearestAlternative, optimize } from '../optimizer/optimizer.ts';
 import { type Index, type Placement, indexSnapshot } from '../optimizer/snapshot.ts';
+import { formatShopTime } from '../optimizer/time.ts';
 import { type Violation, validate } from '../optimizer/validator.ts';
 import type { PaymentGateway } from '../payments/gateway.ts';
 import { compactId, enqueueOp, enqueueVoid, runPaymentOp } from '../payments/ops.ts';
@@ -238,6 +241,172 @@ export function resolveDraft(db: Db, shopId: string, input: { draftId: string; a
     await offerToRequesterIfReviewed(tx, proposal!, now);
     return { status: 'resolved', proposal: proposal!, revisions, pruned: result.pruned };
   });
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// 1c. An overdue return (docs/conflict-model.md §8; judge D10)
+
+export type OverdueResult =
+  /** Nothing else needed to move: the late booking now runs to the expected return. */
+  | { status: 'extended' }
+  /** The next renters are affected: plans go to the owner first, then to those customers. */
+  | { status: 'planned'; proposal: Proposal; revisions: Revision[]; pruned: Pruned[] }
+  /** Nothing can make room: the owner has to sort it out with the next renter. */
+  | { status: 'no_plan'; pruned: Pruned[] }
+  | Refused;
+
+/**
+ * The owner marks a picked-up rental overdue, with when the customer now expects to bring it back. It is planned as
+ * an extension that happens whether anyone agrees or not (`forced`): the late customer isn't charged (no late fees
+ * in the PoC), and the plans move the next renters, never the late rental. With no one paying, every plan that
+ * compensates someone runs at a loss, so the owner reviews it before the next renter is asked. If they refuse every
+ * option, or nobody answers, the owner is alerted (`endProposal`), since their pickup may have no equipment.
+ * Marking it again with a new time replaces the earlier plan.
+ */
+export async function markOverdue(
+  db: Db, gateway: PaymentGateway, shopId: string, input: { bookingId: string; expectedReturnAt: Date },
+): Promise<OverdueResult> {
+  const locked = await withShopLock(db, shopId, async (tx): Promise<{ result: OverdueResult; ops: string[]; capture?: { proposalId: string; captureOpId: string | null } }> => {
+    const snapshot = await loadSnapshot(tx, shopId);
+    const now = snapshot.now;
+    const b = snapshot.bookings.find((x) => x.id === input.bookingId);
+    if (!b) return { result: refused('booking not found'), ops: [] };
+    const name = snapshot.customers.find((c) => c.id === b.customerId)?.name ?? 'The customer';
+    if (b.status !== 'picked_up') return { result: refused('only a rental that has been picked up can be overdue'), ops: [] };
+    if (now < b.endsAt) return { result: refused(`${name}'s rental isn't due back until ${formatShopTime(b.endsAt, snapshot.shop)}`), ops: [] };
+    if (input.expectedReturnAt <= now) return { result: refused('the expected return has to be later than now'), ops: [] };
+
+    const active = await tx.select().from(s.proposals).where(and(eq(s.proposals.subjectBookingId, b.id), inArray(s.proposals.state, [...ACTIVE_STATES])));
+    if (active.some((p) => p.state === 'CAPTURING')) return { result: refused('a change to this booking is being confirmed right now; try again in a few seconds'), ops: [] };
+    if (active.some((p) => p.source !== 'overdue')) return { result: refused(`${name} has a request in progress for this booking; it has to finish first`), ops: [] };
+
+    // Plan against the schedule without the earlier overdue plan (it is replaced), before writing anything, so an
+    // invalid time leaves everything as it was.
+    const replaced = new Set(active.map((p) => p.id));
+    const request: Request = { kind: 'extend', bookingId: b.id, newEndsAt: input.expectedReturnAt, forced: true };
+    const result = optimize({ ...snapshot, otherClaims: snapshot.otherClaims.filter((c) => !replaced.has(c.proposalId)) }, request);
+    if (result.status === 'invalid_request') return { result: refused([...new Set(result.violations.map((v) => v.message))].join('; ')), ops: [] };
+
+    const ops: string[] = [];
+    for (const p of active) ops.push(...(await endProposal(tx, p, 'owner_override', 'The expected return time changed', now, 'owner')).opIds);
+    await tx.update(s.bookings).set({ overdueMarkedAt: now }).where(eq(s.bookings.id, b.id));
+    await logActivity(tx, {
+      shopId, at: now, actor: 'owner', kind: 'optimizer_run',
+      payload: {
+        request: storeRequest(request), source: 'overdue', status: result.status,
+        plans: result.status === 'infeasible' ? [] : result.plans.map(planSummary),
+        pruned: result.pruned.map((p) => ({ message: p.message, rules: p.rules, bookingId: p.bookingId })),
+      },
+    });
+    const overdueLog = (outcome: string) =>
+      logActivity(tx, {
+        shopId, at: now, actor: 'owner', kind: 'overdue_marked',
+        payload: { bookingId: b.id, customerId: b.customerId, dueAt: b.endsAt, expectedReturnAt: input.expectedReturnAt, outcome },
+      });
+
+    // Nobody else is affected: the booking simply runs later.
+    if (result.status === 'fits') {
+      await tx
+        .update(s.bookings)
+        .set({ endsAt: input.expectedReturnAt, bufferEndsAt: new Date(input.expectedReturnAt.getTime() + (b.bufferEndsAt.getTime() - b.endsAt.getTime())), version: b.version + 1 })
+        .where(eq(s.bookings.id, b.id));
+      await overdueLog('extended');
+      return { result: { status: 'extended' }, ops };
+    }
+
+    if (result.status === 'infeasible') {
+      await tx.insert(s.escalations).values({
+        shopId, kind: 'overdue', bookingId: b.id, reasons: ['overdue', 'no_plan'], at: now,
+        summary: `${name} is overdue with ${snapshot.units.find((u) => u.id === b.unitId)?.label ?? 'their rental'} (due ${formatShopTime(b.endsAt, snapshot.shop)}, expected back ${formatShopTime(input.expectedReturnAt, snapshot.shop)}), and no rearrangement makes room for the next booking. Contact the next renter: cancel with a full refund, or find other equipment.`,
+      });
+      await overdueLog('no_plan');
+      return { result: { status: 'no_plan', pruned: result.pruned }, ops };
+    }
+
+    const idx = indexSnapshot(await loadSnapshot(tx, shopId));
+    const options = chooseOptions(result.plans);
+    const expiresAt = new Date(now.getTime() + snapshot.shop.policy.approval_timeout_minutes * 60_000);
+    const [proposal] = await tx
+      .insert(s.proposals)
+      .values({ shopId, source: 'overdue', requesterCustomerId: null, subjectBookingId: b.id, request: storeRequest(request), state: 'DRAFT', revisionSeq: 1, expiresAt, createdAt: now })
+      .returning();
+    const revisions: Revision[] = [];
+    const rows = new Map<string, RevisionChange[]>();
+    try {
+      await tx.transaction(async (sp) => {
+        for (const [i, plan] of options.entries()) {
+          const { revision, changes } = await insertRevision(sp, {
+            proposal: proposal!, seq: 1, optionLabel: options.length > 1 ? (['A', 'B'] as const)[i]! : null, plan, origin: 'optimizer', at: now,
+          });
+          revisions.push(revision);
+          rows.set(revision.id, changes);
+          await placeClaims(sp, proposal!, revision.id, changes);
+        }
+      });
+    } catch (e) {
+      // Another request holds the next booking or the capacity a plan needs: nothing can be offered right now.
+      if (pgCode(e) !== '23P01') throw e;
+      await tx.delete(s.proposals).where(eq(s.proposals.id, proposal!.id));
+      await tx.insert(s.escalations).values({
+        shopId, kind: 'overdue', bookingId: b.id, reasons: ['overdue', 'claimed'], at: now,
+        summary: `${name} is overdue (expected back ${formatShopTime(input.expectedReturnAt, snapshot.shop)}), but another request is holding the booking that needs to move. Try again once it finishes, or contact the next renter.`,
+      });
+      await overdueLog('no_plan');
+      return { result: { status: 'no_plan', pruned: result.pruned }, ops };
+    }
+
+    // No payment to wait for: claims are held, so the offers can go out (to the owner first, for any plan at a loss).
+    const t = transition(proposal!.state, 'offer');
+    if (!t.ok) throw new Error(t.reason);
+    await tx.update(s.proposals).set({ state: t.to, version: sql`${s.proposals.version} + 1` }).where(eq(s.proposals.id, proposal!.id));
+    const p = { ...proposal!, state: t.to };
+    await openOffers(tx, idx, p, revisions, rows, now, expiresAt);
+    for (const r of revisions) if (r.needsOwner && !r.envelopeTrips.length) await ensureOwnerApproval(tx, idx, p, r, rows.get(r.id)!, 'approval', now);
+    await overdueLog('planned');
+
+    // Only notice-only swaps (a same-model unit for the next renter): nobody needs asking.
+    if (revisions.length === 1 && !revisions[0]!.needsOwner && !rows.get(revisions[0]!.id)!.some((c) => c.requiresApproval))
+      return { result: { status: 'planned', proposal: p, revisions, pruned: result.pruned }, ops, capture: { proposalId: p.id, captureOpId: await startCapture(tx, p, revisions[0]!, now) } };
+    return { result: { status: 'planned', proposal: p, revisions, pruned: result.pruned }, ops };
+  });
+  await runOps(db, gateway, locked.ops);
+  if (locked.capture) await captureAndCommit(db, gateway, shopId, locked.capture.proposalId, locked.capture.captureOpId);
+  return locked.result;
+}
+
+/**
+ * The owner marks a picked-up rental returned (on time, late or early). The unit is free again: any request still
+ * planning around this rental ends, since nothing needs to change any more. The return time is recorded as now.
+ */
+export async function markReturned(db: Db, gateway: PaymentGateway, shopId: string, input: { bookingId: string }): Promise<{ status: 'returned'; ended: number } | Refused> {
+  const locked = await withShopLock(db, shopId, async (tx) => {
+    const now = (await loadSnapshot(tx, shopId)).now;
+    const [b] = await tx.select().from(s.bookings).where(and(eq(s.bookings.id, input.bookingId), eq(s.bookings.shopId, shopId)));
+    if (!b) return { result: refused('booking not found'), ops: [] as string[] };
+    if (b.status !== 'picked_up') return { result: refused(`this booking is ${b.status.replace('_', ' ')}, not out with the customer`), ops: [] as string[] };
+    const active = await tx.select().from(s.proposals).where(and(eq(s.proposals.subjectBookingId, b.id), inArray(s.proposals.state, [...ACTIVE_STATES])));
+    if (active.some((p) => p.state === 'CAPTURING')) return { result: refused('a change to this booking is being confirmed right now; try again in a few seconds'), ops: [] as string[] };
+
+    const ops: string[] = [];
+    for (const p of active)
+      ops.push(...(p.source === 'overdue'
+        ? await endProposal(tx, p, 'owner_override', 'The equipment came back in time, so nothing needs to change', now, 'owner')
+        : await endProposal(tx, p, 'reject', 'The rental was returned, so the change is no longer needed', now, 'owner')).opIds);
+    await allowOwnerShorten(tx);
+    await tx
+      .update(s.bookings)
+      .set({ status: 'returned', endsAt: now, bufferEndsAt: new Date(now.getTime() + (b.bufferEndsAt.getTime() - b.endsAt.getTime())), version: b.version + 1 })
+      .where(eq(s.bookings.id, b.id));
+    await tx.update(s.escalations).set({ status: 'resolved', resolution: { returned: true } })
+      .where(and(eq(s.escalations.bookingId, b.id), eq(s.escalations.kind, 'overdue'), eq(s.escalations.status, 'open')));
+    await logActivity(tx, {
+      shopId, at: now, actor: 'owner', kind: 'booking_returned',
+      payload: { bookingId: b.id, customerId: b.customerId, dueAt: b.endsAt, late: now > b.endsAt },
+    });
+    return { result: { status: 'returned' as const, ended: active.length }, ops };
+  });
+  await runOps(db, gateway, locked.ops);
+  return locked.result;
 }
 
 // ---------------------------------------------------------------------------------------------------------
