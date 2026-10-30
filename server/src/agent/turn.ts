@@ -276,14 +276,24 @@ async function describeEvent(tx: Tx, idx: Index, customerId: string, event: Agen
       return `Event offer_ready (request ${turn.ids.of('rq', event.proposalId)}): ${why} Present it with present_offer (${JSON.stringify(ids.slice(0, 1))}) so they can accept and pay, then explain it briefly with send_message.`;
     }
     const [p] = await tx.select().from(s.proposals).where(eq(s.proposals.id, event.proposalId));
+    if (p?.source === 'overdue')
+      return `Event offer_ready (request ${turn.ids.of('rq', event.proposalId)}): the rental before theirs is running late (the previous customer hasn't brought the equipment back yet), so it may not be back in time for their booking. The shop is offering a change so they're not left waiting. In your message:
+1. Start with why you're writing: the equipment is running late coming back from the previous rental. Nothing more about that customer.
+2. Say they're free to decline by tapping Keep my booking as is. Be honest that the shop then can't promise the equipment is back in time, and will contact them if it isn't.
+3. Then what the shop can offer, in a sentence per option.
+Present options ${JSON.stringify(event.revisionIds.map((id) => turn.ids.of('rv', id)))} with present_offer first, then send_message. Never name the other customer.`;
     return `Event offer_ready: ${p ? wantsTo(p) : 'another customer would like a change'} (request ${turn.ids.of('rq', event.proposalId)}), and that overlaps this customer's booking, so the shop is asking whether they'd be willing to change theirs. In your message:
 1. Start with why you're writing: say what the other customer would like (as above, nothing more about them) and that it overlaps their booking.
 2. Say clearly that their booking is confirmed, nothing changes unless they agree, and they're completely free to decline by tapping Keep my booking as is.
 3. Then what the shop can offer in return, in a sentence per option. The offer is the shop's, not the other customer's: never say the other customer offered anything.
 Present options ${JSON.stringify(ids)} with present_offer first, then send_message. If their terms include "Checked by the shop for your setup", say so: it answers whether the equipment suits what they're shooting. Never name the other customer.`;
   }
-  if (event.kind === 'kept_booking')
+  if (event.kind === 'kept_booking') {
+    const [p] = await tx.select().from(s.proposals).where(eq(s.proposals.id, event.proposalId));
+    if (p?.source === 'overdue')
+      return `Event kept_booking: the customer tapped Keep my booking as is on the shop's offer about the late-returning equipment (${turn.ids.of('rq', event.proposalId)}). Their booking stays as it was; nothing is charged or refunded. Confirm that in one short message, and say the shop will contact them if the equipment isn't back in time.`;
     return `Event kept_booking: the customer tapped Keep my booking as is on another customer's request (${turn.ids.of('rq', event.proposalId)}). Their booking stays exactly as it was; nothing is charged or refunded. Confirm that in one short message and thank them.`;
+  }
   if (event.kind === 'request_progress')
     return `Event request_progress for their request ${turn.ids.of('rq', event.proposalId)}: the other customer needs to keep their booking, so the shop is trying another arrangement with a different customer. Nothing changes for them: their request and the exact terms they accepted stand, their payment hold stays in place (nothing is charged unless it goes ahead), and they don't need to do anything. If no arrangement works, the shop will offer them the closest alternative or release the hold, and if nobody answers by the expiry the hold is released automatically. Tell them this in one or two short sentences, and that you'll update them. Never name or describe the other customers.
 ${await eventFacts(tx, idx, customerId, event)}`;
@@ -317,7 +327,9 @@ async function eventFacts(tx: Tx, idx: Index, customerId: string, event: AgentEv
     const why = event.reason ?? 'it could not go ahead';
     return isRequester
       ? `Outcome: the request did not go through (${why}). Nothing was charged; any hold on their payment was released. Their original booking stands. If they want to try again, preview_change shows what is possible now.`
-      : `Outcome: the other customer's request was withdrawn (${why}), so it won't change their booking. Their booking now is as listed in the context.`;
+      : p?.source === 'overdue'
+        ? `Outcome: the shop's offer about the late-returning equipment has ended (${why}). Their booking now is as listed in the context.${event.outcome === 'CANCELLED' ? '' : " If the equipment isn't back in time, the shop will contact them."}`
+        : `Outcome: the other customer's request was withdrawn (${why}), so it won't change their booking. Their booking now is as listed in the context.`;
   }
   const [rev] = await tx.select().from(s.revisions).where(and(eq(s.revisions.proposalId, event.proposalId), eq(s.revisions.status, 'selected')));
   if (!rev) return 'Outcome: confirmed.';
@@ -360,6 +372,11 @@ async function activeRequestsOf(tx: Tx, shopId: string, customerId: string) {
   return out;
 }
 
+async function sourceOf(tx: Tx, proposalId: string) {
+  const [p] = await tx.select({ source: s.proposals.source }).from(s.proposals).where(eq(s.proposals.id, proposalId));
+  return p?.source;
+}
+
 async function requestStillActive(db: Db, proposalId: string) {
   const [p] = await db.select().from(s.proposals).where(eq(s.proposals.id, proposalId));
   return !!p && (ACTIVE_STATES as readonly string[]).includes(p.state);
@@ -368,6 +385,7 @@ async function requestStillActive(db: Db, proposalId: string) {
 /** What the other customer wants, as an affected customer may hear it: the kind of change only, never who or when. */
 function wantsTo(p: typeof s.proposals.$inferSelect) {
   const kind = (p.request as StoredRequest | null)?.kind;
+  if (p.source === 'overdue') return 'the rental before theirs is running late, so the equipment may not be back in time';
   return kind === 'extend' ? 'another customer would like to keep their rental longer'
     : kind === 'shift' ? 'another customer would like to change the times of their rental'
     : kind === 'new_booking' ? 'another customer would like to book the same equipment'
@@ -402,8 +420,13 @@ async function templateFor(tx: Tx, shopId: string, customerId: string, event: Ag
       ? event.fallback
         ? `The other customer needs their booking, so I can't do exactly what you asked. The closest I can offer is on the card below${event.holdReleased ? ', and your payment hold has been released' : ''}. If you'd rather not, your original booking stays as it is.`
         : 'The shop has set up your change. Please review it on the card and accept to authorize the payment; nothing is charged until everything is confirmed.'
-      : "Another customer's request overlaps your booking, so the shop is asking whether you'd be willing to change it. Your booking is confirmed and nothing changes unless you agree: you're free to decline by tapping Keep my booking as is. What the shop can offer in return is on the card below.";
-  if (event.kind === 'kept_booking') return 'Got it: your booking stays exactly as it is. Thanks for letting us know!';
+      : (await sourceOf(tx, event.proposalId)) === 'overdue'
+        ? "The equipment for your booking is running late coming back from the previous rental, so the shop is offering you the options on the card below. You're free to decline with Keep my booking as is; the shop will contact you if it isn't back in time."
+        : "Another customer's request overlaps your booking, so the shop is asking whether you'd be willing to change it. Your booking is confirmed and nothing changes unless you agree: you're free to decline by tapping Keep my booking as is. What the shop can offer in return is on the card below.";
+  if (event.kind === 'kept_booking')
+    return (await sourceOf(tx, event.proposalId)) === 'overdue'
+      ? "Got it: your booking stays as it is. If the equipment isn't back in time, the shop will contact you."
+      : 'Got it: your booking stays exactly as it is. Thanks for letting us know!';
   if (event.kind === 'request_progress')
     return "Quick update on your request: the other customer needs to keep their booking, so the shop is trying another arrangement. Your request and payment hold stand, and there's nothing you need to do. If it can't be arranged, the hold is released and nothing is charged.";
   if (event.kind === 'owner_answered') return `The shop has answered your question: ${event.value === 'yes' ? 'yes' : 'no'}.`;
@@ -412,7 +435,9 @@ async function templateFor(tx: Tx, shopId: string, customerId: string, event: Ag
     const [p] = await tx.select().from(s.proposals).where(eq(s.proposals.id, event.proposalId));
     return p?.requesterCustomerId === customerId
       ? 'Your request didn’t go through, so nothing was charged and your booking stays as it was.'
-      : "The other customer's request was withdrawn, so it won't change your booking.";
+      : (await sourceOf(tx, event.proposalId)) === 'overdue'
+        ? "The shop's offer about the late equipment has ended, so your booking stays as it is."
+        : "The other customer's request was withdrawn, so it won't change your booking.";
   }
   const facts = await eventFacts(tx, idx, customerId, event);
   return `All confirmed. ${facts.split('\n').slice(1).join('. ')}.`;
