@@ -31,6 +31,8 @@ export type AgentEvent =
   | { kind: 'kept_booking'; proposalId: string }
   /** The owner answered an equipment question this customer asked. */
   | { kind: 'owner_answered'; factId: string; value: 'yes' | 'no' }
+  /** The requester's request is still on: the other customer kept their booking, so the shop is trying another plan. */
+  | { kind: 'request_progress'; proposalId: string }
   /** A request this customer is part of was committed or ended. */
   | { kind: 'proposal_update'; proposalId: string; outcome: 'COMMITTED' | 'REJECTED' | 'EXPIRED' | 'CANCELLED' | 'FAILED'; reason?: string | null };
 
@@ -101,6 +103,15 @@ export async function runTurn(db: Db, config: AgentConfig, input: { shopId: stri
   // present: skip the turn rather than show a stale card; the proposal_update turn explains what happened.
   if (event.kind === 'offer_ready' && !(await offerStillOpen(db, customerId, event))) {
     report.fallback = 'skipped: offer no longer open';
+    report.ms = Date.now() - t0;
+    step(report.fallback);
+    await logActivity(db, { shopId, at: now(), actor: 'agent', kind: 'agent_turn', payload: { ...report } });
+    return report;
+  }
+
+  // Progress on a request that has since ended is old news: the proposal_update turn tells them how it ended.
+  if (event.kind === 'request_progress' && !(await requestStillActive(db, event.proposalId))) {
+    report.fallback = 'skipped: request no longer active';
     report.ms = Date.now() - t0;
     step(report.fallback);
     await logActivity(db, { shopId, at: now(), actor: 'agent', kind: 'agent_turn', payload: { ...report } });
@@ -273,6 +284,9 @@ Present options ${JSON.stringify(ids)} with present_offer first, then send_messa
   }
   if (event.kind === 'kept_booking')
     return `Event kept_booking: the customer tapped Keep my booking as is on another customer's request (${turn.ids.of('rq', event.proposalId)}). Their booking stays exactly as it was; nothing is charged or refunded. Confirm that in one short message and thank them.`;
+  if (event.kind === 'request_progress')
+    return `Event request_progress for their request ${turn.ids.of('rq', event.proposalId)}: the other customer needs to keep their booking, so the shop is trying another arrangement with a different customer. Nothing changes for them: their request and the exact terms they accepted stand, their payment hold stays in place (nothing is charged unless it goes ahead), and they don't need to do anything. If no arrangement works, the shop will offer them the closest alternative or release the hold, and if nobody answers by the expiry the hold is released automatically. Tell them this in one or two short sentences, and that you'll update them. Never name or describe the other customers.
+${await eventFacts(tx, idx, customerId, event)}`;
   if (event.kind === 'owner_answered') {
     const [fact] = await tx.select().from(s.facts).where(eq(s.facts.id, event.factId));
     const subject = fact?.unitId ? idx.unitLabel(fact.unitId) : (fact?.modelId ? idx.models.get(fact.modelId)?.name : '') ?? '';
@@ -286,6 +300,14 @@ async function eventFacts(tx: Tx, idx: Index, customerId: string, event: AgentEv
   if (event.kind === 'offer_ready' && event.holdReleased) {
     const [order] = await tx.select().from(s.paypalOrders).where(and(eq(s.paypalOrders.proposalId, event.proposalId), eq(s.paypalOrders.customerId, customerId)));
     return order ? `Released payment hold: ${usd(order.amountCents)}` : '';
+  }
+  if (event.kind === 'request_progress') {
+    const [p] = await tx.select().from(s.proposals).where(eq(s.proposals.id, event.proposalId));
+    const [order] = await tx.select().from(s.paypalOrders).where(and(eq(s.paypalOrders.proposalId, event.proposalId), eq(s.paypalOrders.status, 'authorized')));
+    return [
+      order ? `Payment hold still in place: ${usd(order.amountCents)}` : '',
+      p?.expiresAt ? `Expires: ${shopTime(idx).display(p.expiresAt)}` : '',
+    ].filter(Boolean).join('\n');
   }
   if (event.kind !== 'proposal_update') return '';
   const t = shopTime(idx);
@@ -338,6 +360,11 @@ async function activeRequestsOf(tx: Tx, shopId: string, customerId: string) {
   return out;
 }
 
+async function requestStillActive(db: Db, proposalId: string) {
+  const [p] = await db.select().from(s.proposals).where(eq(s.proposals.id, proposalId));
+  return !!p && (ACTIVE_STATES as readonly string[]).includes(p.state);
+}
+
 /** What the other customer wants, as an affected customer may hear it: the kind of change only, never who or when. */
 function wantsTo(p: typeof s.proposals.$inferSelect) {
   const kind = (p.request as StoredRequest | null)?.kind;
@@ -377,6 +404,8 @@ async function templateFor(tx: Tx, shopId: string, customerId: string, event: Ag
         : 'The shop has set up your change. Please review it on the card and accept to authorize the payment; nothing is charged until everything is confirmed.'
       : "Another customer's request overlaps your booking, so the shop is asking whether you'd be willing to change it. Your booking is confirmed and nothing changes unless you agree: you're free to decline by tapping Keep my booking as is. What the shop can offer in return is on the card below.";
   if (event.kind === 'kept_booking') return 'Got it: your booking stays exactly as it is. Thanks for letting us know!';
+  if (event.kind === 'request_progress')
+    return "Quick update on your request: the other customer needs to keep their booking, so the shop is trying another arrangement. Your request and payment hold stand, and there's nothing you need to do. If it can't be arranged, the hold is released and nothing is charged.";
   if (event.kind === 'owner_answered') return `The shop has answered your question: ${event.value === 'yes' ? 'yes' : 'no'}.`;
   const idx = indexSnapshot(await loadSnapshot(tx, shopId));
   if (event.outcome !== 'COMMITTED') {

@@ -8,7 +8,7 @@ import type { Db } from '../db/client.ts';
 import * as s from '../db/schema.ts';
 import { type AgentConfig, type AgentEvent, type TurnReport, conversationOf, runTurn } from './turn.ts';
 
-const TRIGGERS = ['offer_ready', 'proposal_update', 'proposal_ended', 'fact_answered', 'affected_refused'] as const;
+const TRIGGERS = ['offer_ready', 'proposal_update', 'proposal_ended', 'fact_answered', 'affected_refused', 'fallback_planned'] as const;
 
 export function createAgentService(
   db: Db,
@@ -102,6 +102,11 @@ export function createAgentService(
         fallback: !!payload.fallback, holdReleased: !!payload.holdReleased,
       }]];
     if (row.kind === 'affected_refused') return [[payload.customerId as string, { kind: 'kept_booking', proposalId }]];
+    // The shop is trying another plan: the requester hears their request is still on, and their hold stands.
+    if (row.kind === 'fallback_planned') {
+      const [p] = await db.select().from(s.proposals).where(eq(s.proposals.id, proposalId));
+      return p?.requesterCustomerId ? [[p.requesterCustomerId, { kind: 'request_progress', proposalId }]] : [];
+    }
     if (row.kind === 'proposal_update')
       return [[payload.customerId as string, { kind: 'proposal_update', proposalId, outcome: 'COMMITTED' }]];
     // An ended request reaches its requester and everyone who was asked about it, except those who kept their
