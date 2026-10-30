@@ -1,6 +1,7 @@
 // Layout: the schedule across the top; below it the owner, then two customer chats (requester and affected party,
 // each switchable), so cause and effect are in one frame.
 
+import { DateTime } from 'luxon';
 import { PayPalProvider } from '@paypal/react-paypal-js/sdk-v6';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { type Config, type Outcome, api } from './api';
@@ -69,6 +70,14 @@ function describe(o: Outcome): Omit<Toast, 'id'> {
       return { kind: 'ok', text: 'Change undone: the booking is back where it was.' };
     case 'discarded':
       return { kind: 'ok', text: 'Draft discarded. Nothing changed.' };
+    case 'extended':
+      return { kind: 'ok', text: 'Marked overdue. Nothing else is affected, so the booking now runs to the expected return.' };
+    case 'planned':
+      return { kind: 'ok', text: 'Marked overdue. The next booking is affected: review the plans under Owner.' };
+    case 'no_plan':
+      return { kind: 'warn', text: "Marked overdue, but nothing makes room for the next booking. You'll need to contact that customer." };
+    case 'returned':
+      return { kind: 'ok', text: o.ended ? 'Marked returned. The plan made around the late return is no longer needed.' : 'Marked returned.' };
     case 'rejected':
       return { kind: 'warn', text: 'Declined: nothing changes, and any payment hold is released.' };
     case 'cancelled':
@@ -160,6 +169,28 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
     [owner, customers, onOutcome],
   );
 
+  // Mark overdue: ask when the customer now expects to bring it back (shop time), then re-plan around it.
+  const onMarkOverdue = useCallback(
+    async (bookingId: string) => {
+      const booking = owner.bookings.find((b) => b.id === bookingId);
+      if (!booking) return;
+      const zone = owner.shop.timezone;
+      const name = customers.find((c) => c.id === booking.customerId)?.name ?? 'The customer';
+      // A default inside shop hours: two hours from now, or 10am the next day after closing.
+      let guess = DateTime.fromISO(owner.shop.now, { zone }).plus({ hours: 2 }).startOf('hour');
+      const [open, close] = [Number(owner.shop.opensAt.slice(0, 2)), Number(owner.shop.closesAt.slice(0, 2))];
+      if (guess.hour >= close || guess.hour < open) guess = guess.plus({ days: guess.hour >= close ? 1 : 0 }).set({ hour: open + 1 });
+      const summary = `Due back ${shopTime(booking.endsAt, zone)}.`;
+      const expected = await new Promise<string | null>((resolve) =>
+        setPrompt({ step: 'overdue', name, summary, initial: guess.toFormat("yyyy-LL-dd'T'HH:mm"), resolve }),
+      );
+      setPrompt(null);
+      if (!expected) return;
+      onOutcome(await api.markOverdue(bookingId, DateTime.fromISO(expected, { zone }).toISO()!));
+    },
+    [owner, customers, onOutcome],
+  );
+
   return (
     <div className="app">
       <Header
@@ -180,7 +211,7 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
       />
       <Schedule owner={owner} shopNow={shop.shopNow!} onEdit={onEdit} onResolveDraft={onResolveDraft} />
       <div className="bottom">
-        <OwnerPanel owner={owner} activity={shop.activity} onOutcome={onOutcome} onOpenChat={setLeft} onResolveDraft={onResolveDraft} />
+        <OwnerPanel owner={owner} activity={shop.activity} onOutcome={onOutcome} onOpenChat={setLeft} onResolveDraft={onResolveDraft} onMarkOverdue={onMarkOverdue} />
         {[
           [left, setLeft],
           [right, setRight],

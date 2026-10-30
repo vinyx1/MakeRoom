@@ -121,7 +121,15 @@ export function Help({ onClose }: { onClose: () => void }) {
           <li>Drag Bob's pickup to Thu 2pm, tick “Bob agreed by phone”. The warning names Alice's pending request: Override.</li>
           <li>Alice's request is cancelled, her hold released, and she gets a fresh offer that now fits.</li>
         </ol>
-        <p className="muted small">+30 min jumps the shop clock: offers waiting more than 30 minutes expire and their holds are released.</p>
+        <h4>4 · A late return</h4>
+        <ol>
+          <li>Press +4 h: it's now Wed 6pm and Alice's camera is due back. It shows under Owner as “Due back”.</li>
+          <li>Mark overdue, expected back Thu 10am. That runs into Bob's pickup, so the plans come to you first: Approve one.</li>
+          <li>As Bob: accept it, or keep the booking (then you're alerted to sort it out). Mark returned when she's back.</li>
+        </ol>
+        <p className="muted small">
+          +30 min and +4 h jump the shop clock: offers waiting more than 30 minutes expire and their holds are released.
+        </p>
         <button className="primary" onClick={onClose}>
           Got it
         </button>
