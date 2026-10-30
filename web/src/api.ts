@@ -13,6 +13,8 @@ export type Booking = {
   priceCents: number;
   note: string | null;
   version: number;
+  /** Set when the owner marked the rental overdue. */
+  overdueMarkedAt: string | null;
 };
 export type Unit = { id: string; label: string; modelId: string; active: boolean };
 export type Model = { id: string; name: string; category: string; tier: number; dailyRateCents: number };
@@ -170,6 +172,8 @@ export const api = {
   resolveDraft: (draftId: string, agreedByPhone = false) => call<Outcome>('POST', `/api/drafts/${draftId}/resolve`, { agreedByPhone }),
   discardDraft: (draftId: string) => call<Outcome>('POST', `/api/drafts/${draftId}/discard`),
   undoEdit: (bookingId: string) => call<Outcome>('POST', `/api/bookings/${bookingId}/undo`),
+  markOverdue: (bookingId: string, expectedReturnAt: string) => call<Outcome>('POST', `/api/bookings/${bookingId}/overdue`, { expectedReturnAt }),
+  markReturned: (bookingId: string) => call<Outcome>('POST', `/api/bookings/${bookingId}/returned`),
   saveFact: (factId: string, value: 'yes' | 'no') => call<Outcome>('POST', `/api/facts/${factId}`, { value }),
 
   reset: () => call<Outcome>('POST', '/api/demo/reset'),

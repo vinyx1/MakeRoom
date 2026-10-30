@@ -25,6 +25,9 @@ export function Header({ owner, shopNow, onFastForward, onAutoReply, onReset, on
         <button onClick={() => onFastForward(30)} title="Jump the shop clock ahead; offers waiting past their timeout expire">
           +30 min
         </button>
+        <button onClick={() => onFastForward(240)} title="Jump four hours, e.g. past a rental's return time to try an overdue return">
+          +4 h
+        </button>
       </div>
       <div className="controls">
         <label title="Affected customers answer their offers by themselves, so you can play only the requester">
@@ -146,10 +149,35 @@ export type EditPrompt =
   | { step: 'confirm'; name: string; summary: string; resolve: (answer: { agreed: boolean } | null) => void }
   | { step: 'claimed'; name: string; requesters: string[]; resolve: (override: boolean) => void }
   /** Resolve with agent on a draft whose customer's agreement wasn't ticked at the drag. */
-  | { step: 'agree'; name: string; summary: string; resolve: (agreed: boolean) => void };
+  | { step: 'agree'; name: string; summary: string; resolve: (agreed: boolean) => void }
+  /** Mark overdue: when the customer now expects to return it, as shop-local `yyyy-MM-ddTHH:mm`. */
+  | { step: 'overdue'; name: string; summary: string; initial: string; resolve: (expected: string | null) => void };
 
 export function EditDialog({ prompt }: { prompt: EditPrompt }) {
   const [agreed, setAgreed] = useState(false);
+  const [expected, setExpected] = useState(prompt.step === 'overdue' ? prompt.initial : '');
+  if (prompt.step === 'overdue')
+    return (
+      <div className="modal-back">
+        <div className="modal">
+          <h3>{prompt.name} is late returning</h3>
+          <p>{prompt.summary}</p>
+          <label>
+            Expected back (shop time) <input type="datetime-local" value={expected} onChange={(e) => setExpected(e.target.value)} />
+          </label>
+          <p className="muted small">
+            The assistant re-plans the next bookings around this time. {prompt.name} isn't charged for the extra time. Any plan that
+            costs the shop comes to you first, before another customer is asked.
+          </p>
+          <div className="row">
+            <button className="primary" disabled={!expected} onClick={() => prompt.resolve(expected)}>
+              Mark overdue
+            </button>
+            <button onClick={() => prompt.resolve(null)}>Cancel</button>
+          </div>
+        </div>
+      </div>
+    );
   if (prompt.step === 'agree')
     return (
       <div className="modal-back">

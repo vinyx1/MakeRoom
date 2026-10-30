@@ -63,6 +63,7 @@ code { font-size: 12px; background: #f0f2f5; padding: 1px 4px; border-radius: 4p
 .count.hot { color: #fff; background: var(--warn); padding: 1px 8px; border-radius: 999px; }
 .ocard { border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px; padding: 10px; background: #fff; }
 .ocard.plan_review, .ocard.approval { border-left-color: var(--warn); }
+.ocard.overdue, .ocard.due { border-left-color: #c9541f; }
 .ocard.draft { border-left-color: var(--bad); background: var(--bad-soft); }
 .ocard.save { border-left-color: var(--ok); background: var(--ok-soft); }
 .ocard.handoff, .ocard.customer_issue { border-left-color: var(--bad); }
@@ -132,6 +133,9 @@ code { font-size: 12px; background: #f0f2f5; padding: 1px 4px; border-radius: 4p
 /* Schedule: bookings, ghosts (pending plans) and red drafts */
 .b-sch-event.kind-booking { background: #3b78e7 !important; border-color: #2f62c1 !important; color: #fff !important; }
 .b-sch-event.kind-booking.picked-up { background: #1f4fa8 !important; }
+.b-sch-event.kind-booking.overdue {
+  background: repeating-linear-gradient(135deg, #b4400f 0 8px, #c9541f 8px 16px) !important; border-color: #8f3209 !important;
+}
 .b-sch-event.kind-booking.in-request { outline: 2px solid var(--warn); outline-offset: 1px; }
 .b-sch-event.kind-ghost { background: rgba(106, 79, 209, 0.12) !important; border: 2px dashed var(--ghost) !important; color: var(--ghost) !important; }
 .b-sch-event.kind-draft { background: var(--bad-soft) !important; border: 2px solid var(--bad) !important; color: var(--bad) !important; }

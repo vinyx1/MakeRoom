@@ -25,6 +25,7 @@ class ScheduleEvent extends EventModel {
       { name: 'draftId' },
       { name: 'version', type: 'number' },
       { name: 'inRequest', type: 'boolean' }, // a pending request would change this booking
+      { name: 'overdue', type: 'boolean' }, // picked up and not back on time
       { name: 'tip' }, // tooltip text, already composed
     ];
   }
@@ -77,8 +78,8 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft }: Props) {
         {
           id: b.id, name: nameOf(b.customerId), kind: 'booking', status: b.status, bookingId: b.id, version: b.version,
           startDate: b.startsAt, endDate: b.endsAt, manuallyScheduled: true, postamble: `${hoursBetween(b.endsAt, b.bufferEndsAt)}h`,
-          draggable: !picked, resizable: picked ? 'end' : true, inRequest: touched.has(b.id),
-          tip: `${nameOf(b.customerId)} · ${modelOf(b.modelId)}\n${t(b.startsAt)} → ${t(b.endsAt)}\n${picked ? 'Picked up' : 'Confirmed'} · paid ${usd(b.priceCents)}${b.note ? `\n“${b.note}”` : ''}`,
+          draggable: !picked, resizable: picked ? 'end' : true, inRequest: touched.has(b.id), overdue: picked && !!b.overdueMarkedAt,
+          tip: `${nameOf(b.customerId)} · ${modelOf(b.modelId)}\n${t(b.startsAt)} → ${t(b.endsAt)}\n${picked ? (b.overdueMarkedAt ? 'Overdue' : 'Picked up') : 'Confirmed'} · paid ${usd(b.priceCents)}${b.note ? `\n“${b.note}”` : ''}`,
         },
         b.unitId,
       );
@@ -183,6 +184,7 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft }: Props) {
         if (eventRecord.kind === 'ghost') return `<i>${name}</i>`;
         if (eventRecord.status === 'picked_up') renderData.cls.add('picked-up');
         if (eventRecord.inRequest) renderData.cls.add('in-request');
+        if (eventRecord.overdue) renderData.cls.add('overdue');
         return eventRecord.status === 'picked_up' ? `<span class="lock">●</span> ${name}` : name;
       },
       onBeforeEventDropFinalize({ context }: any) {
