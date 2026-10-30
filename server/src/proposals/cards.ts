@@ -59,7 +59,7 @@ export function renderOption(
 
   if (role === 'requester') {
     const charge = revision.quote.chargeCents;
-    lines.push(charge > 0 ? `${usd(charge)}: nothing is charged yet. PayPal holds it until everything is confirmed; if it doesn't go ahead, the hold is released` : 'No extra charge');
+    lines.push(charge > 0 ? `${usd(charge)}, only charged if it goes ahead` : 'No extra charge');
     if (revision.quote.discountCents > 0) lines.push(`Includes a ${usd(revision.quote.discountCents)} discount`);
   } else {
     // Only cash is shown as an amount; an upgrade is described as free, not by its value to the shop.
