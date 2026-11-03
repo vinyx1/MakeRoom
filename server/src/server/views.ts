@@ -82,7 +82,7 @@ export async function ownerView(tx: Tx, shopId: string) {
 
 export type CustomerCard = {
   proposalId: string;
-  role: CardRole;
+  role: CardRole | 'counter';
   /** What the customer can do: requesters accept (and pay when `chargeCents` > 0); affected parties pick an option. */
   chargeCents: number;
   /** Already authorized for this request (a fallback alternative keeps the hold when it costs no more): accept

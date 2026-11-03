@@ -17,7 +17,7 @@ import { type Index, indexSnapshot, occupancy, overlaps } from '../optimizer/sna
 import { earliestOpenAtOrAfter, isWithinShopHours, latestOpenAtOrBefore } from '../optimizer/time.ts';
 import { validate } from '../optimizer/validator.ts';
 import { renderOption } from '../proposals/cards.ts';
-import { requestChange } from '../proposals/flow.ts';
+import { affectedCounter, requestChange } from '../proposals/flow.ts';
 import { ACTIVE_STATES } from '../proposals/state-machine.ts';
 import { LIVE_REVISION_STATUSES } from '../proposals/store.ts';
 import { ShortIds, amountsIn, shopTime, usd } from './scope.ts';
