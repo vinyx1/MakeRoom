@@ -198,6 +198,16 @@ describe('the owner cancels a booking', () => {
     expect((await fresh(d, 'Bob')).status).toBe('confirmed');
   });
 
+  it('a refund that fails leaves the booking cancelled and alerts the owner', async () => {
+    const gateway = fakeGateway();
+    const d = await shop(gateway);
+    gateway.failNext('refundCapture', { ok: false, error: 'REFUND_FAILED_INSUFFICIENT_FUNDS', retryable: false });
+    expect(await cancel(gateway, d, 'Gina')).toMatchObject({ status: 'cancelled', refundsOk: false });
+    expect((await fresh(d, 'Gina')).status).toBe('cancelled');
+    const alerts = await db.select().from(s.escalations).where(and(eq(s.escalations.shopId, d.shop.id), eq(s.escalations.kind, 'payment_failure'), eq(s.escalations.status, 'open')));
+    expect(alerts).toHaveLength(1);
+  });
+
   it('removes a red draft on the booking', async () => {
     const gateway = fakeGateway();
     const d = await shop(gateway);
