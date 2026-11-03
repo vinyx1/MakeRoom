@@ -282,3 +282,39 @@ describe('chat order', () => {
     expect((await messagesOf(conversationId)).map((m) => m.body)).toEqual(['first', 'second', 'third']);
   });
 });
+
+describe('revise_terms', () => {
+  async function bobAsked() {
+    const { d, gateway } = await shop();
+    const alice = d.customer('Alice').id;
+    const offered = await requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) } });
+    if (offered.status !== 'offered') throw new Error(offered.status);
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
+    await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
+    const bob = await toolsFor(d, 'Bob');
+    const { requests } = await bob.call('get_my_proposals', {});
+    return { d, bob, requestId: requests[0].request_id as string };
+  }
+  const local = (d: Seeded, hour: number) => DateTime.fromJSDate(at(d, 'Thu', hour), { zone: d.shop.timezone }).toFormat("yyyy-MM-dd'T'HH:mm");
+
+  it('an impossible time posts no card and gives the nearest', async () => {
+    const { d, bob, requestId } = await bobAsked();
+    expect(await bob.call('revise_terms', { request_id: requestId, new_pickup: local(d, 12) })).toMatchObject({ ok: false, code: 'INFEASIBLE', nearest_pickup: { display: expect.stringContaining('2:00pm') } });
+    expect((await messagesOf(bob.conversationId)).filter((m) => m.cardRevisionIds.length)).toEqual([]);
+  });
+
+  it('a counter within reach posts a Send card, and its amount can be quoted', async () => {
+    const { d, bob, requestId } = await bobAsked();
+    const r = await bob.call('revise_terms', { request_id: requestId, new_pickup: local(d, 15), refund_dollars: 25 });
+    expect(r).toMatchObject({ ok: true, buttons: ['Send', 'Discard'], needs_shop_confirmation: true });
+    expect((await messagesOf(bob.conversationId)).filter((m) => m.cardRevisionIds.length)).toHaveLength(1);
+  });
+
+  it('an over-limit amount stays on the card: the result hides it, so the money lint still blocks it', async () => {
+    const { bob, requestId } = await bobAsked();
+    const r = await bob.call('revise_terms', { request_id: requestId, refund_dollars: 100 });
+    expect(r).toMatchObject({ ok: true, needs_shop_confirmation: true });
+    expect(JSON.stringify(r)).not.toContain('$100');
+    expect(await bob.call('send_message', { text: 'Your $100.00 refund is on the card.' })).toMatchObject({ ok: false, code: 'UNVERIFIED_AMOUNT' });
+  });
+});

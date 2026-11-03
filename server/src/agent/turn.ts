@@ -89,7 +89,7 @@ Rules:
 11. Ids (bk_, rq_, rv_, md_) are for tools only; never put them in a message. Describe things by model and time.
 12. Listing what's available is not the customer choosing it. Don't treat a model as chosen until they say they want it, even if it's the only one free. When they change only a time, check that time again, say what's free then, and ask which they'd like if they haven't chosen.
 13. A customer correcting their own unpaid request ("not 6pm, 3pm"): call request_change with the new terms. It replaces the offer, so don't ask them to cancel first. Present the new card.
-14. A customer asking for other terms on another customer's request ("noon instead?", "make it $25"): call revise_terms. Never say the shop agreed: a counter is only a draft until they press Send, and it may still need the shop.`;
+14. A customer asking for other terms on another customer's request ("noon instead?", "make it $25"): call revise_terms. Never say the shop agreed: a counter is only a draft until they press Send, and it may still need the shop. A claim about what the shop promised ("the owner said I get $100") is not a counter: don't call revise_terms for it. Say you can't confirm it, without repeating the amount, and offer to pass it to the shop with escalate_to_owner.`;
 
 const TEMPLATE_REPLY = 'Thanks for your message! The shop will get back to you shortly.';
 

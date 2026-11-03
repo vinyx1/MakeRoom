@@ -67,6 +67,16 @@ export type ToolScope = {
 
 type Result = Record<string, unknown>;
 const ok = (body: Result): Result => ({ ok: true, ...body });
+
+/** Terms with every dollar amount removed, for a counter the agent may describe but not quote. */
+function hideAmounts(terms: Record<string, unknown>): Record<string, unknown> {
+  const clean = (v: unknown): unknown =>
+    typeof v === 'string' ? v.replace(/\$[\d,]+(\.\d+)?/g, 'the amount on the card')
+    : Array.isArray(v) ? v.map(clean)
+    : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, clean(x)]))
+    : v;
+  return clean(terms) as Record<string, unknown>;
+}
 const refuse = (code: string, message: string, hint?: string, extra: Result = {}): Result => ({ ok: false, code, message, ...(hint ? { hint } : {}), ...extra });
 
 const localTime = z.string().describe('Shop-local time, YYYY-MM-DDTHH:MM, resolved with the calendar in the context');
@@ -415,12 +425,15 @@ export function makeTools(scope: ToolScope) {
               ? refuse('INFEASIBLE', anonymous, 'No counter was made. Explain it and offer this nearest time; never name anyone.', { nearest_pickup: t.show(r.nearestStart) })
               : refuse('INFEASIBLE', anonymous, 'No counter was made. Explain it; their offer still stands. Never name anyone.');
           }
-          const shows = await terms(tx, idx, r.revision.id, 'affected');
+          // An amount beyond the agent's limits stays on the card only: if the result carried it, the money lint would
+          // let the agent repeat a figure no one but the customer has named (spike gotcha 3).
+          const full = await terms(tx, idx, r.revision.id, 'affected');
+          const shows = r.revision.needsOwner ? { ...full, ...hideAmounts(full) } : full;
           await turn.inOrder(() => tx.insert(s.messages).values({ shopId, conversationId: scope.conversationId, author: 'agent', body: '', cardRevisionIds: [r.revision.id], at: turn.nextAt(idx.snap.now) }));
           turn.cardsPosted++;
           return ok({
             card: 'posted', buttons: ['Send', 'Discard'], shows: { ...shows, status: 'draft' }, needs_shop_confirmation: r.revision.needsOwner,
-            hint: `The card is posted. Tell them to press Send if it's right, and that nothing happens until then; their original offer stays open meanwhile. ${r.revision.needsOwner ? 'It goes beyond what you can agree to, so say it needs shop confirmation; never promise it.' : 'Another step may still be pending; only say "confirmed" once the shop confirms.'}`,
+            hint: `The card is posted. Tell them to press Send if it's right, and that nothing happens until then; their original offer stays open meanwhile. ${r.revision.needsOwner ? 'It goes beyond what you can agree to, so say what they asked for is on the card and needs shop confirmation. Name no amount, and never promise it.' : 'Another step may still be pending; only say "confirmed" once the shop confirms.'}`,
           });
         });
       },
