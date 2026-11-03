@@ -2,7 +2,7 @@
 // backend events are read from the activity log, so every path that changes a proposal (clicks, owner edits,
 // the expiry sweep) reaches customers the same way. Turns for one customer run one at a time, in order.
 
-import { and, asc, eq, gt, inArray, max } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, max, sql } from 'drizzle-orm';
 import { logActivity } from '../activity.ts';
 import type { Db } from '../db/client.ts';
 import * as s from '../db/schema.ts';
@@ -99,7 +99,7 @@ export function createAgentService(
       return [[payload.customerId as string, {
         kind: 'offer_ready', proposalId, revisionIds: payload.revisionIds as string[],
         role: payload.role === 'requester' ? 'requester' : 'affected', replanOf: (payload.replanOf as string) ?? null, repriced: !!payload.repriced,
-        fallback: !!payload.fallback, holdReleased: !!payload.holdReleased,
+        fallback: !!payload.fallback, holdReleased: !!payload.holdReleased, noAnswerOf: (payload.noAnswerOf as string) ?? null,
       }]];
     if (row.kind === 'affected_refused') return [[payload.customerId as string, { kind: 'kept_booking', proposalId }]];
     // The shop is trying another plan: the requester hears their request is still on, and their hold stands.
@@ -115,7 +115,14 @@ export function createAgentService(
     const asked = await db.selectDistinct({ customerId: s.approvals.customerId }).from(s.approvals).where(eq(s.approvals.proposalId, proposalId));
     const kept = new Set((await db.select().from(s.proposalExclusions).where(eq(s.proposalExclusions.proposalId, proposalId))).map((e) => e.customerId));
     const parties = new Set([p?.requesterCustomerId, ...asked.map((a) => a.customerId)].filter((x): x is string => !!x && (x === p?.requesterCustomerId || !kept.has(x))));
-    const event: AgentEvent = { kind: 'proposal_update', proposalId, outcome: payload.to as 'REJECTED', reason: (payload.reason as string) ?? null };
+    // The closest alternative is on its way to the requester: that message covers how this request ended.
+    const [followUp] = await db.select({ seq: s.activityLog.seq }).from(s.activityLog)
+      .where(and(eq(s.activityLog.kind, 'offer_ready'), sql`${s.activityLog.payload}->>'noAnswerOf' = ${proposalId}`));
+    if (followUp && p?.requesterCustomerId) parties.delete(p.requesterCustomerId);
+    // The shop couldn't make it work, as opposed to the requester backing out or never finishing their own step.
+    const ended = payload.to === 'REJECTED' || payload.to === 'EXPIRED';
+    const couldNotFit = ended && !row.actor.startsWith('customer:') && (payload.from === 'AWAITING_APPROVALS' || row.actor === 'owner');
+    const event: AgentEvent = { kind: 'proposal_update', proposalId, outcome: payload.to as 'REJECTED', reason: (payload.reason as string) ?? null, couldNotFit };
     return [...parties].map((c) => [c, event]);
   }
 

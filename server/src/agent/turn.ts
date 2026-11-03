@@ -9,8 +9,10 @@ import type { Db, Tx } from '../db/client.ts';
 import { loadSnapshot } from '../db/load-snapshot.ts';
 import * as s from '../db/schema.ts';
 import { type Index, indexSnapshot } from '../optimizer/snapshot.ts';
+import { earliestOpenAtOrAfter } from '../optimizer/time.ts';
+import { validate } from '../optimizer/validator.ts';
 import { renderOption } from '../proposals/cards.ts';
-import type { StoredRequest } from '../proposals/request.ts';
+import { type StoredRequest, loadRequest } from '../proposals/request.ts';
 import { ACTIVE_STATES } from '../proposals/state-machine.ts';
 import { LIVE_REVISION_STATUSES, afterOf } from '../proposals/store.ts';
 import { shopTime, usd } from './scope.ts';
@@ -26,6 +28,8 @@ export type AgentEvent =
       kind: 'offer_ready'; proposalId: string; revisionIds: string[]; role: 'affected' | 'requester'; replanOf?: string | null; repriced?: boolean;
       /** The closest alternative after the other customers kept their bookings; `holdReleased` when it costs nothing. */
       fallback?: boolean; holdReleased?: boolean;
+      /** The request that expired because another customer never answered; this alternative follows it. */
+      noAnswerOf?: string | null;
     }
   /** This customer tapped Keep my booking as is: confirm nothing changes for them. */
   | { kind: 'kept_booking'; proposalId: string }
@@ -34,7 +38,7 @@ export type AgentEvent =
   /** The requester's request is still on: the other customer kept their booking, so the shop is trying another plan. */
   | { kind: 'request_progress'; proposalId: string }
   /** A request this customer is part of was committed or ended. */
-  | { kind: 'proposal_update'; proposalId: string; outcome: 'COMMITTED' | 'REJECTED' | 'EXPIRED' | 'CANCELLED' | 'FAILED'; reason?: string | null };
+  | { kind: 'proposal_update'; proposalId: string; outcome: 'COMMITTED' | 'REJECTED' | 'EXPIRED' | 'CANCELLED' | 'FAILED'; reason?: string | null; couldNotFit?: boolean };
 
 export type AgentConfig = {
   /** null runs every turn on templates (no API key). */
@@ -267,7 +271,7 @@ async function describeEvent(tx: Tx, idx: Index, customerId: string, event: Agen
       const why = event.repriced
         ? 'The shop has changed the price of their request; the new terms are on a fresh card (the earlier card no longer applies).'
         : event.fallback
-        ? `The other customer couldn't change their booking, so the exact change they asked for isn't possible. The card has the closest the shop can do instead: say plainly it is an alternative, not what they asked for. ${event.holdReleased ? 'It costs nothing extra, so their earlier payment hold has been released.' : 'Their existing payment hold covers it, so accepting needs no new payment.'} If they don't want it, Cancel my request on the card keeps their original booking.`
+        ? `${event.noAnswerOf ? "The shop couldn't get an answer from the other customer in time, so their request ended" : "The other customer couldn't change their booking"}, and the exact change they asked for isn't possible. Open with a warm, sincere apology that the shop couldn't fit their request. The card has the closest the shop can do instead, as long as the schedule allows: say plainly it is an alternative, not what they asked for, and say until when. ${event.holdReleased ? 'It costs nothing extra, and their payment hold has been released.' : 'Their existing payment hold covers it, so accepting needs no new payment.'} If they don't want it, Cancel my request on the card keeps their original booking.${(await otherGearFree(tx, idx, event.proposalId, customerId, event.revisionIds)) ? ` ${MENTION_OTHER_GEAR}` : ''}`
         : event.replanOf
         ? 'The shop changed the schedule while their earlier request was pending, so that request was cancelled and its payment hold released. The shop has made them a fresh offer for the same change.'
         : p?.source === 'owner_resolve'
@@ -302,13 +306,43 @@ ${await eventFacts(tx, idx, customerId, event)}`;
     const subject = fact?.unitId ? idx.unitLabel(fact.unitId) : (fact?.modelId ? idx.models.get(fact.modelId)?.name : '') ?? '';
     return `Event owner_answered: the shop answered their question about the ${subject} ("${fact?.label ?? fact?.key}"): ${event.value}. Tell them the answer in one short message.`;
   }
+  const [ended] = await tx.select().from(s.proposals).where(eq(s.proposals.id, event.proposalId));
+  if (event.couldNotFit && ended?.requesterCustomerId === customerId)
+    return `Event proposal_update for request ${turn.ids.of('rq', event.proposalId)}:\n${await eventFacts(tx, idx, customerId, event)}\nIn a short, warm message, apologise sincerely that the shop couldn't fit their request, then say nothing was charged and their booking stands.${(await otherGearFree(tx, idx, event.proposalId, customerId)) ? ` ${MENTION_OTHER_GEAR}` : ''}`;
   return `Event proposal_update for request ${turn.ids.of('rq', event.proposalId)}:\n${await eventFacts(tx, idx, customerId, event)}\nTell the customer what happened in one short message.`;
 }
+
+const MENTION_OTHER_GEAR = "Also say, in one sentence, that the shop has other models available for that time, and that the only inconvenience would be coming back to the shop to pick one up. Only mention it: don't name a model or a price, don't offer or reserve one, and don't ask them to decide.";
+
+/**
+ * Whether another unit of this model or a substitute is free from when this customer's camera is due back until the
+ * time they asked for, so the agent only mentions other gear when there is some. Extensions only.
+ */
+async function otherGearFree(tx: Tx, idx: Index, proposalId: string, customerId: string, alternativeRevisionIds: string[] = []) {
+  const [p] = await tx.select().from(s.proposals).where(eq(s.proposals.id, proposalId));
+  const request = p?.request ? loadRequest(p.request as StoredRequest) : null;
+  if (request?.kind !== 'extend') return false;
+  const b = idx.bookings.get(request.bookingId);
+  if (!b) return false;
+  const rows = alternativeRevisionIds.length ? await tx.select().from(s.revisionChanges).where(inArray(s.revisionChanges.revisionId, alternativeRevisionIds)) : [];
+  const due = rows.find((c) => c.bookingId === b.id)?.newEndsAt ?? b.endsAt;
+  const startsAt = earliestOpenAtOrAfter(due > idx.snap.now ? due : idx.snap.now, idx.snap.shop);
+  const endsAt = request.newEndsAt;
+  if (startsAt >= endsAt) return false;
+  const bufferEndsAt = new Date(endsAt.getTime() + idx.policy.default_buffer_minutes * 60_000);
+  return [b.modelId, ...idx.substitutesOf(b.modelId).map((m) => m.id)].some((modelId) =>
+    idx.unitsOfModel(modelId).some((u) => u.id !== b.unitId && validate(idx, {
+      changes: [{ bookingId: null, customerId, after: { unitId: u.id, modelId, startsAt, endsAt, bufferEndsAt } }], requesterCustomerId: customerId,
+    }).violations.length === 0),
+  );
+}
+
+const OTHER_GEAR_TEMPLATE = " We do have other models available for that time; the only inconvenience would be coming back to the shop to pick one up.";
 
 /** Backend-written facts about a committed or ended request, from this customer's side. Their amounts are citable. */
 async function eventFacts(tx: Tx, idx: Index, customerId: string, event: AgentEvent): Promise<string> {
   if (event.kind === 'offer_ready' && event.holdReleased) {
-    const [order] = await tx.select().from(s.paypalOrders).where(and(eq(s.paypalOrders.proposalId, event.proposalId), eq(s.paypalOrders.customerId, customerId)));
+    const [order] = await tx.select().from(s.paypalOrders).where(and(eq(s.paypalOrders.proposalId, event.noAnswerOf ?? event.proposalId), eq(s.paypalOrders.customerId, customerId)));
     return order ? `Released payment hold: ${usd(order.amountCents)}` : '';
   }
   if (event.kind === 'request_progress') {
@@ -418,7 +452,7 @@ async function templateFor(tx: Tx, shopId: string, customerId: string, event: Ag
   if (event.kind === 'offer_ready')
     return event.role === 'requester'
       ? event.fallback
-        ? `The other customer needs their booking, so I can't do exactly what you asked. The closest I can offer is on the card below${event.holdReleased ? ', and your payment hold has been released' : ''}. If you'd rather not, your original booking stays as it is.`
+        ? `We're really sorry we couldn't fit your request: ${event.noAnswerOf ? "we couldn't get an answer from the other customer in time" : 'the other customer needs their booking'}. The closest we can do, as long as the schedule allows, is on the card below${event.holdReleased ? ' at no extra charge, and your payment hold has been released' : ''}. If you'd rather not, your original booking stays as it is.${(await otherGearFree(tx, indexSnapshot(await loadSnapshot(tx, shopId)), event.proposalId, customerId, event.revisionIds)) ? OTHER_GEAR_TEMPLATE : ''}`
         : 'The shop has set up your change. Please review it on the card and accept to authorize the payment; nothing is charged until everything is confirmed.'
       : (await sourceOf(tx, event.proposalId)) === 'overdue'
         ? "The equipment for your booking is running late coming back from the previous rental, so the shop is offering you the options on the card below. You're free to decline with Keep my booking as is; the shop will contact you if it isn't back in time."
@@ -434,7 +468,9 @@ async function templateFor(tx: Tx, shopId: string, customerId: string, event: Ag
   if (event.outcome !== 'COMMITTED') {
     const [p] = await tx.select().from(s.proposals).where(eq(s.proposals.id, event.proposalId));
     return p?.requesterCustomerId === customerId
-      ? 'Your request didn’t go through, so nothing was charged and your booking stays as it was.'
+      ? event.couldNotFit
+        ? `We're really sorry we couldn't fit your request. Nothing was charged, any payment hold has been released, and your booking stays as it was.${(await otherGearFree(tx, idx, event.proposalId, customerId)) ? OTHER_GEAR_TEMPLATE : ''}`
+        : 'Your request didn’t go through, so nothing was charged and your booking stays as it was.'
       : (await sourceOf(tx, event.proposalId)) === 'overdue'
         ? "The shop's offer about the late equipment has ended, so your booking stays as it is."
         : "The other customer's request was withdrawn, so it won't change your booking.";

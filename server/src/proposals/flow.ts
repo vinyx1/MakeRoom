@@ -987,7 +987,7 @@ export function ownerSetPrice(db: Db, shopId: string, input: { proposalId: strin
  * Once the owner has reviewed every option of a draft that needed it, the requester gets the card to accept and
  * pay (demo Scenario 2, step 5: "Dana authorizes payment for the extra day through a PayPal link").
  */
-async function offerToRequesterIfReviewed(tx: Tx, p: Proposal, now: Date, extra: { fallback?: boolean; holdReleased?: boolean } = {}) {
+async function offerToRequesterIfReviewed(tx: Tx, p: Proposal, now: Date, extra: { fallback?: boolean; holdReleased?: boolean; noAnswerOf?: string } = {}) {
   if (!p.requesterCustomerId) return;
   const live = await liveRevisions(tx, p.id);
   for (const r of live) if (r.needsOwner && !(await ownerApproved(tx, r.id))) return;
@@ -996,7 +996,7 @@ async function offerToRequesterIfReviewed(tx: Tx, p: Proposal, now: Date, extra:
   const holdReleased = extra.holdReleased ?? (fallback && (await currentOrder(tx, p.id))?.status !== 'authorized');
   await logActivity(tx, {
     shopId: p.shopId, at: now, actor: 'system', kind: 'offer_ready', proposalId: p.id,
-    payload: { customerId: p.requesterCustomerId, revisionIds: live.map((r) => r.id), role: 'requester', ...(fallback ? { fallback: true, holdReleased } : {}) },
+    payload: { customerId: p.requesterCustomerId, revisionIds: live.map((r) => r.id), role: 'requester', ...(fallback ? { fallback: true, holdReleased } : {}), ...(extra.noAnswerOf ? { noAnswerOf: extra.noAnswerOf } : {}) },
   });
 }
 
@@ -1135,7 +1135,7 @@ export async function expireDue(db: Db, gateway: PaymentGateway, shopId: string)
       .where(and(eq(s.proposals.shopId, shopId), inArray(s.proposals.state, ['DRAFT', 'AWAITING_APPROVALS']))))
       .filter((p) => p.expiresAt && p.expiresAt <= now);
     const ops: string[] = [];
-    for (const p of due) ops.push(...(await endProposal(tx, p, 'expire', 'No answer before the offer expired', now)).opIds);
+    for (const p of due) ops.push(...(await expire(tx, p, now)));
     return { expired: due.map((p) => p.id), ops };
   });
   await runOps(db, gateway, ops);
@@ -1252,7 +1252,46 @@ async function reofferPending(tx: Tx, p: Proposal, revs: Revision[], now: Date) 
 
 async function expireIfDue(tx: Tx, p: Proposal, now: Date) {
   if (!p.expiresAt || now < p.expiresAt) return null;
-  return (await endProposal(tx, p, 'expire', 'No answer before the offer expired', now)).opIds;
+  return expire(tx, p, now);
+}
+
+async function expire(tx: Tx, p: Proposal, now: Date) {
+  const { opIds } = await endProposal(tx, p, 'expire', 'No answer before the offer expired', now);
+  await offerClosestAfterNoAnswer(tx, p, opIds.length > 0, now);
+  return opIds;
+}
+
+/**
+ * Another customer never answered, so the request ended. As after a refusal, the requester still gets the closest the
+ * schedule allows, as a new request: the expired one stays EXPIRED. Free alternatives only, since their hold is gone.
+ * Not when the requester was the one who didn't answer: they've been offered what there is.
+ */
+async function offerClosestAfterNoAnswer(tx: Tx, p: Proposal, holdReleased: boolean, now: Date) {
+  if (p.state !== 'AWAITING_APPROVALS' || p.source !== 'customer_request' || !p.requesterCustomerId) return;
+  const snapshot = await loadSnapshot(tx, p.shopId);
+  const nearest = nearestAlternative(snapshot, loadRequest(p.request as StoredRequest));
+  if (!nearest || nearest.quote.chargeCents > 0) return;
+  const expiresAt = new Date(now.getTime() + snapshot.shop.policy.approval_timeout_minutes * 60_000);
+  const [next] = await tx
+    .insert(s.proposals)
+    .values({
+      shopId: p.shopId, source: 'customer_request', requesterCustomerId: p.requesterCustomerId, subjectBookingId: p.subjectBookingId,
+      request: p.request, state: 'DRAFT', revisionSeq: 1, expiresAt, createdAt: now,
+    })
+    .returning();
+  const { revision } = await insertRevision(tx, { proposal: next!, seq: 1, optionLabel: null, plan: nearest, origin: 'alternative', at: now });
+  await tx.insert(s.approvals).values({
+    shopId: p.shopId, revisionId: revision.id, proposalId: next!.id, role: 'requester', customerId: p.requesterCustomerId, requestedAt: now, expiresAt,
+  });
+  if (revision.needsOwner) {
+    const rows = (await changesByRevision(tx, [revision.id])).get(revision.id)!;
+    await ensureOwnerApproval(tx, indexSnapshot(snapshot), next!, revision, rows, 'plan_review', now);
+  }
+  await logActivity(tx, {
+    shopId: p.shopId, at: now, actor: 'system', kind: 'alternative_offered', proposalId: next!.id, revisionId: revision.id,
+    payload: { quote: revision.quote, holdReleased, noAnswerOf: p.id },
+  });
+  await offerToRequesterIfReviewed(tx, next!, now, { fallback: true, holdReleased, noAnswerOf: p.id });
 }
 
 async function runOps(db: Db, gateway: PaymentGateway, ids: string[]) {
