@@ -170,7 +170,7 @@ describe('the owner declines (judge B8, B9)', () => {
 
     const declined = await ownerDecision(db, gateway, d.shop.id, { proposalId, revisionId: optionB.id, decision: 'decline' });
     expect(declined).toEqual({ status: 'awaiting_approvals', waitingOn: ['affected'] });
-    const reoffers = (await db.select().from(s.activityLog).where(and(eq(s.activityLog.proposalId, proposalId), eq(s.activityLog.kind, 'offer_ready')))).at(-1)!;
+    const reoffers = (await db.select().from(s.activityLog).where(and(eq(s.activityLog.proposalId, proposalId), eq(s.activityLog.kind, 'offer_ready'))).orderBy(s.activityLog.seq)).at(-1)!;
     expect(reoffers.payload).toEqual({ customerId: bob, revisionIds: [optionA.id], role: 'affected' });
 
     expect((await affectedAccept(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: optionA.id })).status).toBe('committed');

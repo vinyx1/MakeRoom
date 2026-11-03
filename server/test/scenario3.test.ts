@@ -212,7 +212,7 @@ describe('nobody can make it work: the requester hears an apology', () => {
   const templates = { client: null, model: 'none', effort: 'low' as const, turnCap: 60 };
   const lastMessage = async (d: Awaited<ReturnType<typeof setup>>['d'], name: string) => {
     const [c] = await db.select().from(s.conversations).where(eq(s.conversations.customerId, d.customer(name).id));
-    return (await db.select().from(s.messages).where(eq(s.messages.conversationId, c!.id))).filter((m) => m.body).at(-1)?.body;
+    return (await db.select().from(s.messages).where(eq(s.messages.conversationId, c!.id)).orderBy(s.messages.at)).filter((m) => m.body).at(-1)?.body;
   };
 
   it('Bob never answers: EXPIRED, hold voided, and Alice is offered 9pm tonight with an apology, once', async () => {
