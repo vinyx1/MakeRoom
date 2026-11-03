@@ -369,7 +369,7 @@ describe('the owner sets the price', () => {
     expect((await load.revisions(offered.proposal.id)).filter((r) => r.status === 'superseded')).toHaveLength(2);
     const orders = await db.select().from(s.paypalOrders).where(eq(s.paypalOrders.proposalId, offered.proposal.id));
     expect(orders.map((o) => o.status)).toEqual(['voided']); // the $45 order can't be paid any more
-    const ready = await db.select().from(s.activityLog).where(and(eq(s.activityLog.proposalId, offered.proposal.id), eq(s.activityLog.kind, 'offer_ready')));
+    const ready = await db.select().from(s.activityLog).where(and(eq(s.activityLog.proposalId, offered.proposal.id), eq(s.activityLog.kind, 'offer_ready'))).orderBy(s.activityLog.seq);
     expect(ready.at(-1)!.payload).toMatchObject({ customerId: alice, role: 'requester', repriced: true });
 
     await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
