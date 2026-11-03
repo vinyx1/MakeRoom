@@ -168,6 +168,9 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft }: Props) {
       timeRangesFeature: { showCurrentTimeLine: false },
       eventDragFeature: { constrainDragToTimeline: true },
       eventDragCreateFeature: false,
+      // Delete and Backspace would remove a bar from this view only, with the booking still on the server.
+      enableDeleteKey: false,
+      onBeforeEventDelete: () => false,
       taskEditFeature: false,
       eventMenuFeature: false,
       scheduleMenuFeature: false,
