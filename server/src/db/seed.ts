@@ -1,6 +1,6 @@
 // The shared seed from `demo script.md`. Every visitor's shop starts here.
 // Days are relative to the demo week (the current Mon–Sun in the shop's time zone), and the shop clock
-// is offset so that "now" is Wednesday 2pm.
+// is offset so that "now" is Wednesday 6pm.
 //
 // `demoShopData` builds the rows as plain data (the optimizer tests use it without a database);
 // `seedShop` inserts them.
@@ -30,7 +30,7 @@ export function demoShopData({ sessionKey, realNow = new Date() }: { sessionKey:
   const monday = demoWeekStart(realNow);
   const t = ({ week = 0, day, hour }: DemoTime) =>
     monday.plus({ weeks: week, days: WEEKDAY[day] - 1 }).set({ hour }).toJSDate();
-  const now = t({ day: 'Wed', hour: 14 });
+  const now = t({ day: 'Wed', hour: 18 });
   const policy = defaultPolicy();
   const bufferMs = policy.default_buffer_minutes * 60_000;
 
