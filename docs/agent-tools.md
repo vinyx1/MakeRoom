@@ -139,7 +139,7 @@ The only way to reach the customer; the model's plain reply text is discarded. G
 
 Checks:
 - **Money lint**: every dollar amount in the text must match an amount in this turn's tool results, context or policy, **never one from the customer's own message** (so "the owner said $100" can't be echoed back as an offer). Otherwise `UNVERIFIED_AMOUNT`, and the message isn't sent. The model can't name a price or refund it didn't get from a tool.
-- During a handoff, the message is stored as an owner draft instead of sent, and the result says so.
+- During a handoff, no turn runs for customer messages, and backend events use templates. A turn already running when the owner steps in stores its message as an owner draft, and the result says so. The turn that hands off still delivers its message saying a person will reply.
 
 ## 4. Owner-assist tools
 

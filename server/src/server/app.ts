@@ -247,6 +247,11 @@ export function buildApp(opts: AppOptions) {
     const conversation = await conversationOf(db, req.shop.id, customer.id, at);
     const [message] = await db.insert(s.messages).values({ shopId: req.shop.id, conversationId: conversation.id, author: 'owner', body: text, at }).returning();
     await db.insert(s.activityLog).values({ shopId: req.shop.id, at, actor: 'owner', kind: 'owner_message', payload: { customerId: customer.id, text } });
+    // The owner has stepped in, so the assistant stops talking over them until they hand the chat back.
+    if (!conversation.handedOffAt) {
+      await db.update(s.conversations).set({ handedOffAt: at, handoffReason: 'owner_replied', handedBackAt: null }).where(eq(s.conversations.id, conversation.id));
+      await db.insert(s.activityLog).values({ shopId: req.shop.id, at, actor: 'owner', kind: 'owner_took_over', payload: { customerId: customer.id } });
+    }
     return { status: 'sent', messageId: message!.id };
   });
 

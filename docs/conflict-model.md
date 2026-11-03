@@ -161,7 +161,7 @@ The requester always gets the closest feasible alternative, never a bare denial.
 
 **Owner priority.** The owner may decline any proposal; nothing commits, and conflicts left unresolved stay escalated until the owner acts.
 
-**Handoff.** When the agent escalates because a customer is upset or asks for a person, the conversation is marked handed off. The agent stops messaging that customer and drafts replies for the owner instead, until the owner hands the conversation back.
+**Handoff.** When the agent escalates because a customer is upset or asks for a person, or the owner writes in a customer's chat, the conversation is marked handed off. The agent tells the customer a person will reply (if it escalated), then stays silent and makes no model calls until the owner hands the chat back. Customers' messages wait for the owner; news about their requests still reaches them as template messages. Drafting replies for the owner isn't built (only a turn already running when the owner steps in saves one).
 
 ## 8. Picked-up rentals and overdue returns
 

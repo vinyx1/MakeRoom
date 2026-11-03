@@ -127,9 +127,20 @@ export async function runTurn(db: Db, config: AgentConfig, input: { shopId: stri
     return report;
   }
 
+  // The shop has this chat: the assistant says nothing, and spends nothing, until it's handed back. A message from the
+  // customer is for the owner. News about their requests still reaches them, as a template from the shop.
+  const withShop = !!conversation.handedOffAt;
+  if (withShop && event.kind === 'customer_message') {
+    report.fallback = 'skipped: with the shop';
+    report.ms = Date.now() - t0;
+    step(report.fallback);
+    await logActivity(db, { shopId, at: now(), actor: 'agent', kind: 'agent_turn', payload: { ...report } });
+    return report;
+  }
+
   const atCap = shop.agentTurnsUsed >= config.turnCap;
   const overBudget = !!config.client && config.dailySpendCapUsd !== undefined && (await spentTodayUsd(db)) >= config.dailySpendCapUsd;
-  if (config.client && !atCap && !overBudget) {
+  if (config.client && !atCap && !overBudget && !withShop) {
     report.model = config.model;
     try {
       const { prompt, citable } = await db.transaction(async (tx) => buildPrompt(tx, shopId, customerId, conversation.id, event, turn));

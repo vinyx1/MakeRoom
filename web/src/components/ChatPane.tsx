@@ -124,7 +124,7 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
 
       {view?.handedOff && (
         <div className="handoff">
-          The assistant handed this chat to the shop; its replies are drafts for the owner.
+          The shop is handling this chat, so the assistant is paused.
           <button className="link" onClick={() => api.handBack(customerId).then(load)}>
             Hand back to the assistant
           </button>

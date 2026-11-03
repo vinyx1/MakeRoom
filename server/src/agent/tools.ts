@@ -26,6 +26,7 @@ export const MAX_TOOL_CALLS = 12;
 
 /** What the backend tracks while one turn runs. */
 export class TurnState {
+  handedOffThisTurn = false;
   ids = new ShortIds();
   calls: { name: string; input: unknown; result: Record<string, unknown>; ms: number }[] = [];
   /** Every amount, in cents, the agent has seen from the context, tool results or policy: the money lint. */
@@ -535,6 +536,7 @@ export function makeTools(scope: ToolScope) {
           const now = (await loadSnapshot(tx, shopId)).now;
           const handoff = ['upset_customer', 'asks_for_person', 'dispute_or_damage'].includes(reason);
           await tx.insert(s.escalations).values({ shopId, kind: handoff ? 'handoff' : 'customer_issue', conversationId: scope.conversationId, reasons: [reason], summary, at: now });
+          if (handoff) turn.handedOffThisTurn = true;
           if (handoff)
             await tx.update(s.conversations).set({ handedOffAt: now, handoffReason: reason, handedBackAt: null }).where(eq(s.conversations.id, scope.conversationId));
           return ok({
@@ -557,7 +559,8 @@ export function makeTools(scope: ToolScope) {
         return turn.inOrder(() => db.transaction(async (tx) => {
           const [conversation] = await tx.select().from(s.conversations).where(eq(s.conversations.id, scope.conversationId));
           const now = (await loadSnapshot(tx, shopId)).now;
-          const draft = !!conversation?.handedOffAt;
+          // The message telling them a person will reply has to reach them; only what comes after it is held back.
+          const draft = !!conversation?.handedOffAt && !turn.handedOffThisTurn;
           await tx.insert(s.messages).values({ shopId, conversationId: scope.conversationId, author: 'agent', body: text, isOwnerDraft: draft, at: turn.nextAt(now) });
           turn.messagesSent++;
           return ok(draft ? { sent: false, saved_as_draft_for_owner: true } : { sent: true });
