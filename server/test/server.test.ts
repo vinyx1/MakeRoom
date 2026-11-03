@@ -9,7 +9,7 @@ import { createDb } from '../src/db/client.ts';
 import { eq } from 'drizzle-orm';
 import * as s from '../src/db/schema.ts';
 import { SESSION_COOKIE, buildApp } from '../src/server/app.ts';
-import { cleanupStaleShops } from '../src/server/shops.ts';
+import { cleanupStaleShops, sessionKeyOf } from '../src/server/shops.ts';
 import { fakeGateway } from './fake-gateway.ts';
 
 const { db, pool } = createDb();
@@ -303,22 +303,24 @@ describe('protecting the public URL', () => {
 
   it('cleans up shops unseen for 48 hours, voiding holds first, and keeps recent ones', async () => {
     const v = visitor();
-    const { customer, booking, at, view } = await owner(v);
+    const { customer, booking, at } = await owner(v);
     const offered = await v.post('/api/requests', { customerId: customer('Alice'), request: { kind: 'extend', bookingId: booking('Alice').id, newEndsAt: at('Thu', 10) } });
     await v.post(`/api/proposals/${offered.body.proposal.id}/order`, { customerId: customer('Alice') });
     await v.post(`/api/proposals/${offered.body.proposal.id}/accept`, { customerId: customer('Alice') });
-    const staleId = view.shop.id;
-    const fresh = await owner(visitor());
+    const shopOf = async (x: ReturnType<typeof visitor>) => (await db.select().from(s.shops).where(eq(s.shops.sessionKey, sessionKeyOf(x.token!))))[0];
+    const staleId = (await shopOf(v))!.id;
+    const other = visitor();
+    await owner(other);
     const before = gateway.calls.length;
 
     await db.update(s.shops).set({ lastSeenAt: new Date(Date.now() - 49 * 3600_000) }).where(eq(s.shops.id, staleId));
     expect(await cleanupStaleShops(db, gateway)).toBeGreaterThanOrEqual(1);
     expect(await db.select().from(s.shops).where(eq(s.shops.id, staleId))).toEqual([]);
     expect(gateway.calls.slice(before).map((c) => c.method)).toContain('voidAuthorization');
-    expect(await db.select().from(s.shops).where(eq(s.shops.id, fresh.view.shop.id))).toHaveLength(1);
+    expect(await shopOf(other)).toBeDefined();
 
     // Coming back after cleanup gets a new shop, with the same cookie.
-    const back = await owner(v);
-    expect(back.view.shop.id).not.toBe(staleId);
+    await owner(v);
+    expect((await shopOf(v))!.id).not.toBe(staleId);
   });
 });
