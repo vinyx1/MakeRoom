@@ -1,0 +1,231 @@
+// Changing terms mid-request: the requester correcting an unpaid offer, and an affected customer's counter-offer
+// (docs/conflict-model.md §4, §7; judge B1–B4). A counter is a draft until its author clicks Send (invariant 3).
+
+import { randomUUID } from 'node:crypto';
+import { and, eq, isNull } from 'drizzle-orm';
+import { DateTime } from 'luxon';
+import { afterAll, describe, expect, it } from 'vitest';
+import { createDb } from '../src/db/client.ts';
+import * as s from '../src/db/schema.ts';
+import { seedShop } from '../src/db/seed.ts';
+import { seedPrepayments } from '../src/payments/prepay.ts';
+import {
+  affectedAccept, affectedCounter, affectedRefuse, counterDiscard, counterSend, createRequesterOrder, ownerDecision, requestChange, requesterAccept,
+} from '../src/proposals/flow.ts';
+import { customerView } from '../src/server/views.ts';
+import { fakeGateway } from './fake-gateway.ts';
+
+const { db, pool } = createDb();
+afterAll(() => pool.end());
+
+type Seeded = Awaited<ReturnType<typeof seedShop>>;
+
+function at(d: Seeded, day: 'Wed' | 'Thu' | 'Fri', hour: number) {
+  const days = { Wed: 2, Thu: 3, Fri: 4 }[day];
+  return DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).startOf('week').plus({ days }).set({ hour }).toJSDate();
+}
+
+async function shop() {
+  const gateway = fakeGateway();
+  const d = await seedShop(db, { sessionKey: randomUUID() });
+  await seedPrepayments(db, gateway, d.shop.id);
+  return { gateway, d, alice: d.customer('Alice').id, bob: d.customer('Bob').id };
+}
+
+/** Alice has paid the hold, so Bob holds the card: option A is the upgrade, B is 2pm with $15 back. */
+async function bobAsked() {
+  const base = await shop();
+  const { gateway, d, alice } = base;
+  const offered = await requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) } });
+  if (offered.status !== 'offered') throw new Error(JSON.stringify(offered));
+  await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
+  expect((await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice })).status).toBe('awaiting_approvals');
+  return { ...base, proposalId: offered.proposal.id, optionA: offered.revisions[0]!, optionB: offered.revisions[1]! };
+}
+
+const load = {
+  booking: async (id: string) => (await db.select().from(s.bookings).where(eq(s.bookings.id, id)))[0]!,
+  proposal: async (id: string) => (await db.select().from(s.proposals).where(eq(s.proposals.id, id)))[0]!,
+  revision: async (id: string) => (await db.select().from(s.revisions).where(eq(s.revisions.id, id)))[0]!,
+  approvals: (revisionId: string) => db.select().from(s.approvals).where(eq(s.approvals.revisionId, revisionId)),
+  orders: (proposalId: string) => db.select().from(s.paypalOrders).where(eq(s.paypalOrders.proposalId, proposalId)),
+  claims: (revisionId: string) => db.select().from(s.claims).where(and(eq(s.claims.revisionId, revisionId), isNull(s.claims.releasedAt))),
+};
+const cardsOf = (d: Seeded, customerId: string) => db.transaction(async (tx) => (await customerView(tx, d.shop.id, customerId))!.cards);
+
+describe('the requester corrects an offer before paying', () => {
+  async function asked() {
+    const base = await shop();
+    const { d, alice } = base;
+    const booking = d.bookingOf('Alice').id;
+    const ask = (newEndsAt: Date) => requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'extend', bookingId: booking, newEndsAt } });
+    const first = await ask(at(d, 'Fri', 18));
+    if (first.status !== 'offered') throw new Error(JSON.stringify(first));
+    return { ...base, ask, first };
+  }
+
+  it('replaces the offer on the same request, with no cancelling', async () => {
+    const { d, gateway, alice, ask, first } = await asked();
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: first.proposal.id, customerId: alice }); // She opened PayPal, then changed her mind.
+    const second = await ask(at(d, 'Thu', 10));
+    if (second.status !== 'offered') throw new Error(JSON.stringify(second));
+
+    expect(second.proposal.id).toBe(first.proposal.id);
+    expect(second.chargeCents).toBe(4500);
+    expect((await load.revision(first.revisions[0]!.id)).status).toBe('superseded');
+    expect((await load.orders(first.proposal.id)).map((o) => o.status)).toEqual(['voided']);
+    expect(await cardsOf(d, alice)).toMatchObject([{ proposalId: first.proposal.id, role: 'requester', chargeCents: 4500 }]);
+    expect((await load.proposal(first.proposal.id)).request).toMatchObject({ newEndsAt: at(d, 'Thu', 10).toISOString() });
+
+    // Paying now pays the new amount, and the request carries on as usual.
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: first.proposal.id, customerId: alice });
+    expect((await load.orders(first.proposal.id)).map((o) => [o.status, o.amountCents]).sort()).toEqual([['created', 4500], ['voided', 9000]]);
+    expect((await requesterAccept(db, gateway, d.shop.id, { proposalId: first.proposal.id, customerId: alice })).status).toBe('awaiting_approvals');
+  });
+
+  it('a correction that can\'t work leaves the current offer standing', async () => {
+    const { d, alice, ask, first } = await asked();
+    const bad = await ask(new Date(at(d, 'Thu', 10).getTime() - 7 * 3600_000)); // 3am
+    expect(bad.status).toBe('invalid');
+    expect((await load.revision(first.revisions[0]!.id)).status).toBe('offered');
+    expect(await cardsOf(d, alice)).toHaveLength(1);
+  });
+
+  it('stops at the revision limit', async () => {
+    const { d, ask } = await asked();
+    expect((await ask(at(d, 'Thu', 10))).status).toBe('offered');
+    expect((await ask(at(d, 'Thu', 11))).status).toBe('offered');
+    expect(await ask(at(d, 'Thu', 12))).toEqual({ status: 'revision_limit' });
+  });
+
+  it('once they have paid the hold, the terms are fixed', async () => {
+    const { d, alice, proposalId } = await bobAsked();
+    const again = await requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 11) } });
+    expect(again).toMatchObject({ status: 'refused' });
+    expect((await load.proposal(proposalId)).state).toBe('AWAITING_APPROVALS');
+  });
+});
+
+describe('an affected customer counters', () => {
+  it('B1: an impossible time makes no counter, and gets the nearest that works', async () => {
+    const { d, bob, proposalId } = await bobAsked();
+    const r = await affectedCounter(db, d.shop.id, { proposalId, customerId: bob, newStartsAt: at(d, 'Thu', 12) });
+    // Alice's 10am return plus the 4h turnaround.
+    expect(r).toMatchObject({ status: 'infeasible', nearestStart: at(d, 'Thu', 14) });
+    expect((await load.proposal(proposalId)).revisionSeq).toBe(1);
+    expect((await cardsOf(d, bob)).map((c) => c.role)).toEqual(['affected']);
+  });
+
+  it('a time outside shop hours is refused as such', async () => {
+    const { d, bob, proposalId } = await bobAsked();
+    const r = await affectedCounter(db, d.shop.id, { proposalId, customerId: bob, newStartsAt: new Date(at(d, 'Thu', 9).getTime() + 13 * 3600_000) }); // 10pm
+    expect(r.status).toBe('invalid');
+  });
+
+  it('B2: 3pm and $25: a draft until Send, then the owner re-approves and it commits', async () => {
+    const { gateway, d, alice, bob, proposalId, optionB } = await bobAsked();
+    const r = await affectedCounter(db, d.shop.id, { proposalId, customerId: bob, newStartsAt: at(d, 'Thu', 15), refundCents: 2500 });
+    if (r.status !== 'drafted') throw new Error(JSON.stringify(r));
+    expect(r.revision).toMatchObject({ status: 'draft', origin: 'counter', createdBy: 'customer', createdByCustomerId: bob, parentRevisionId: optionB.id, needsOwner: true });
+
+    // Nothing is recorded, nothing held, and nobody else can see it; the original offer is still open.
+    expect(await load.approvals(r.revision.id)).toEqual([]);
+    expect(await load.claims(r.revision.id)).toEqual([]);
+    const cards = await cardsOf(d, bob);
+    expect(cards.map((c) => c.role).sort()).toEqual(['affected', 'counter']);
+    const card = cards.find((c) => c.role === 'counter')!;
+    expect(card.options[0]!.lines.join(' ')).toMatch(/Pickup moves from Thu 9:00am to Thu 3:00pm.*\$25\.00 refunded/);
+    expect(card.options[0]!.needsShop).toBe(true);
+    expect(await cardsOf(d, alice)).toEqual([]);
+    const reviews = () => db.select().from(s.escalations).where(and(eq(s.escalations.proposalId, proposalId), eq(s.escalations.status, 'open')));
+    expect(await reviews()).toEqual([]);
+
+    // Send is Bob's approval; Alice's terms didn't change, so hers carries over; the shop is asked.
+    expect(await counterSend(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: r.revision.id })).toEqual({ status: 'awaiting_approvals', waitingOn: ['owner'] });
+    const approvals = await load.approvals(r.revision.id);
+    expect(approvals.map((a) => [a.role, a.status, a.source]).sort()).toEqual([
+      ['affected', 'approved', 'counter_author'], ['owner', 'pending', null], ['requester', 'approved', 'carried_over'],
+    ].sort());
+    expect((await load.orders(proposalId)).map((o) => o.status)).toEqual(['authorized']);
+    expect((await reviews()).length).toBeGreaterThan(0);
+
+    const before = gateway.calls.length;
+    expect((await ownerDecision(db, gateway, d.shop.id, { proposalId, revisionId: r.revision.id, decision: 'approve' })).status).toBe('committed');
+    const booking = await load.booking(d.bookingOf('Bob').id);
+    expect(booking.startsAt).toEqual(at(d, 'Thu', 15));
+    expect((await load.booking(d.bookingOf('Alice').id)).endsAt).toEqual(at(d, 'Thu', 10));
+    const paid = gateway.calls.slice(before);
+    expect(paid.map((c) => c.method)).toEqual(['captureAuthorization', 'refundCapture']);
+    expect(JSON.stringify(paid[1])).toContain('2500');
+  });
+
+  it('within the limits: upgrade plus $5 needs no owner, and Send commits it', async () => {
+    const { gateway, d, bob, proposalId, optionA } = await bobAsked();
+    const r = await affectedCounter(db, d.shop.id, { proposalId, customerId: bob, baseRevisionId: optionA.id, refundCents: 500 });
+    if (r.status !== 'drafted') throw new Error(JSON.stringify(r));
+    expect(r.revision.needsOwner).toBe(false);
+    expect((await counterSend(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: r.revision.id })).status).toBe('committed');
+    expect((await load.booking(d.bookingOf('Bob').id)).unitId).toBe(d.unit('A7RV-1').id);
+    expect((await load.revision(optionA.id)).status).toBe('superseded');
+  });
+
+  it('A3: $100 goes to the owner, and declining it leaves the original offer open', async () => {
+    const { gateway, d, bob, proposalId, optionA, optionB } = await bobAsked();
+    const r = await affectedCounter(db, d.shop.id, { proposalId, customerId: bob, baseRevisionId: optionB.id, refundCents: 10_000 });
+    if (r.status !== 'drafted') throw new Error(JSON.stringify(r));
+    expect(r.revision.needsOwner).toBe(true);
+    expect(r.revision.ownerTriggers).toContain('over_cap');
+    await counterSend(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: r.revision.id });
+    expect((await load.proposal(proposalId)).state).toBe('AWAITING_APPROVALS');
+
+    expect(await ownerDecision(db, gateway, d.shop.id, { proposalId, revisionId: r.revision.id, decision: 'decline' })).toEqual({ status: 'awaiting_approvals', waitingOn: ['affected'] });
+    expect((await load.revision(r.revision.id)).status).toBe('dropped');
+    expect((await load.booking(d.bookingOf('Bob').id)).version).toBe(1);
+    expect((await cardsOf(d, bob))[0]!.options.map((o) => o.revisionId).sort()).toEqual([optionA.id, optionB.id].sort());
+    expect((await affectedAccept(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: optionA.id })).status).toBe('committed');
+  });
+
+  it('a counter replaces an earlier pick, so the pick can\'t go ahead behind it', async () => {
+    const { gateway, d, bob, proposalId, optionB } = await bobAsked();
+    await affectedAccept(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: optionB.id });
+    const r = await affectedCounter(db, d.shop.id, { proposalId, customerId: bob, newStartsAt: at(d, 'Thu', 15) });
+    if (r.status !== 'drafted') throw new Error(JSON.stringify(r));
+    await counterSend(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: r.revision.id });
+    expect((await ownerDecision(db, gateway, d.shop.id, { proposalId, revisionId: optionB.id, decision: 'approve' })).status).toBe('awaiting_approvals');
+    expect((await load.proposal(proposalId)).state).toBe('AWAITING_APPROVALS');
+  });
+
+  it('B4: stops at the revision limit; a newer draft replaces the older; Discard leaves the offer open', async () => {
+    const { gateway, d, bob, proposalId } = await bobAsked();
+    const counter = (hour: number) => affectedCounter(db, d.shop.id, { proposalId, customerId: bob, newStartsAt: at(d, 'Thu', hour) });
+    const first = await counter(15);
+    const second = await counter(16);
+    if (first.status !== 'drafted' || second.status !== 'drafted') throw new Error('expected drafts');
+    expect((await load.revision(first.revision.id)).status).toBe('dropped');
+    expect(await counter(17)).toEqual({ status: 'revision_limit' });
+
+    expect(await counterSend(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: first.revision.id })).toEqual({ status: 'already_decided' });
+    expect(await counterDiscard(db, d.shop.id, { proposalId, customerId: bob, revisionId: second.revision.id })).toEqual({ status: 'discarded' });
+    expect((await cardsOf(d, bob)).map((c) => c.role)).toEqual(['affected']);
+    expect((await load.proposal(proposalId)).state).toBe('AWAITING_APPROVALS');
+  });
+
+  it('only its author can send or discard a counter, and the requester can\'t counter', async () => {
+    const { gateway, d, alice, bob, proposalId } = await bobAsked();
+    expect(await affectedCounter(db, d.shop.id, { proposalId, customerId: alice, refundCents: 100 })).toMatchObject({ status: 'refused' });
+    expect(await affectedCounter(db, d.shop.id, { proposalId, customerId: d.customer('Charlie').id, refundCents: 100 })).toMatchObject({ status: 'refused' });
+    const r = await affectedCounter(db, d.shop.id, { proposalId, customerId: bob, newStartsAt: at(d, 'Thu', 15) });
+    if (r.status !== 'drafted') throw new Error(JSON.stringify(r));
+    expect(await counterSend(db, gateway, d.shop.id, { proposalId, customerId: alice, revisionId: r.revision.id })).toMatchObject({ status: 'refused' });
+    expect(await counterDiscard(db, d.shop.id, { proposalId, customerId: alice, revisionId: r.revision.id })).toMatchObject({ status: 'refused' });
+  });
+
+  it('keeping the booking drops an unsent counter', async () => {
+    const { gateway, d, bob, proposalId } = await bobAsked();
+    const r = await affectedCounter(db, d.shop.id, { proposalId, customerId: bob, newStartsAt: at(d, 'Thu', 15) });
+    if (r.status !== 'drafted') throw new Error(JSON.stringify(r));
+    await affectedRefuse(db, gateway, d.shop.id, { proposalId, customerId: bob });
+    expect((await load.revision(r.revision.id)).status).toBe('dropped');
+    expect(await counterSend(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: r.revision.id })).toEqual({ status: 'already_decided' });
+  });
+});
