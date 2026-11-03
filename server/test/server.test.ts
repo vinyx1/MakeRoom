@@ -1,11 +1,11 @@
 // The HTTP API, through Fastify's inject (and one real socket for SSE). PayPal is the stateful fake.
 
-import { DateTime } from 'luxon';
-import { afterAll, describe, expect, it } from 'vitest';
-import { createDb } from '../src/db/client.ts';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DateTime } from 'luxon';
+import { afterAll, describe, expect, it } from 'vitest';
+import { createDb } from '../src/db/client.ts';
 import { SESSION_COOKIE, buildApp } from '../src/server/app.ts';
 import { fakeGateway } from './fake-gateway.ts';
 
