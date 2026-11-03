@@ -167,7 +167,8 @@ describe('judge-mode controls', () => {
 
     const ff = await v.post('/api/demo/fast-forward', { minutes: 31 });
     expect(ff.body.expired).toEqual([offered.body.proposal.id]);
-    expect((await owner(v)).view.proposals).toEqual([]);
+    // The request is gone; what's left is the closest alternative, offered to the requester.
+    expect((await owner(v)).view.proposals.map((p: { id: string; state: string }) => [p.id === offered.body.proposal.id, p.state])).toEqual([[false, 'DRAFT']]);
     expect((await v.post('/api/demo/fast-forward', { minutes: 0 })).status).toBe(400);
   });
 
