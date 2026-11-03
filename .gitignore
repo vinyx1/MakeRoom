@@ -6,3 +6,6 @@ dist/
 
 # Session of the terminal tester (scripts/try.ts)
 server/.try-session
+
+# Logs from start.sh
+.run/
