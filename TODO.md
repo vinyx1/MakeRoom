@@ -12,13 +12,13 @@ The rule from `CLAUDE.md` still holds: the video scenarios must run reliably bef
 1. **Deploy** (1–2 days). Do this first: hosting problems surface late, and redeploying afterwards is cheap.
    - The server serves `web/dist`. Set up a hosted Postgres, run the migrations, and store the secrets on the host: PayPal, `ANTHROPIC_API_KEY`, the sandbox buyer login.
    - The test card must be disabled in production. Cookies must be `Secure` over HTTPS.
-   - The build needs access to the Bryntum npm registry, either in CI or by building locally and uploading.
+   - The Bryntum trial installs from public npm with no login, but its two postinstall scripts must be allowed to run on the host.
    - Write a smoke-test script to run against the live URL after every deploy: load the page, Scenario 1 with the test card switched on only for that run, then Reset.
 2. **Protect the public URL** (half a day). These are my additions, and they matter because the link is public:
    - **A global daily spend cap on Anthropic calls.** The per-shop cap doesn't stop many shops, bots or several judges at once. Past the cap, turns fall back to templates.
    - **Rate-limit shop creation per IP.** Every new visitor creates a shop and makes 7 real sandbox captures, so a crawler could flood PayPal and the database.
    - **Clean up shops untouched for 48 hours.** Void their open holds first.
-3. **Bryntum licence** (an hour, but start now). The trial watermark shows across the schedule in the video and on the live site, and the 45-day trial may run out during judging. Ask the hackathon or Bryntum for a hackathon licence. If there isn't one, decide whether the watermark is acceptable. For the "Best Use of Bryntum" prize, it probably isn't.
+3. **Bryntum trial** (an hour; decided 2026-11-02: the hackathon expects the free trial, so no paid licence). The trial watermark stays in the video and on the live site. Still to check: the hackathon's judging end date against the 45-day trial, and what the schedule does once the trial ends (`spikes/bryntum/FINDINGS.md`, gotcha 5).
 4. **Tricky-prompt eval** (1 day). Write the ~25 prompts in `evals/chat-prompts.md` (judge scenarios A1–A15 plus extras). Run them on Sonnet and fix any bad replies. Of all the things a judge might try, free-form chat is the most likely to look bad.
 5. **Demo video** (1 day): about 3 minutes, following "Suggested video cut" in `demo script.md`. Record it from the deployed site (or locally) after the UI revamp.
 6. **Devpost write-up and README** (half a day): the problem, how it works (a diagram of "Claude proposes, code decides", the commit sequence and PayPal authorize → capture), how to try it (link, sandbox login, "try this first"), the tech stack, and what's mocked.
@@ -66,7 +66,7 @@ The abuse protections in P0 item 2 (the global spend cap, the per-IP shop limit,
 19. **A separate Anthropic key for the deployment**, with a monthly spend limit set in the Anthropic console: the hard backstop behind the in-app cap. Revoke it after judging.
 20. **Sandbox only, everywhere.** The buyer login shown on the page must be a dedicated sandbox account whose password isn't used anywhere else. No live PayPal credentials, ever.
 21. **Database:** the host's managed Postgres with TLS and a long generated password, not open to the whole internet if the host allows that. `DATABASE_URL` lives only in the host's secret settings.
-22. **Bryntum registry login** kept as a secret in the build environment, never in a committed `.npmrc`. Bryntum's trial code is never committed.
+22. **Bryntum trial:** nothing secret to store, since it installs from public npm with no login.
 23. **Host settings:** `NODE_ENV=production`, HTTPS only, installs from the lockfile with `npm ci` (versions are already pinned exactly).
 24. **Optional extras:** security headers (`@fastify/helmet`, with a content security policy that allows PayPal and the Bryntum assets), and a rate limit on chat messages and payment routes per session.
 
@@ -76,4 +76,4 @@ From `CLAUDE.md` "Out of scope": a multi-business marketplace, shipping, damage 
 
 ## Suggested order
 
-Learn the codebase → 1–3 (deploy, protect, ask about the licence) → 8 (UI) → 4 (eval) → 9 (counters) → 10 → 5–6 (video, write-up) → 7 (freeze). Pull in P2 items only if the P0/P1 items are finished before about Nov 9.
+Learn the codebase → 1–3 (deploy, protect, check the trial dates) → 8 (UI) → 4 (eval) → 9 (counters) → 10 → 5–6 (video, write-up) → 7 (freeze). Pull in P2 items only if the P0/P1 items are finished before about Nov 9.
