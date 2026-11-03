@@ -335,6 +335,8 @@ function FeedLine({ a, owner }: { a: Activity; owner: OwnerView }) {
       return line('', <>Owner discarded a red draft</>);
     case 'booking_edit_undone':
       return line('', <>Owner undid their last change</>);
+    case 'booking_cancelled':
+      return line('warn', <>Owner cancelled a booking, as agreed by phone{p.refundCents ? `: ${usd(p.refundCents)} refunded` : ''}</>);
     case 'draft_saved':
       return line('warn', <>Owner edit kept as a red draft: {(p.violations ?? []).join('; ')}</>);
     case 'fact_saved':

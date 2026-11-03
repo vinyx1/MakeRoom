@@ -33,7 +33,7 @@ The rule from `CLAUDE.md` still holds: the video scenarios must run reliably bef
 
 ## P2: if time permits
 
-11. **Cancelling a booking, by the customer or the owner** (half a day; C8). The owner has no cancel action, so the schedule's Delete key is off (2026-11-03); an owner Cancel button with a confirmation goes here, and it must refund and tell the customer. Refund policy: 100% if 24h or more before pickup, otherwise 50%. A request that claimed the booking gets re-planned.
+11. **A customer cancels their own booking** (half a day; C8). Refund policy: 100% if 24h or more before pickup, otherwise 50%. A request that claimed the booking gets re-planned. The owner's version is done (2026-11-03): Delete on the schedule, agreed by phone, full refund.
 12. **`record_constraint`** (half a day; demo Scenario 3, step 1). Bob's "I need it at 9am, and I want the A7 IV" is stored and respected by later plans. Only needed if that moment goes in the video.
 13. **Scenario 4: a unit goes down** (1–2 days). Owner UI to mark a unit unavailable, the Unassigned row, a multi-booking plan for owner review, notice-only swaps.
 14. **Scenario 5: above the agent's pay grade** (1 day). Compensation over the cap plus an angry customer leads to escalation and handoff. Most of the parts already exist.

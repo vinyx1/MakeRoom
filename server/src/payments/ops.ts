@@ -29,12 +29,19 @@ const expandId = (s: string | undefined) => {
 export const requestId = (proposalId: string | null, revisionId: string | null, kind: OpKind, customerId: string) =>
   `${kind}:${compactId(proposalId)}:${compactId(revisionId)}:${compactId(customerId)}`;
 
+/**
+ * The refund when the owner cancels a booking. There's no proposal or revision to tell one customer's refunds apart,
+ * and PayPal replays the first result for a repeated id (one id = one amount), so the id names the order. An order is
+ * only ever cancelled once. The extra segment keeps it from parsing as a proposal or revision id.
+ */
+export const cancelRefundRequestId = (orderId: string, customerId: string) => `refund:cancel:none:${compactId(orderId)}:${compactId(customerId)}`;
+
 /** Records an op; returns its id. Recording the same request id twice returns the existing op. */
 export async function enqueueOp(
   tx: Tx,
-  input: { order: Order; kind: OpKind; amountCents: number; proposalId: string | null; revisionId: string | null; customerId: string; at: Date },
+  input: { order: Order; kind: OpKind; amountCents: number; proposalId: string | null; revisionId: string | null; customerId: string; at: Date; requestId?: string },
 ): Promise<string> {
-  const id = requestId(input.proposalId, input.revisionId, input.kind, input.customerId);
+  const id = input.requestId ?? requestId(input.proposalId, input.revisionId, input.kind, input.customerId);
   const [op] = await tx
     .insert(paymentOps)
     .values({ shopId: input.order.shopId, kind: input.kind, paypalOrderRef: input.order.id, amountCents: input.amountCents, requestId: id, createdAt: input.at })

@@ -174,6 +174,8 @@ export const api = {
   resolveDraft: (draftId: string, agreedByPhone = false) => call<Outcome>('POST', `/api/drafts/${draftId}/resolve`, { agreedByPhone }),
   discardDraft: (draftId: string) => call<Outcome>('POST', `/api/drafts/${draftId}/discard`),
   undoEdit: (bookingId: string) => call<Outcome>('POST', `/api/bookings/${bookingId}/undo`),
+  cancelBooking: (bookingId: string, body: { basedOnVersion: number; agreedByPhone: boolean; override?: boolean }) =>
+    call<Outcome & { refundCents?: number; refundsOk?: boolean; proposals?: { id: string; requesterName: string | null }[] }>('POST', `/api/bookings/${bookingId}/cancel`, body),
   markOverdue: (bookingId: string, expectedReturnAt: string) => call<Outcome>('POST', `/api/bookings/${bookingId}/overdue`, { expectedReturnAt }),
   markReturned: (bookingId: string) => call<Outcome>('POST', `/api/bookings/${bookingId}/returned`),
   saveFact: (factId: string, value: 'yes' | 'no') => call<Outcome>('POST', `/api/facts/${factId}`, { value }),

@@ -37,6 +37,8 @@ export type AgentEvent =
   | { kind: 'owner_answered'; factId: string; value: 'yes' | 'no' }
   /** The requester's request is still on: the other customer kept their booking, so the shop is trying another plan. */
   | { kind: 'request_progress'; proposalId: string }
+  /** The owner cancelled this customer's booking, as agreed with them by phone. */
+  | { kind: 'booking_cancelled'; bookingId: string; refundCents: number }
   /** A request this customer is part of was committed or ended. */
   | { kind: 'proposal_update'; proposalId: string; outcome: 'COMMITTED' | 'REJECTED' | 'EXPIRED' | 'CANCELLED' | 'FAILED'; reason?: string | null; couldNotFit?: boolean };
 
@@ -334,6 +336,11 @@ Present options ${JSON.stringify(ids)} with present_offer first, then send_messa
       return `Event kept_booking: the customer tapped Keep my booking as is on the shop's offer about the late-returning equipment (${turn.ids.of('rq', event.proposalId)}). Their booking stays as it was; nothing is charged or refunded. Confirm that in one short message, and say the shop will contact them if the equipment isn't back in time.`;
     return `Event kept_booking: the customer tapped Keep my booking as is on another customer's request (${turn.ids.of('rq', event.proposalId)}). Their booking stays exactly as it was; nothing is charged or refunded. Confirm that in one short message and thank them.`;
   }
+  if (event.kind === 'booking_cancelled') {
+    const [b] = await tx.select().from(s.bookings).where(eq(s.bookings.id, event.bookingId));
+    const t = shopTime(idx);
+    return `Event booking_cancelled: as agreed with them by phone, the shop cancelled their booking for the ${b ? idx.models.get(b.modelId)?.name : 'equipment'}${b ? ` (${t.display(b.startsAt)} → ${t.display(b.endsAt)})` : ''}. ${await eventFacts(tx, idx, customerId, event)} Confirm this in one short message; don't ask them to do anything.`;
+  }
   if (event.kind === 'request_progress')
     return `Event request_progress for their request ${turn.ids.of('rq', event.proposalId)}: the other customer needs to keep their booking, so the shop is trying another arrangement with a different customer. Nothing changes for them: their request and the exact terms they accepted stand, their payment hold stays in place (nothing is charged unless it goes ahead), and they don't need to do anything. If no arrangement works, the shop will offer them the closest alternative or release the hold, and if nobody answers by the expiry the hold is released automatically. Tell them this in one or two short sentences, and that you'll update them. Never name or describe the other customers.
 ${await eventFacts(tx, idx, customerId, event)}`;
@@ -394,6 +401,8 @@ async function eventFacts(tx: Tx, idx: Index, customerId: string, event: AgentEv
     const [order] = await tx.select().from(s.paypalOrders).where(and(eq(s.paypalOrders.proposalId, event.noAnswerOf ?? event.proposalId), eq(s.paypalOrders.customerId, customerId)));
     return order ? `Released payment hold: ${usd(order.amountCents)}` : '';
   }
+  if (event.kind === 'booking_cancelled')
+    return event.refundCents > 0 ? `Refund on its way to their original payment: ${usd(event.refundCents)}, everything they paid for this booking.` : 'There was nothing to refund.';
   if (event.kind === 'request_progress') {
     const [p] = await tx.select().from(s.proposals).where(eq(s.proposals.id, event.proposalId));
     const [order] = await tx.select().from(s.paypalOrders).where(and(eq(s.paypalOrders.proposalId, event.proposalId), eq(s.paypalOrders.status, 'authorized')));
@@ -512,6 +521,8 @@ async function templateFor(tx: Tx, shopId: string, customerId: string, event: Ag
       : 'Got it: your booking stays exactly as it is. Thanks for letting us know!';
   if (event.kind === 'request_progress')
     return "Quick update on your request: the other customer needs to keep their booking, so the shop is trying another arrangement. Your request and payment hold stand, and there's nothing you need to do. If it can't be arranged, the hold is released and nothing is charged.";
+  if (event.kind === 'booking_cancelled')
+    return `As agreed by phone, the shop has cancelled your booking.${event.refundCents > 0 ? ` ${usd(event.refundCents)}, everything you paid for it, is on its way back to your original payment.` : ''}`;
   if (event.kind === 'owner_answered') return `The shop has answered your question: ${event.value === 'yes' ? 'yes' : 'no'}.`;
   const idx = indexSnapshot(await loadSnapshot(tx, shopId));
   if (event.outcome !== 'COMMITTED') {

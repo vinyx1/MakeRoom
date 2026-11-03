@@ -38,12 +38,13 @@ type Props = {
   shopNow: Date;
   onEdit: (edit: EditRequest) => Promise<boolean>;
   onResolveDraft: (draftId: string) => void;
+  onCancel: (booking: { bookingId: string; name: string; version: number; status: string }) => void;
 };
 
 const UNASSIGNED = 'unassigned';
 const hoursBetween = (a: string, b: string) => Math.round((new Date(b).getTime() - new Date(a).getTime()) / 3600_000);
 
-export function Schedule({ owner, shopNow, onEdit, onResolveDraft }: Props) {
+export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel }: Props) {
   const project = useRef<BryntumSchedulerProProjectModel>(null);
   const tz = owner.shop.timezone;
   const nameOf = (id: string | null) => owner.customers.find((c) => c.id === id)?.name ?? 'Customer';
@@ -131,8 +132,8 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft }: Props) {
   const timeRanges = useMemo(() => [{ id: 'now', name: `Now · ${shopTime(shopNow, tz, 'h:mma')}`, startDate: shopNow }], [Math.floor(shopNow.getTime() / 60_000)]);
 
   // Bryntum keeps the config from the first render, so its handlers read the latest props from here.
-  const latest = useRef({ onEdit, onResolveDraft, tz });
-  latest.current = { onEdit, onResolveDraft, tz };
+  const latest = useRef({ onEdit, onResolveDraft, onCancel, tz });
+  latest.current = { onEdit, onResolveDraft, onCancel, tz };
   const submit = (record: any, resourceId: string, start: Date, end: Date, finalize: (ok: boolean) => void) => {
     if (record.kind !== 'booking') return finalize(false);
     const real = (d: Date) => TimeZoneHelper.fromTimeZone(d, latest.current.tz);
@@ -168,9 +169,13 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft }: Props) {
       timeRangesFeature: { showCurrentTimeLine: false },
       eventDragFeature: { constrainDragToTimeline: true },
       eventDragCreateFeature: false,
-      // Delete and Backspace would remove a bar from this view only, with the booking still on the server.
-      enableDeleteKey: false,
-      onBeforeEventDelete: () => false,
+      // Delete and Backspace ask to cancel the booking. Bryntum never removes a bar by itself: the server decides, and the
+      // bar goes when the refreshed schedule no longer has it.
+      onBeforeEventDelete({ eventRecords }: any) {
+        const record = eventRecords?.[0];
+        if (record?.kind === 'booking') latest.current.onCancel({ bookingId: record.bookingId, name: record.name, version: record.version, status: record.status });
+        return false;
+      },
       taskEditFeature: false,
       eventMenuFeature: false,
       scheduleMenuFeature: false,

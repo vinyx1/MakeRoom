@@ -150,6 +150,46 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
     [owner, shop.refresh, toast],
   );
 
+  // Delete on a booking: confirm, with the customer's agreement, then the pending-request warning if one needs it.
+  const onCancelBooking = useCallback(
+    async ({ bookingId, name, version, status }: { bookingId: string; name: string; version: number; status: string }) => {
+      if (status === 'picked_up') {
+        toast({ kind: 'warn', text: `${name}'s rental is out with them: mark it returned instead of cancelling it.` });
+        return;
+      }
+      const booking = owner.bookings.find((b) => b.id === bookingId);
+      if (!booking) return;
+      const zone = owner.shop.timezone;
+      const unit = owner.units.find((u) => u.id === booking.unitId)?.label ?? 'Unassigned';
+      const confirmed = await new Promise<boolean>((resolve) =>
+        setPrompt({ step: 'cancel', name, summary: `${unit}: ${shopTime(booking.startsAt, zone)} → ${shopTime(booking.endsAt, zone)}`, refund: usd(booking.priceCents), resolve }),
+      );
+      setPrompt(null);
+      if (!confirmed) return;
+      try {
+        const body = { basedOnVersion: version, agreedByPhone: true };
+        let result = await api.cancelBooking(bookingId, body);
+        if (result.status === 'claimed') {
+          const override = await new Promise<boolean>((resolve) =>
+            setPrompt({ step: 'claimed', name, requesters: (result.proposals ?? []).map((p) => p.requesterName ?? 'Another customer'), resolve }),
+          );
+          setPrompt(null);
+          if (!override) return;
+          result = await api.cancelBooking(bookingId, { ...body, override: true });
+        }
+        if (result.status === 'cancelled')
+          toast(result.refundsOk === false
+            ? { kind: 'error', text: `${name}'s booking is cancelled, but the refund didn't go through. See your cards.` }
+            : { kind: 'ok', text: `${name}'s booking is cancelled${result.refundCents ? `, and ${usd(result.refundCents)} is refunded` : ''}.` });
+        else toast(describe(result));
+      } catch (e) {
+        toast({ kind: 'error', text: (e as Error).message });
+      }
+      void shop.refresh();
+    },
+    [owner, shop.refresh, toast],
+  );
+
   // Resolve with agent acts on the customer's behalf: if their agreement wasn't ticked at the drag, ask now.
   const onResolveDraft = useCallback(
     async (draftId: string) => {

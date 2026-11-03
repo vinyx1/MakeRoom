@@ -20,7 +20,7 @@ import * as s from '../db/schema.ts';
 import { type Placement, occupancy, overlaps } from '../optimizer/snapshot.ts';
 import { type Violation, validate } from '../optimizer/validator.ts';
 import type { PaymentGateway } from '../payments/gateway.ts';
-import { runPaymentOp } from '../payments/ops.ts';
+import { cancelRefundRequestId, enqueueOp, runPaymentOp } from '../payments/ops.ts';
 import { type StoredRequest, loadRequest } from '../proposals/request.ts';
 import { type RequestChangeResult, requestChange } from '../proposals/flow.ts';
 import { ACTIVE_STATES } from '../proposals/state-machine.ts';
@@ -62,11 +62,16 @@ export async function ownerEditBooking(db: Db, gateway: PaymentGateway, shopId: 
   // After commit: payments are external calls and never run inside the lock (docs/conflict-model.md §3a).
   const paymentOps = [];
   for (const id of locked.opIds) paymentOps.push(await runPaymentOp(db, gateway, id));
+  return { status: 'applied', booking: locked.booking, cancelled: await replanRequesters(db, shopId, locked.cancelled), paymentOps };
+}
 
-  // Owner wins, and the requester is re-planned against the new schedule (docs/conflict-model.md §6): their
-  // request becomes a fresh offer, and the card reaches them through the agent.
+/**
+ * Owner wins, and the requester is re-planned against the new schedule (docs/conflict-model.md §6): their request
+ * becomes a fresh offer, and the card reaches them through the agent.
+ */
+async function replanRequesters(db: Db, shopId: string, ended: (typeof s.proposals.$inferSelect)[]): Promise<Replanned[]> {
   const cancelled: Replanned[] = [];
-  for (const p of locked.cancelled) {
+  for (const p of ended) {
     if (!p.requesterCustomerId) {
       cancelled.push({ proposalId: p.id, requesterCustomerId: null, replan: null });
       continue;
@@ -79,7 +84,93 @@ export async function ownerEditBooking(db: Db, gateway: PaymentGateway, shopId: 
       });
     cancelled.push({ proposalId: p.id, requesterCustomerId: p.requesterCustomerId, replan });
   }
-  return { status: 'applied', booking: locked.booking, cancelled, paymentOps };
+  return cancelled;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// The owner cancels a booking
+
+export type OwnerCancel = { bookingId: string; basedOnVersion: number; agreedByPhone: boolean; override?: boolean };
+
+export type OwnerCancelResult =
+  | { status: 'cancelled'; refundCents: number; refundsOk: boolean; replanned: Replanned[] }
+  | { status: 'claimed'; proposals: ClaimingProposal[] }
+  | { status: 'refused'; reason: string }
+  | { status: 'stale'; currentVersion: number };
+
+/**
+ * The customer agreed by phone, so the booking is cancelled and everything they paid for it goes back: what's left on
+ * each order behind it, including any extension they paid for. A request that needs this booking goes the same way as
+ * an owner edit (warning, then override). The schedule change never waits on PayPal; a refund that fails is retried and
+ * then alerts the owner (`runPaymentOp`).
+ */
+export async function ownerCancelBooking(db: Db, gateway: PaymentGateway, shopId: string, input: OwnerCancel): Promise<OwnerCancelResult> {
+  const locked = await withShopLock(db, shopId, async (tx) => {
+    const [booking] = await tx.select().from(s.bookings).where(and(eq(s.bookings.id, input.bookingId), eq(s.bookings.shopId, shopId)));
+    if (!booking) return { status: 'refused' as const, reason: 'booking not found' };
+    if (booking.status === 'picked_up') return { status: 'refused' as const, reason: 'this rental is out with the customer: mark it returned instead of cancelling it' };
+    if (booking.status !== 'confirmed') return { status: 'refused' as const, reason: `this booking is already ${booking.status.replace('_', ' ')}` };
+    if (booking.version !== input.basedOnVersion) return { status: 'stale' as const, currentVersion: booking.version };
+    const now = (await loadSnapshot(tx, shopId)).now;
+    if (!input.agreedByPhone) {
+      const [customer] = await tx.select().from(s.customers).where(eq(s.customers.id, booking.customerId));
+      return { status: 'refused' as const, reason: `${customer?.name ?? 'The customer'} hasn't agreed: tick "agreed by phone" to cancel their booking` };
+    }
+
+    const claiming = await claimingProposals(tx, shopId, booking.id, null);
+    if (claiming.some((p) => p.state === 'CAPTURING')) return { status: 'refused' as const, reason: 'a payment for this booking is being captured; try again in a few seconds' };
+    // The customer's own request about this booking is pointless now, so it ends without a warning.
+    const own = await tx.select().from(s.proposals).where(and(eq(s.proposals.subjectBookingId, booking.id), inArray(s.proposals.state, [...ACTIVE_STATES])));
+    if (own.some((p) => p.state === 'CAPTURING')) return { status: 'refused' as const, reason: 'a payment for this booking is being captured; try again in a few seconds' };
+    const ownIds = new Set(own.map((p) => p.id));
+    const others = claiming.filter((p) => !ownIds.has(p.id));
+    if (others.length && !input.override) return { status: 'claimed' as const, proposals: others };
+
+    const opIds: string[] = [];
+    const replan: (typeof s.proposals.$inferSelect)[] = [];
+    for (const c of others) {
+      const [p] = await tx.select().from(s.proposals).where(eq(s.proposals.id, c.id));
+      opIds.push(...(await endProposal(tx, p!, 'owner_override', 'The owner cancelled a booking this request depended on', now, 'owner')).opIds);
+      replan.push((await tx.select().from(s.proposals).where(eq(s.proposals.id, c.id)))[0]!);
+    }
+    for (const p of own) opIds.push(...(await endProposal(tx, p, 'owner_override', 'The owner cancelled this booking', now, 'owner')).opIds);
+
+    // Everything paid for this booking: its prepayment, plus what committed requests about it captured.
+    const committed = (await tx.select({ id: s.proposals.id }).from(s.proposals).where(and(eq(s.proposals.subjectBookingId, booking.id), eq(s.proposals.state, 'COMMITTED')))).map((p) => p.id);
+    const orders = (await tx.select().from(s.paypalOrders).where(and(eq(s.paypalOrders.shopId, shopId), eq(s.paypalOrders.status, 'captured'))))
+      .filter((o) => o.id === booking.prepaidOrderId || (o.proposalId && committed.includes(o.proposalId)));
+    // `price_cents` is what the booking currently stands at, net of earlier refunds: never refund more than that.
+    let left = booking.priceCents;
+    let refundCents = 0;
+    for (const order of orders) {
+      const amountCents = Math.min(order.capturedCents - order.refundedCents, left);
+      if (amountCents <= 0) continue;
+      opIds.push(await enqueueOp(tx, {
+        order, kind: 'refund', amountCents, proposalId: null, revisionId: null, customerId: booking.customerId, at: now,
+        requestId: cancelRefundRequestId(order.id, booking.customerId),
+      }));
+      left -= amountCents;
+      refundCents += amountCents;
+    }
+
+    const [updated] = await tx.update(s.bookings).set({ status: 'cancelled', version: booking.version + 1 }).where(eq(s.bookings.id, booking.id)).returning();
+    await tx.delete(s.ownerDrafts).where(eq(s.ownerDrafts.bookingId, booking.id));
+    await tx.update(s.escalations).set({ status: 'resolved', resolution: { bookingCancelled: true } })
+      .where(and(eq(s.escalations.bookingId, booking.id), eq(s.escalations.status, 'open')));
+    await logActivity(tx, {
+      shopId, at: now, actor: 'owner', kind: 'booking_cancelled',
+      payload: { bookingId: booking.id, customerId: booking.customerId, refundCents, agreedByPhone: true, overrode: others.map((p) => p.id), version: updated!.version },
+    });
+    return { status: 'cancelled' as const, refundCents, opIds, replan };
+  });
+  if (locked.status !== 'cancelled') return locked;
+
+  let refundsOk = true;
+  for (const id of locked.opIds) {
+    const op = await runPaymentOp(db, gateway, id);
+    if (op.kind === 'refund' && op.status !== 'succeeded') refundsOk = false;
+  }
+  return { status: 'cancelled', refundCents: locked.refundCents, refundsOk, replanned: await replanRequesters(db, shopId, locked.replan) };
 }
 
 async function applyLocked(tx: Tx, shopId: string, edit: OwnerEdit): Promise<Locked> {
@@ -247,7 +338,7 @@ export function discardDraft(db: Db, shopId: string, input: { draftId: string })
 }
 
 /** Active proposals holding this booking, or holding capacity the edit moves into. */
-async function claimingProposals(tx: Tx, shopId: string, bookingId: string, after: Placement): Promise<ClaimingProposal[]> {
+async function claimingProposals(tx: Tx, shopId: string, bookingId: string, after: Placement | null): Promise<ClaimingProposal[]> {
   const rows = await tx
     .select({ claim: s.claims, proposal: s.proposals, requester: s.customers })
     .from(s.claims)
@@ -257,7 +348,7 @@ async function claimingProposals(tx: Tx, shopId: string, bookingId: string, afte
   const hits = rows.filter(
     ({ claim }) =>
       claim.bookingId === bookingId ||
-      (claim.unitId === after.unitId && claim.period && overlaps(claim.period, occupancy(after))),
+      (after && claim.unitId === after.unitId && claim.period && overlaps(claim.period, occupancy(after))),
   );
   const byId = new Map(hits.map(({ proposal, requester }) => [
     proposal.id,

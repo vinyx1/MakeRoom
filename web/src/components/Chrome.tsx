@@ -121,6 +121,8 @@ export function Help({ onClose }: { onClose: () => void }) {
           <li>Drag Bob's pickup to Thu 2pm, tick “Bob agreed by phone”. The warning names Alice's pending request: Override.</li>
           <li>Alice's request is cancelled, her hold released, and she gets a fresh offer that now fits.</li>
         </ol>
+        <h4>Cancelling a booking</h4>
+        <p className="muted small">Select a booking on the schedule and press Delete. It asks you to confirm the customer agreed by phone, then refunds everything they paid.</p>
         <h4>4 · A late return</h4>
         <ol>
           <li>The demo starts at Wed 6pm, when Alice's camera is due back, so it shows under Owner as “Due back”.</li>
@@ -158,6 +160,8 @@ export type EditPrompt =
   | { step: 'claimed'; name: string; requesters: string[]; resolve: (override: boolean) => void }
   /** Resolve with agent on a draft whose customer's agreement wasn't ticked at the drag. */
   | { step: 'agree'; name: string; summary: string; resolve: (agreed: boolean) => void }
+  /** Delete on a booking: cancel it and refund what the customer paid. */
+  | { step: 'cancel'; name: string; summary: string; refund: string; resolve: (confirmed: boolean) => void }
   /** Mark overdue: when the customer now expects to return it, as shop-local `yyyy-MM-ddTHH:mm`. */
   | { step: 'overdue'; name: string; summary: string; initial: string; resolve: (expected: string | null) => void };
 
@@ -182,6 +186,26 @@ export function EditDialog({ prompt }: { prompt: EditPrompt }) {
               Mark overdue
             </button>
             <button onClick={() => prompt.resolve(null)}>Cancel</button>
+          </div>
+        </div>
+      </div>
+    );
+  if (prompt.step === 'cancel')
+    return (
+      <div className="modal-back">
+        <div className="modal warn">
+          <h3>Cancel {prompt.name}'s booking?</h3>
+          <p>{prompt.summary}</p>
+          <p><b>{prompt.refund}</b> goes back to {prompt.name}'s original payment: everything they paid for this booking.</p>
+          <label>
+            <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} /> {prompt.name} agreed by phone
+          </label>
+          <p className="muted small">This can't be undone. {prompt.name} is told straight away.</p>
+          <div className="row">
+            <button className="danger" disabled={!agreed} onClick={() => prompt.resolve(true)}>
+              Cancel booking and refund
+            </button>
+            <button onClick={() => prompt.resolve(false)}>Keep booking</button>
           </div>
         </div>
       </div>

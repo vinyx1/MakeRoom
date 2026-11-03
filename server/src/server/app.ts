@@ -11,7 +11,7 @@ import { z } from 'zod';
 import type { Db } from '../db/client.ts';
 import { withShopLock } from '../db/lock.ts';
 import * as s from '../db/schema.ts';
-import { discardDraft, ownerEditBooking, undoOwnerEdit } from '../owner/edit-booking.ts';
+import { discardDraft, ownerCancelBooking, ownerEditBooking, undoOwnerEdit } from '../owner/edit-booking.ts';
 import type { AgentService } from '../agent/service.ts';
 import { conversationOf } from '../agent/turn.ts';
 import type { PaymentGateway } from '../payments/gateway.ts';
@@ -306,6 +306,12 @@ export function buildApp(opts: AppOptions) {
   });
 
   // A late return: re-plan the next renters around the expected time.
+  app.post('/api/bookings/:bookingId/cancel', async (req) => {
+    const { bookingId } = parse(z.object({ bookingId: id }), req.params);
+    const body = parse(z.object({ basedOnVersion: z.number().int().positive(), agreedByPhone: z.boolean().default(false), override: z.boolean().default(false) }), req.body);
+    return ownerCancelBooking(db, gateway, req.shop.id, { bookingId, ...body });
+  });
+
   app.post('/api/bookings/:bookingId/overdue', async (req) => {
     const { bookingId } = parse(z.object({ bookingId: id }), req.params);
     const { expectedReturnAt } = parse(z.object({ expectedReturnAt: isoDate }), req.body);

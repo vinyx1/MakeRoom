@@ -8,7 +8,7 @@ import type { Db } from '../db/client.ts';
 import * as s from '../db/schema.ts';
 import { type AgentConfig, type AgentEvent, type TurnReport, conversationOf, runTurn } from './turn.ts';
 
-const TRIGGERS = ['offer_ready', 'proposal_update', 'proposal_ended', 'fact_answered', 'affected_refused', 'fallback_planned'] as const;
+const TRIGGERS = ['offer_ready', 'proposal_update', 'proposal_ended', 'fact_answered', 'affected_refused', 'fallback_planned', 'booking_cancelled'] as const;
 
 export function createAgentService(
   db: Db,
@@ -93,6 +93,8 @@ export function createAgentService(
     const payload = row.payload as Record<string, unknown>;
     if (row.kind === 'fact_answered')
       return [[payload.customerId as string, { kind: 'owner_answered', factId: payload.factId as string, value: payload.value as 'yes' | 'no' }]];
+    if (row.kind === 'booking_cancelled')
+      return [[payload.customerId as string, { kind: 'booking_cancelled', bookingId: payload.bookingId as string, refundCents: payload.refundCents as number }]];
     const proposalId = row.proposalId;
     if (!proposalId) return [];
     if (row.kind === 'offer_ready')

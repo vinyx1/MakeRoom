@@ -137,6 +137,7 @@ The Bryntum client can be stale too: every owner edit carries the versions it wa
 - A second request touching claimed capacity: the optimizer plans around the claims. If nothing works, the customer joins a first-come waitlist (**Deferred**; the PoC says "try again in a few minutes") for that model and time ("someone is mid-request; I'll come back to you").
 - When a proposal ends without committing, or capacity is freed by a cancellation, early return or no-show, the waitlist re-plans in order.
 - **Owner wins**: dragging a claimed booking warns the owner; overriding sets the proposal `CANCELLED`, voids the authorization, and the agent tells everyone involved and re-plans the requester against the new schedule.
+- **The owner cancels a booking** (built 2026-11-03, `ownerCancelBooking`): Delete on the schedule, with the customer's agreement by phone. Everything they paid goes back, whatever the policy says, since the shop is cancelling: what's left on each order behind the booking, including extensions they paid for, capped at `price_cents`. A request that claims the booking gets the same warning and override as an owner edit, and the requester is re-planned. A rental that's out with the customer can't be cancelled.
 - **A customer may always cancel their own booking**, even if it is claimed. Refund policy: full refund 24h or more before pickup, 50% within 24h; the owner may override. The claiming proposal is superseded and re-planned, often into a simpler plan because the conflict is gone.
 
 ## 7. Disagreements
