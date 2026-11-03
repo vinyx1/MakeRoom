@@ -14,7 +14,7 @@ import { loadSnapshot } from '../db/load-snapshot.ts';
 import * as s from '../db/schema.ts';
 import { type Request, optimize } from '../optimizer/optimizer.ts';
 import { type Index, indexSnapshot, occupancy, overlaps } from '../optimizer/snapshot.ts';
-import { earliestOpenAtOrAfter, latestOpenAtOrBefore } from '../optimizer/time.ts';
+import { earliestOpenAtOrAfter, isWithinShopHours, latestOpenAtOrBefore } from '../optimizer/time.ts';
 import { validate } from '../optimizer/validator.ts';
 import { renderOption } from '../proposals/cards.ts';
 import { requestChange } from '../proposals/flow.ts';
@@ -233,6 +233,12 @@ export function makeTools(scope: ToolScope) {
           if (!modelId) return refuse('NOT_FOUND', 'Unknown model.', 'Use search_inventory for model ids.');
           const [from, to] = [t.parse(start), t.parse(end)];
           if (!from || !to || to <= from) return refuse('INVALID_TIME', 'Give a start before the end, as YYYY-MM-DDTHH:MM.');
+          // A bad time says nothing about stock: refuse it, so "not free" only ever means the equipment is taken.
+          const earliest = t.show(earliestOpenAtOrAfter(idx.snap.now, idx.snap.shop));
+          if (from < idx.snap.now)
+            return refuse('IN_PAST', `That start has already passed; the earliest possible pickup is ${earliest.display}.`, 'This says nothing about whether the model is in stock, so never call it unavailable. Check again from the earliest pickup.', { earliest });
+          if (!isWithinShopHours(from, idx.snap.shop) || !isWithinShopHours(to, idx.snap.shop))
+            return refuse('OUTSIDE_SHOP_HOURS', 'Pickups and returns happen only within shop hours.', 'This says nothing about whether the model is in stock, so never call it unavailable. Check again with times within shop hours.', { earliest });
           const buffer = idx.policy.default_buffer_minutes * 60_000;
           const freeUnits = idx.unitsOfModel(modelId).filter((u) =>
             validate(idx, { changes: [{ bookingId: null, customerId: me, after: { unitId: u.id, modelId, startsAt: from, endsAt: to, bufferEndsAt: new Date(to.getTime() + buffer) } }], requesterCustomerId: me })

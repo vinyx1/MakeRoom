@@ -48,6 +48,21 @@ const messagesOf = async (conversationId: string) =>
   db.select().from(s.messages).where(eq(s.messages.conversationId, conversationId)).orderBy(s.messages.at);
 
 describe('tools', () => {
+  it('check_availability never reports a bad time as equipment being unavailable', async () => {
+    const { d } = await shop();
+    const { call } = await toolsFor(d, 'Alice');
+    const local = (hours: number) => DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).plus({ hours }).toFormat("yyyy-MM-dd'T'HH:mm");
+    const { models } = await call('search_inventory', { query: 'A7R' });
+    const model = models.find((m: { name: string }) => m.name === 'Sony A7R V').model_id;
+
+    // The demo starts at exactly 6pm, so by the time anyone asks, a 6pm pickup has already passed.
+    const past = await call('check_availability', { model_id: model, start: local(0), end: local(15) });
+    expect(past).toMatchObject({ ok: false, code: 'IN_PAST', earliest: { display: expect.stringMatching(/6:15pm$/) } });
+    // Shop hours: 3 hours from now is 9pm (open), 4 hours is 10pm (closed).
+    expect(await call('check_availability', { model_id: model, start: local(4), end: local(15) })).toMatchObject({ ok: false, code: 'OUTSIDE_SHOP_HOURS' });
+    expect(await call('check_availability', { model_id: model, start: local(3), end: local(15) })).toMatchObject({ ok: true, free: true });
+  });
+
   it('get_my_bookings shows only the customer’s own bookings, with short ids', async () => {
     const { d } = await shop();
     const { call } = await toolsFor(d, 'Bob');
