@@ -273,6 +273,19 @@ export async function customerView(tx: Tx, shopId: string, customerId: string) {
     card.options.push(renderOption(idx, revision, rows.filter((r) => r.revisionId === revision.id), customerId, role, ownerApproved));
     cards.set(key, card);
   }
+  // A counter the customer hasn't sent yet: a card only they can see, with Send and Discard.
+  const unsent = await tx
+    .select({ revision: s.revisions, proposal: s.proposals })
+    .from(s.revisions)
+    .innerJoin(s.proposals, eq(s.revisions.proposalId, s.proposals.id))
+    .where(and(eq(s.revisions.shopId, shopId), eq(s.revisions.status, 'draft'), eq(s.revisions.createdByCustomerId, customerId), eq(s.proposals.state, 'AWAITING_APPROVALS')));
+  for (const { revision, proposal } of unsent) {
+    const counterRows = await tx.select().from(s.revisionChanges).where(eq(s.revisionChanges.revisionId, revision.id));
+    cards.set(`${proposal.id}:counter`, {
+      proposalId: proposal.id, role: 'counter', chargeCents: 0, heldCents: 0, expiresAt: proposal.expiresAt,
+      options: [renderOption(idx, revision, counterRows, customerId, 'affected', false)],
+    });
+  }
   // A requester sees one offer: their terms are identical across options (docs/agent-tools.md request_change).
   for (const card of cards.values()) {
     card.options.sort((a, b) => (a.option ?? '').localeCompare(b.option ?? ''));

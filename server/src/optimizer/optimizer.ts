@@ -258,6 +258,7 @@ function addPlan(
   v: { factDependencies: FactDependency[]; conditionNoteUnitIds: string[] },
   isAlternative = false,
   requesterPays = true,
+  counterRefund?: { customerId: string; cents: number },
 ) {
   const planChanges: PlanChange[] = changes.map((c, i) => {
     const booking = c.bookingId ? idx.bookings.get(c.bookingId)! : null;
@@ -282,7 +283,7 @@ function addPlan(
 
   const others = planChanges.filter((c) => !c.isRequester);
   const assessed = assess(idx, planChanges, v.factDependencies, v.conditionNoteUnitIds);
-  const priced = quotePlan(idx, planChanges, { chargeRequester: requesterPays });
+  const priced = quotePlan(idx, planChanges, { chargeRequester: requesterPays, counterRefund });
   const ownerTriggers = [...assessed.ownerTriggers, ...priced.ownerTriggers];
   const envelopeTrips = [...assessed.envelopeTrips, ...priced.envelopeTrips];
   plans.set(key, {
@@ -320,6 +321,22 @@ const comparePlans = (a: Plan, b: Plan) =>
  * Thursday, but you can keep it until 9pm tonight"). Same unit, same pickup.
  */
 /** The closest thing to the request that needs no other booking changed (an extension cut short), or null. */
+/**
+ * A counter-offer as a plan: the same changes with one customer's terms replaced, validated and quoted like any other.
+ * `changes` lists the requester's (or late customer's) change first.
+ */
+export function planCounter(
+  snapshot: Snapshot,
+  input: { changes: ProposedChange[]; requesterCustomerId: string; requesterPays: boolean; counterRefund?: { customerId: string; cents: number } },
+): { plan: Plan } | { violations: Violation[] } {
+  const idx = indexSnapshot(snapshot);
+  const v = validate(idx, { changes: input.changes, requesterCustomerId: input.requesterCustomerId });
+  if (v.violations.length) return { violations: v.violations };
+  const plans = new Map<string, Plan>();
+  addPlan(idx, plans, input.changes, input.requesterCustomerId, v, false, input.requesterPays, input.counterRefund);
+  return { plan: [...plans.values()][0]! };
+}
+
 export function nearestAlternative(snapshot: Snapshot, request: Request): Plan | null {
   return nearestExtension(indexSnapshot(snapshot), request);
 }

@@ -358,8 +358,9 @@ export function makeTools(scope: ToolScope) {
         if ('error' in prepared) return prepared.error;
         const r = await requestChange(db, shopId, { customerId: me, request: prepared.request });
         if (r.status === 'invalid') return invalid(prepared.idx, r.violations, prepared.request);
-        if (r.status === 'refused') return refuse('INVALID_STATE', r.reason, 'Use get_my_proposals to explain what is already in progress.');
-        if (r.status === 'infeasible') return refuse('INFEASIBLE', 'Not possible, even by moving other bookings.', 'Say so plainly and suggest a different time or model.');
+        if (r.status === 'refused') return refuse('INVALID_STATE', r.reason, 'They have already paid the hold on this request, so its terms are fixed. To change them, they press Cancel my request on the card, which releases the hold, then ask again.');
+        if (r.status === 'revision_limit') return refuse('REVISION_LIMIT', 'This request has been changed as many times as allowed.', 'They can press Cancel my request on the card, then ask again.');
+        if (r.status === 'infeasible') return refuse('INFEASIBLE', 'Not possible, even by moving other bookings.', 'Say so plainly and suggest a different time or model. Any offer they already have still stands.');
         return read(async (tx, idx) => {
           // One offer for the requester (spike gotcha 1): any options differ only for the other customer.
           const offer = await terms(tx, idx, r.revisions[0]!.id, 'requester');
@@ -371,6 +372,55 @@ export function makeTools(scope: ToolScope) {
             another_customer_must_agree: othersAsked,
             expires: shopTime(idx).display(r.proposal.expiresAt!),
             hint: `${r.isAlternative ? 'This is the closest alternative, not exactly what was asked; say so. ' : ''}Call present_offer with ["${offer.revision_id}"] so the customer can accept${r.chargeCents > 0 ? ' and authorize the payment with PayPal' : ''}. ${othersAsked ? 'Another customer will be asked after they accept; say it is pending until then.' : ''}`.trim(),
+          });
+        });
+      },
+    }),
+
+    tool({
+      name: 'revise_terms',
+      description: "A counter-offer from this customer on another customer's request that affects their booking: other times for their own booking and/or a different refund, from what they said. If it's possible, this puts a draft on a card with Send and Discard, and records nothing until they press Send. Over the shop's limits it still goes on a card, marked as needing shop confirmation. Not for their own requests: use request_change for those.",
+      inputSchema: z.object({
+        request_id: z.string(),
+        option_revision_id: z.string().optional().describe('The option they are countering, if they named one'),
+        new_pickup: localTime.optional(),
+        new_return: localTime.optional(),
+        refund_dollars: z.number().nonnegative().optional().describe('The refund they asked for, in dollars'),
+      }),
+      run: async ({ request_id, option_revision_id, new_pickup, new_return, refund_dollars }) => {
+        const proposalId = turn.ids.resolve('rq', request_id);
+        if (!proposalId) return refuse('NOT_FOUND', 'Unknown request.', 'Use get_my_proposals for request ids.');
+        const parsed = await read(async (_tx, idx) => {
+          const t = shopTime(idx);
+          return { start: new_pickup ? t.parse(new_pickup) : undefined, end: new_return ? t.parse(new_return) : undefined };
+        });
+        if (parsed.start === null || parsed.end === null) return refuse('INVALID_TIME', 'Give times as YYYY-MM-DDTHH:MM.');
+        const baseRevisionId = option_revision_id ? (turn.ids.resolve('rv', option_revision_id) ?? undefined) : undefined;
+        const r = await affectedCounter(db, shopId, {
+          proposalId, customerId: me, baseRevisionId, newStartsAt: parsed.start, newEndsAt: parsed.end,
+          refundCents: refund_dollars === undefined ? undefined : Math.round(refund_dollars * 100),
+        });
+        if (r.status === 'refused') return refuse('INVALID_STATE', r.reason, 'Explain it, using get_my_proposals if needed. For their own request, use request_change.');
+        if (r.status === 'no_change') return refuse('INVALID_STATE', 'Those are already the terms on the offer.', 'Say so and point them to the card.');
+        if (r.status === 'revision_limit') return refuse('REVISION_LIMIT', 'No more counter-offers on this request.', 'Say so. They can use the card as it stands, or Keep my booking as is. If they still want more, escalate_to_owner.');
+        return read(async (tx, idx) => {
+          const t = shopTime(idx);
+          if (r.status === 'invalid') {
+            const rule = r.violations[0]!.rule;
+            return refuse(rule === 'outside_shop_hours' ? 'OUTSIDE_SHOP_HOURS' : rule === 'in_past' ? 'IN_PAST' : 'INVALID_TIME', r.violations.map((v) => v.message).join('; '), 'Explain why and suggest something that works. Their booking and the offer are unchanged.');
+          }
+          if (r.status === 'infeasible') {
+            const anonymous = 'It conflicts with the schedule, including the turnaround after the rental before theirs.';
+            return r.nearestStart
+              ? refuse('INFEASIBLE', anonymous, 'No counter was made. Explain it and offer this nearest time; never name anyone.', { nearest_pickup: t.show(r.nearestStart) })
+              : refuse('INFEASIBLE', anonymous, 'No counter was made. Explain it; their offer still stands. Never name anyone.');
+          }
+          const shows = await terms(tx, idx, r.revision.id, 'affected');
+          await turn.inOrder(() => tx.insert(s.messages).values({ shopId, conversationId: scope.conversationId, author: 'agent', body: '', cardRevisionIds: [r.revision.id], at: turn.nextAt(idx.snap.now) }));
+          turn.cardsPosted++;
+          return ok({
+            card: 'posted', buttons: ['Send', 'Discard'], shows: { ...shows, status: 'draft' }, needs_shop_confirmation: r.revision.needsOwner,
+            hint: `The card is posted. Tell them to press Send if it's right, and that nothing happens until then; their original offer stays open meanwhile. ${r.revision.needsOwner ? 'It goes beyond what you can agree to, so say it needs shop confirmation; never promise it.' : 'Another step may still be pending; only say "confirmed" once the shop confirms.'}`,
           });
         });
       },

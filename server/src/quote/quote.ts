@@ -24,6 +24,8 @@ export type QuoteOptions = {
   requesterDiscountPct?: number;
   /** false for an overdue return: the late customer's extra time isn't charged (no late fees in the PoC). */
   chargeRequester?: boolean;
+  /** A customer's counter: the cash refund they asked for, in place of the computed one. */
+  counterRefund?: { customerId: string; cents: number };
 };
 
 export type QuoteResult = {
@@ -34,7 +36,7 @@ export type QuoteResult = {
   compensationCents: number;
 };
 
-export function quotePlan(idx: Index, changes: PlanChange[], { requesterDiscountPct = 0, chargeRequester = true }: QuoteOptions = {}): QuoteResult {
+export function quotePlan(idx: Index, changes: PlanChange[], { requesterDiscountPct = 0, chargeRequester = true, counterRefund }: QuoteOptions = {}): QuoteResult {
   const { policy } = idx;
   const triggers = new Set<MoneyTrigger>();
   const trips = new Set<MoneyTrip>();
@@ -49,7 +51,7 @@ export function quotePlan(idx: Index, changes: PlanChange[], { requesterDiscount
   const discountCents = linesTotal > 0 ? Math.round((linesTotal * Math.max(0, requesterDiscountPct)) / 100) : 0;
   const chargeCents = linesTotal - discountCents;
 
-  const compensation: Quote['compensation'] = [];
+  let compensation: Quote['compensation'] = [];
   for (const c of changes) {
     if (c.isRequester || c.kind === 'same_model_swap') continue;
     const add = (cents: number, kind: 'refund' | 'upgrade_value', reason: string) => {
@@ -60,6 +62,12 @@ export function quotePlan(idx: Index, changes: PlanChange[], { requesterDiscount
     if (c.kind === 'model_change' && isDowngrade(idx, c)) add(policy.downgrade_goodwill_cents, 'refund', 'goodwill for the downgrade');
     if (c.kind === 'time_shift')
       add(Math.round(c.hoursShifted * policy.shift_compensation_cents_per_hour), 'refund', `goodwill for moving ${fmtHours(c.hoursShifted)}`);
+  }
+
+  if (counterRefund) {
+    const booking = changes.find((c) => c.customerId === counterRefund.customerId)?.bookingId ?? null;
+    compensation = compensation.filter((x) => !(x.customerId === counterRefund.customerId && x.kind === 'refund'));
+    if (counterRefund.cents > 0) compensation.push({ customerId: counterRefund.customerId, bookingId: booking, cents: counterRefund.cents, kind: 'refund', reason: 'asked for in their counter-offer' });
   }
 
   const perCustomer = new Map<string, { total: number; cash: number }>();

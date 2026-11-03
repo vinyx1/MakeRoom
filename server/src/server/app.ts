@@ -17,7 +17,7 @@ import { conversationOf } from '../agent/turn.ts';
 import type { PaymentGateway } from '../payments/gateway.ts';
 import { saveFact } from '../owner/facts.ts';
 import {
-  affectedAccept, affectedRefuse, createRequesterOrder, expireDue, markOverdue, markReturned, ownerDecision, ownerSetPrice, requestChange, requesterAccept,
+  affectedAccept, affectedRefuse, counterDiscard, counterSend, createRequesterOrder, expireDue, markOverdue, markReturned, ownerDecision, ownerSetPrice, requestChange, requesterAccept,
   requesterCancel, resolveDraft,
 } from '../proposals/flow.ts';
 import { createRateLimiter, limitFor } from './rate-limit.ts';
@@ -190,6 +190,19 @@ export function buildApp(opts: AppOptions) {
     const { proposalId, revisionId } = parse(RevisionParams, req.params);
     const { customerId } = parse(CustomerBody, req.body);
     return affectedAccept(db, gateway, req.shop.id, { proposalId, customerId, revisionId });
+  });
+
+  // A customer's own counter-offer: Send is their approval of it (docs/conflict-model.md §4).
+  app.post('/api/proposals/:proposalId/revisions/:revisionId/send', async (req) => {
+    const { proposalId, revisionId } = parse(RevisionParams, req.params);
+    const { customerId } = parse(CustomerBody, req.body);
+    return counterSend(db, gateway, req.shop.id, { proposalId, customerId, revisionId });
+  });
+
+  app.post('/api/proposals/:proposalId/revisions/:revisionId/discard', async (req) => {
+    const { proposalId, revisionId } = parse(RevisionParams, req.params);
+    const { customerId } = parse(CustomerBody, req.body);
+    return counterDiscard(db, req.shop.id, { proposalId, customerId, revisionId });
   });
 
   // "Keep my booking as is" (affected party) and "Cancel my request" (requester): refusals are clicks too.

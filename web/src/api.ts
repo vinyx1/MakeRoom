@@ -101,7 +101,7 @@ export type OwnerView = {
 };
 
 export type CardOption = { revisionId: string; option: string | null; lines: string[]; needsShop: boolean; isAlternative: boolean };
-export type CustomerCard = { proposalId: string; role: 'requester' | 'affected'; chargeCents: number; heldCents: number; options: CardOption[]; expiresAt: string | null };
+export type CustomerCard = { proposalId: string; role: 'requester' | 'affected' | 'counter'; chargeCents: number; heldCents: number; options: CardOption[]; expiresAt: string | null };
 /** Where a request stands for this customer once their card isn't asking them anything. */
 export type RequestStatus = {
   proposalId: string;
@@ -162,6 +162,8 @@ export const api = {
     call<Outcome>('POST', `/api/proposals/${proposalId}/revisions/${revisionId}/accept`, { customerId }),
   keep: (proposalId: string, customerId: string) => call<Outcome>('POST', `/api/proposals/${proposalId}/keep`, { customerId }),
   cancel: (proposalId: string, customerId: string) => call<Outcome>('POST', `/api/proposals/${proposalId}/cancel`, { customerId }),
+  sendCounter: (proposalId: string, revisionId: string, customerId: string) => call<Outcome>('POST', `/api/proposals/${proposalId}/revisions/${revisionId}/send`, { customerId }),
+  discardCounter: (proposalId: string, revisionId: string, customerId: string) => call<Outcome>('POST', `/api/proposals/${proposalId}/revisions/${revisionId}/discard`, { customerId }),
   ownerDecision: (proposalId: string, revisionId: string, decision: 'approve' | 'decline', factAnswers?: Record<string, 'yes' | 'no'>) =>
     call<Outcome & { saveableFacts?: { factId: string; value: 'yes' | 'no'; label: string }[] }>(
       'POST', `/api/proposals/${proposalId}/revisions/${revisionId}/owner`, { decision, ...(factAnswers ? { factAnswers } : {}) },

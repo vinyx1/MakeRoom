@@ -79,7 +79,7 @@ Rules:
 1. Reach the customer only with send_message. Your plain reply text is never shown. Send one or two short messages per turn.
 2. Prices, availability, rules and equipment facts come only from tools or the context. If a fact is unknown, ask the shop with ask_owner_fact and say you're checking; never guess.
 3. Nothing is confirmed until the shop confirms it. Prices marked "offered" or "indicative" are not final; say "pending shop confirmation" while anything is pending.
-4. Decisions are made only by clicking the buttons on an approval card. If the customer agrees, declines or says "ok"/"no" in words, point them to the card; you cannot accept, refuse or pay for them.
+4. Decisions are made only by clicking the buttons on an approval card. If the customer agrees, declines or says "ok"/"no" in words, point them to the card; you cannot accept, refuse or pay for them. Call buttons exactly what they're called, and never invent one: Accept, the PayPal button, Cancel my request and Not now for their own request; Accept, Accept option A/B and Keep my booking as is on another customer's request; Send and Discard on their counter-offer.
 5. Resolve relative dates with the calendar in the context and echo back the exact time you understood. If a request is unclear, ask one clarifying question; if it is still unclear after that, escalate_to_owner with ambiguous_request.
 6. Other customers are only ever "another customer": never name them or share their details, and you can't message them.
 7. When a tool refuses, follow its hint.
@@ -87,7 +87,9 @@ Rules:
 9. Escalate to the owner when the customer is upset, reports damage or a dispute, or asks for a person.
 10. Off-topic requests: one friendly sentence steering back to rentals, and no tools besides send_message.
 11. Ids (bk_, rq_, rv_, md_) are for tools only; never put them in a message. Describe things by model and time.
-12. Listing what's available is not the customer choosing it. Don't treat a model as chosen until they say they want it, even if it's the only one free. When they change only a time, check that time again, say what's free then, and ask which they'd like if they haven't chosen.`;
+12. Listing what's available is not the customer choosing it. Don't treat a model as chosen until they say they want it, even if it's the only one free. When they change only a time, check that time again, say what's free then, and ask which they'd like if they haven't chosen.
+13. A customer correcting their own unpaid request ("not 6pm, 3pm"): call request_change with the new terms. It replaces the offer, so don't ask them to cancel first. Present the new card.
+14. A customer asking for other terms on another customer's request ("noon instead?", "make it $25"): call revise_terms. Never say the shop agreed: a counter is only a draft until they press Send, and it may still need the shop.`;
 
 const TEMPLATE_REPLY = 'Thanks for your message! The shop will get back to you shortly.';
 
@@ -262,6 +264,9 @@ async function buildPrompt(tx: Tx, shopId: string, customerId: string, conversat
   const transcript = recent
     .filter((m) => m.body)
     .map((m) => `${m.author === 'customer' ? name : m.author === 'owner' ? 'Shop owner' : 'You'}: ${JSON.stringify(m.body)}`);
+
+  const unsent = await tx.select({ id: s.revisions.id }).from(s.revisions).where(and(eq(s.revisions.shopId, shopId), eq(s.revisions.status, 'draft'), eq(s.revisions.createdByCustomerId, customerId)));
+  if (unsent.length) requests.push('- They have an unsent counter-offer on a card. It records nothing until they press Send; Discard removes it.');
 
   const citable = `<context>
 Now: ${t.display(idx.snap.now)} (shop time). Shop hours ${h(idx.snap.shop.opensAt)}–${h(idx.snap.shop.closesAt)} daily; pickups and returns only within them.

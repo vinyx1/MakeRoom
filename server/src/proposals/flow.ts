@@ -16,10 +16,13 @@
 //
 //   affectedRefuse         "Keep my booking as is" → that customer excluded → fallback plan or closest alternative
 //   requesterCancel        the requester backs out before capture
+//   requestChange          again on an unpaid offer: the requester's correction replaces it
+//   affectedCounter        an affected party's terms → a draft on their card, or the nearest time that works
+//   counterSend/Discard    their click on it: Send is their approval of it
 //   markOverdue            a late return: the next renters re-planned around it, with no one paying
 //   markReturned           the rental is back; anything planned around it ends
 //
-// Not yet: counters and re-approval, customer-stated constraints. Customers are told by the agent, which reads
+// Not yet: customer-stated constraints. Customers are told by the agent, which reads
 // the activity events (`offer_ready`, `affected_refused`, `proposal_update`, `proposal_ended`).
 
 import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
@@ -28,7 +31,7 @@ import type { Db, Tx } from '../db/client.ts';
 import { loadSnapshot } from '../db/load-snapshot.ts';
 import { allowOwnerShorten, withShopLock } from '../db/lock.ts';
 import * as s from '../db/schema.ts';
-import { type Plan, type Pruned, type Request, nearestAlternative, optimize } from '../optimizer/optimizer.ts';
+import { type Plan, type Pruned, type Request, nearestAlternative, optimize, planCounter } from '../optimizer/optimizer.ts';
 import { type Index, type Placement, indexSnapshot } from '../optimizer/snapshot.ts';
 import { formatShopTime } from '../optimizer/time.ts';
 import { type Violation, validate } from '../optimizer/validator.ts';
@@ -67,6 +70,7 @@ export type RequestChangeResult =
   | { status: 'offered'; proposal: Proposal; revisions: Revision[]; chargeCents: number; isAlternative: boolean; pruned: Pruned[] }
   | { status: 'invalid'; violations: Violation[] }
   | { status: 'infeasible'; pruned: Pruned[] }
+  | { status: 'revision_limit' }
   | Refused;
 
 export function requestChange(db: Db, shopId: string, input: { customerId: string; request: Request }): Promise<RequestChangeResult> {
@@ -84,7 +88,7 @@ export function requestChange(db: Db, shopId: string, input: { customerId: strin
         .select()
         .from(s.proposals)
         .where(and(eq(s.proposals.subjectBookingId, bookingId), eq(s.proposals.requesterCustomerId, customerId), inArray(s.proposals.state, [...ACTIVE_STATES])));
-      if (active) return refused('this booking already has a request in progress');
+      if (active) return replaceUnpaidOffer(tx, active, request, customerId);
     }
 
     const result = optimize(snapshot, request);
@@ -134,6 +138,64 @@ export function requestChange(db: Db, shopId: string, input: { customerId: strin
       isAlternative: options[0]!.isAlternative, pruned: result.pruned,
     };
   });
+}
+
+/**
+ * The requester changes their mind before paying ("not 6pm, 3pm"): the request carries on with new terms, so they
+ * don't have to cancel and ask again. Once they've paid, other customers may be deciding on the old terms, so this
+ * doesn't apply. If the new terms can't work at all, their current offer stands.
+ */
+async function replaceUnpaidOffer(tx: Tx, p: Proposal, request: Request, customerId: string): Promise<RequestChangeResult> {
+  const inProgress = refused('this booking already has a request in progress');
+  if (p.state !== 'DRAFT' || p.source !== 'customer_request') return inProgress;
+  const orders = await tx.select().from(s.paypalOrders).where(eq(s.paypalOrders.proposalId, p.id));
+  if (orders.some((o) => o.status === 'authorized' || o.status === 'captured')) return inProgress;
+
+  const snapshot = await loadSnapshot(tx, p.shopId, { proposalId: p.id });
+  const policy = snapshot.shop.policy;
+  const now = snapshot.now;
+  if (p.revisionSeq >= policy.max_revisions) return { status: 'revision_limit' };
+
+  const result = optimize(snapshot, request);
+  await logActivity(tx, {
+    shopId: p.shopId, at: now, actor: 'system', kind: 'optimizer_run', proposalId: p.id,
+    payload: {
+      request: storeRequest(request), source: 'correction', status: result.status,
+      plans: result.status === 'fits' || result.status === 'needs_other_changes' ? result.plans.map(planSummary) : [],
+      pruned: result.status === 'invalid_request' ? [] : result.pruned.map((x) => ({ message: x.message, rules: x.rules, bookingId: x.bookingId })),
+    },
+  });
+  if (result.status === 'invalid_request') return { status: 'invalid', violations: result.violations };
+  const options = result.status === 'infeasible' ? (result.nearest ? [result.nearest] : []) : chooseOptions(result.plans);
+  if (!options.length) return { status: 'infeasible', pruned: result.pruned };
+
+  const old = await liveRevisions(tx, p.id);
+  const seq = p.revisionSeq + 1;
+  const expiresAt = new Date(now.getTime() + policy.approval_timeout_minutes * 60_000);
+  const revisions: Revision[] = [];
+  for (const [i, plan] of options.entries()) {
+    const { revision } = await insertRevision(tx, {
+      proposal: p, seq, optionLabel: options.length > 1 ? (['A', 'B'] as const)[i]! : null, plan,
+      origin: plan.isAlternative ? 'alternative' : 'optimizer', at: now,
+    });
+    revisions.push(revision);
+  }
+  await tx.insert(s.approvals).values(revisions.map((r) => ({
+    shopId: p.shopId, revisionId: r.id, proposalId: p.id, role: 'requester' as const, customerId, requestedAt: now, expiresAt,
+  })));
+  if (old.length) {
+    await tx.update(s.revisions).set({ status: 'superseded' }).where(inArray(s.revisions.id, old.map((r) => r.id)));
+    await tx.update(s.escalations).set({ status: 'resolved', resolution: { superseded: true } })
+      .where(and(inArray(s.escalations.revisionId, old.map((r) => r.id)), eq(s.escalations.status, 'open')));
+  }
+  // An unpaid order for the old amount must not be paid: one request id means one amount.
+  for (const o of orders) if (o.status === 'created' || o.status === 'approved') await tx.update(s.paypalOrders).set({ status: 'voided' }).where(eq(s.paypalOrders.id, o.id));
+  await tx.update(s.proposals).set({ request: storeRequest(request), revisionSeq: seq, expiresAt, version: sql`${s.proposals.version} + 1` }).where(eq(s.proposals.id, p.id));
+  await logActivity(tx, {
+    shopId: p.shopId, at: now, actor: `customer:${customerId}`, kind: 'request_corrected', proposalId: p.id,
+    payload: { revisions: revisions.map((r) => ({ id: r.id, option: r.optionLabel, needsOwner: r.needsOwner, quote: r.quote })) },
+  });
+  return { status: 'offered', proposal: { ...p, expiresAt, revisionSeq: seq }, revisions, chargeCents: options[0]!.quote.chargeCents, isAlternative: options[0]!.isAlternative, pruned: result.pruned };
 }
 
 /**
@@ -596,6 +658,7 @@ export async function affectedAccept(
     if (!isStillValid(idx, p, rows)) return { result: { status: 'stale', reason: 'the schedule changed; this option no longer works' } as DecisionResult };
 
     await tx.update(s.approvals).set({ status: 'approved', source: 'card_click', respondedAt: now }).where(eq(s.approvals.id, approval.id));
+    await dropUnsentCounters(tx, p.id, input.customerId);
     // A pick that still needs the shop isn't final: the other options stay open in case the owner declines
     // this one (judge B8). Otherwise the pick supersedes them now.
     if (!rev.needsOwner || (await ownerApproved(tx, rev.id))) await selectRevision(tx, p, rev, now);
@@ -661,6 +724,7 @@ export async function affectedRefuse(
       .set({ status: 'rejected', refusal: true, source: 'card_click', respondedAt: now })
       .where(inArray(s.approvals.id, mine.map((a) => a.id)));
     await tx.insert(s.proposalExclusions).values({ shopId, proposalId: p.id, customerId: input.customerId, reason: 'kept their booking as is' }).onConflictDoNothing();
+    await dropUnsentCounters(tx, p.id, input.customerId);
     const dropped = live.filter((r) => mine.some((a) => a.revisionId === r.id));
     await dropRevisions(tx, p, dropped.map((r) => r.id), now);
     await logActivity(tx, {
@@ -791,6 +855,195 @@ async function planFallback(tx: Tx, p: Proposal, now: Date): Promise<{ result?: 
   // 3. Nothing works: the request ends, the hold is released, every booking stays as it was.
   const ended = await endProposal(tx, p, 'reject', 'The other customer kept their booking, and nothing else fits', now);
   return { result: { status: 'kept', next: 'ended' }, ops: ended.opIds };
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// 4b2. An affected party counters (docs/conflict-model.md §4, §7; judge B1–B4)
+
+export type CounterResult =
+  | { status: 'drafted'; revision: Revision; changes: RevisionChange[] }
+  | { status: 'invalid'; violations: Violation[] }
+  /** It can't work; the schedule is untouched. `nearestStart`: the closest later pickup that would. */
+  | { status: 'infeasible'; violations: Violation[]; nearestStart: Date | null }
+  | { status: 'revision_limit' }
+  | { status: 'no_change' }
+  | Refused;
+
+const REQUEST_RULES = new Set(['outside_shop_hours', 'in_past', 'bad_duration']);
+
+/**
+ * The customer's own terms on an offer, from what they said in chat: other times on their booking, or a different
+ * refund. The result is a draft on a card with Send and Discard, which holds nothing and records nothing until they
+ * click (invariant 3). The requester's terms never change here, so their approval and hold carry over.
+ */
+export function affectedCounter(
+  db: Db, shopId: string,
+  input: { proposalId: string; customerId: string; baseRevisionId?: string; newStartsAt?: Date; newEndsAt?: Date; refundCents?: number },
+): Promise<CounterResult> {
+  return withShopLock(db, shopId, async (tx): Promise<CounterResult> => {
+    const p = await getProposal(tx, shopId, input.proposalId);
+    if (!p) return refused('request not found');
+    if (p.requesterCustomerId === input.customerId) return refused('this is your own request');
+    if (p.state !== 'AWAITING_APPROVALS') return refused(`this request is ${p.state}`);
+    const snapshot = await loadSnapshot(tx, shopId, { proposalId: p.id });
+    if (p.expiresAt && snapshot.now >= p.expiresAt) return refused('the offer has expired');
+
+    const live = await liveRevisions(tx, p.id);
+    const mine = live.length
+      ? await tx.select().from(s.approvals).where(and(inArray(s.approvals.revisionId, live.map((r) => r.id)), eq(s.approvals.role, 'affected'), eq(s.approvals.customerId, input.customerId)))
+      : [];
+    if (!mine.length) return refused('no decision is pending for you on this offer');
+    const rows = await changesByRevision(tx, mine.map((a) => a.revisionId));
+    const candidates = live.filter((r) => rows.has(r.id));
+    const movesTime = !!(input.newStartsAt || input.newEndsAt);
+    const base = input.baseRevisionId
+      ? candidates.find((r) => r.id === input.baseRevisionId)
+      // New times build on the option that already moves their times, not on a switch to another model.
+      : (movesTime && candidates.find((r) => rows.get(r.id)!.some((c) => c.partyCustomerId === input.customerId && c.kind === 'time_shift'))) || candidates[0];
+    if (!base) return refused('that option is no longer available');
+    const baseRows = rows.get(base.id)!;
+    const own = baseRows.find((c) => c.partyCustomerId === input.customerId)!;
+    const was = afterOf(own);
+
+    const startsAt = input.newStartsAt ?? was.startsAt;
+    const endsAt = input.newEndsAt ?? was.endsAt;
+    const refund = input.refundCents;
+    const sameRefund = refund === undefined || refund === base.quote.compensation.filter((x) => x.customerId === input.customerId && x.kind === 'refund').reduce((sum, x) => sum + x.cents, 0);
+    if (startsAt.getTime() === was.startsAt.getTime() && endsAt.getTime() === was.endsAt.getTime() && sameRefund) return { status: 'no_change' };
+    if (p.revisionSeq >= snapshot.shop.policy.max_revisions) return { status: 'revision_limit' };
+
+    const first = (c: RevisionChange) => (p.requesterCustomerId ? c.partyCustomerId === p.requesterCustomerId : c.bookingId === p.subjectBookingId);
+    const lead = baseRows.find(first)!;
+    const requesterCustomerId = lead.partyCustomerId;
+    const planFor = (start: Date) =>
+      planCounter(snapshot, {
+        changes: [lead, ...baseRows.filter((c) => c !== lead)].map((c) => ({
+          bookingId: c.bookingId, customerId: c.partyCustomerId,
+          after: c === own ? { ...was, startsAt: start, endsAt, bufferEndsAt: new Date(endsAt.getTime() + (was.bufferEndsAt.getTime() - was.endsAt.getTime())) } : afterOf(c),
+        })),
+        requesterCustomerId, requesterPays: !!p.requesterCustomerId,
+        counterRefund: refund === undefined ? undefined : { customerId: input.customerId, cents: refund },
+      });
+
+    const counter = planFor(startsAt);
+    if ('violations' in counter) {
+      if (counter.violations.some((v) => REQUEST_RULES.has(v.rule))) return { status: 'invalid', violations: counter.violations };
+      return { status: 'infeasible', violations: counter.violations, nearestStart: input.newStartsAt ? nearestStart(planFor, startsAt, endsAt) : null };
+    }
+
+    await dropUnsentCounters(tx, p.id, input.customerId);
+    const seq = p.revisionSeq + 1;
+    const { revision, changes } = await insertRevision(tx, {
+      proposal: p, seq, optionLabel: null, plan: counter.plan, origin: 'counter', at: snapshot.now,
+      counter: { customerId: input.customerId, parentRevisionId: base.id },
+    });
+    await tx.update(s.proposals).set({ revisionSeq: seq, version: sql`${s.proposals.version} + 1` }).where(eq(s.proposals.id, p.id));
+    await logActivity(tx, {
+      shopId, at: snapshot.now, actor: `customer:${input.customerId}`, kind: 'counter_drafted', proposalId: p.id, revisionId: revision.id,
+      payload: { customerId: input.customerId, quote: revision.quote, needsOwner: revision.needsOwner, ownerTriggers: revision.ownerTriggers, envelopeTrips: revision.envelopeTrips },
+    });
+    return { status: 'drafted', revision, changes };
+  });
+}
+
+/** The closest later quarter-hour pickup that works ("noon?" → 2pm), if any before they'd have to bring it back. */
+function nearestStart(planFor: (start: Date) => { plan: Plan } | { violations: Violation[] }, asked: Date, endsAt: Date) {
+  const QUARTER = 15 * 60_000;
+  for (let t = asked.getTime() + QUARTER; t < endsAt.getTime(); t += QUARTER) if ('plan' in planFor(new Date(t))) return new Date(t);
+  return null;
+}
+
+async function dropUnsentCounters(tx: Tx, proposalId: string, customerId: string) {
+  await tx.update(s.revisions).set({ status: 'dropped' })
+    .where(and(eq(s.revisions.proposalId, proposalId), eq(s.revisions.status, 'draft'), eq(s.revisions.createdByCustomerId, customerId)));
+}
+
+/**
+ * Send: the click that makes a counter the customer's approval. Other parties' approvals carry over, since their terms
+ * didn't change. If it needs the shop, the original options stay open in case the owner declines (judge B8).
+ */
+export async function counterSend(db: Db, gateway: PaymentGateway, shopId: string, input: { proposalId: string; customerId: string; revisionId: string }): Promise<DecisionResult> {
+  const locked = await withShopLock(db, shopId, async (tx): Promise<{ result?: DecisionResult; ops?: string[]; capture?: { captureOpId: string | null } }> => {
+    const p = await getProposal(tx, shopId, input.proposalId);
+    if (!p) return { result: refused('request not found') };
+    const [rev] = await tx.select().from(s.revisions).where(and(eq(s.revisions.id, input.revisionId), eq(s.revisions.proposalId, p.id)));
+    if (!rev || rev.createdByCustomerId !== input.customerId) return { result: refused('this counter-offer isn’t yours') };
+    if (rev.status !== 'draft') return { result: { status: 'already_decided' } };
+    if (p.state !== 'AWAITING_APPROVALS') return { result: refused(`this request is ${p.state}`) };
+
+    const snapshot = await loadSnapshot(tx, shopId, { proposalId: p.id });
+    const idx = indexSnapshot(snapshot);
+    const now = snapshot.now;
+    const expired = await expireIfDue(tx, p, now);
+    if (expired) return { result: { status: 'stale', reason: 'the offer expired' }, ops: expired };
+    const parent = (await liveRevisions(tx, p.id)).find((r) => r.id === rev.parentRevisionId);
+    const rows = (await changesByRevision(tx, [rev.id])).get(rev.id)!;
+    if (!parent || !isStillValid(idx, p, rows)) {
+      await tx.update(s.revisions).set({ status: 'dropped' }).where(eq(s.revisions.id, rev.id));
+      return { result: { status: 'stale', reason: 'the request changed; this counter-offer no longer applies' } };
+    }
+
+    const claimed = await tx.transaction(async (sp) => placeClaims(sp, p, rev.id, rows)).then(() => true).catch((e) => {
+      if (pgCode(e) !== '23P01') throw e;
+      return false;
+    });
+    if (!claimed) {
+      await tx.update(s.revisions).set({ status: 'dropped' }).where(eq(s.revisions.id, rev.id));
+      return { result: { status: 'stale', reason: 'another request is holding that time' } };
+    }
+
+    const parentApprovals = await tx.select().from(s.approvals).where(eq(s.approvals.revisionId, parent.id));
+    await tx.insert(s.approvals).values([
+      { shopId, revisionId: rev.id, proposalId: p.id, role: 'affected' as const, customerId: input.customerId, status: 'approved' as const, source: 'counter_author' as const, requestedAt: now, respondedAt: now },
+      ...parentApprovals.filter((a) => a.role !== 'owner' && a.customerId !== input.customerId).map((a) => ({
+        shopId, revisionId: rev.id, proposalId: p.id, role: a.role, customerId: a.customerId, status: a.status,
+        ...(a.status === 'approved' ? { source: 'carried_over' as const, carriedFromId: a.id, respondedAt: now } : {}),
+        requestedAt: now,
+      })),
+    ]);
+    await tx.update(s.revisions).set({ status: 'offered' }).where(eq(s.revisions.id, rev.id));
+    const sent = { ...rev, status: 'offered' as const };
+
+    // Their counter replaces an earlier pick: it shouldn't go ahead behind it.
+    const others = (await liveRevisions(tx, p.id)).filter((r) => r.id !== rev.id);
+    if (others.length) {
+      await tx.update(s.approvals).set({ status: 'pending', source: null, respondedAt: null })
+        .where(and(inArray(s.approvals.revisionId, others.map((r) => r.id)), eq(s.approvals.customerId, input.customerId), eq(s.approvals.status, 'approved')));
+      await tx.update(s.escalations).set({ status: 'resolved', resolution: { superseded: true } })
+        .where(and(inArray(s.escalations.revisionId, others.map((r) => r.id)), eq(s.escalations.status, 'open')));
+    }
+
+    const expiresAt = new Date(now.getTime() + snapshot.shop.policy.approval_timeout_minutes * 60_000);
+    await tx.update(s.proposals).set({ expiresAt, version: sql`${s.proposals.version} + 1` }).where(eq(s.proposals.id, p.id));
+    await logActivity(tx, {
+      shopId, at: now, actor: `customer:${input.customerId}`, kind: 'counter_sent', proposalId: p.id, revisionId: rev.id,
+      payload: { customerId: input.customerId, needsOwner: rev.needsOwner },
+    });
+    if (rev.needsOwner) await ensureOwnerApproval(tx, idx, p, sent, rows, 'approval', now);
+    else await selectRevision(tx, p, sent, now);
+
+    if (await allApproved(tx, sent)) return { capture: { captureOpId: await startCapture(tx, p, sent, now) } };
+    await reofferPending(tx, p, [sent], now);
+    return { result: { status: 'awaiting_approvals', waitingOn: await waitingOn(tx, sent) } };
+  });
+  await runOps(db, gateway, locked.ops ?? []);
+  if (locked.capture) return captureAndCommit(db, gateway, shopId, input.proposalId, locked.capture.captureOpId);
+  return locked.result!;
+}
+
+/** Discard: their original offer is still open, as if they'd never countered. */
+export function counterDiscard(db: Db, shopId: string, input: { proposalId: string; customerId: string; revisionId: string }): Promise<{ status: 'discarded' } | Refused> {
+  return withShopLock(db, shopId, async (tx) => {
+    const [rev] = await tx.select().from(s.revisions).where(and(eq(s.revisions.id, input.revisionId), eq(s.revisions.proposalId, input.proposalId), eq(s.revisions.shopId, shopId)));
+    if (!rev || rev.createdByCustomerId !== input.customerId) return refused('this counter-offer isn’t yours');
+    if (rev.status !== 'draft') return refused('this counter-offer has already been sent or replaced');
+    await tx.update(s.revisions).set({ status: 'dropped' }).where(eq(s.revisions.id, rev.id));
+    await logActivity(tx, {
+      shopId, at: (await loadSnapshot(tx, shopId)).now, actor: `customer:${input.customerId}`, kind: 'counter_discarded', proposalId: input.proposalId, revisionId: rev.id,
+      payload: { customerId: input.customerId },
+    });
+    return { status: 'discarded' as const };
+  });
 }
 
 // ---------------------------------------------------------------------------------------------------------

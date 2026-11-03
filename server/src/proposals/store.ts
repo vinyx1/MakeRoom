@@ -16,12 +16,17 @@ export type Proposal = typeof s.proposals.$inferSelect;
 export type Revision = typeof s.revisions.$inferSelect;
 export type RevisionChange = typeof s.revisionChanges.$inferSelect;
 
-export const LIVE_REVISION_STATUSES = ['draft', 'offered', 'selected'] as const;
+/** `draft` is a counter its author hasn't sent: only they can see it, and nothing else treats it as an offer. */
+export const LIVE_REVISION_STATUSES = ['offered', 'selected'] as const;
 
 /** Saves a plan as a revision with its changes. `revision_changes.new_*` always hold the full after state. */
 export async function insertRevision(
   tx: Tx,
-  input: { proposal: Proposal; seq: number; optionLabel: 'A' | 'B' | null; plan: Plan; origin: Revision['origin']; at: Date },
+  input: {
+    proposal: Proposal; seq: number; optionLabel: 'A' | 'B' | null; plan: Plan; origin: Revision['origin']; at: Date;
+    /** A customer's counter: a draft on their card until they send it. */
+    counter?: { customerId: string; parentRevisionId: string };
+  },
 ): Promise<{ revision: Revision; changes: RevisionChange[] }> {
   const { proposal, plan } = input;
   const [revision] = await tx
@@ -31,9 +36,11 @@ export async function insertRevision(
       proposalId: proposal.id,
       seq: input.seq,
       optionLabel: input.optionLabel,
-      status: 'offered',
+      status: input.counter ? 'draft' : 'offered',
       origin: input.origin,
-      createdBy: 'agent',
+      createdBy: input.counter ? 'customer' : 'agent',
+      createdByCustomerId: input.counter?.customerId ?? null,
+      parentRevisionId: input.counter?.parentRevisionId ?? null,
       isAlternative: plan.isAlternative,
       quote: plan.quote,
       netRevenueCents: plan.quote.netRevenueCents,

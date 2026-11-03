@@ -10,6 +10,7 @@ import { usd } from '../live';
 type CardProps = { card: CustomerCard; customerId: string; config: Config; zone: string; onOutcome: (o: Outcome) => void };
 
 export function Card(props: CardProps) {
+  if (props.card.role === 'counter') return <CounterCard {...props} />;
   return props.card.role === 'requester' ? <RequesterCard {...props} /> : <AffectedCard {...props} />;
 }
 
@@ -152,6 +153,37 @@ function AffectedCard({ card, customerId, onOutcome }: CardProps) {
           Keep my booking as is
         </button>
         <div className="muted small">Nothing about your booking changes.</div>
+      </div>
+    </div>
+  );
+}
+
+/** The customer's own counter-offer, in the words the shop would hold them to. Nothing happens until they send it. */
+function CounterCard({ card, customerId, onOutcome }: CardProps) {
+  const [busy, setBusy] = useState(false);
+  const offer = card.options[0]!;
+  const run = async (fn: () => Promise<Outcome>) => {
+    setBusy(true);
+    try {
+      onOutcome(await fn());
+    } catch (e) {
+      onOutcome({ status: 'error', reason: (e as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="card affected">
+      <div className="card-head">Your counter-offer</div>
+      <Terms lines={offer.lines} needsShop={offer.needsShop} isAlternative={false} />
+      <div className="muted small">Nothing changes until you send this. Sending it counts as your agreement to these terms.</div>
+      <button className="primary" disabled={busy} onClick={() => run(() => api.sendCounter(card.proposalId, offer.revisionId, customerId))}>
+        Send
+      </button>
+      <div className="card-actions">
+        <button className="link muted" disabled={busy} onClick={() => run(() => api.discardCounter(card.proposalId, offer.revisionId, customerId))}>
+          Discard
+        </button>
       </div>
     </div>
   );
