@@ -249,7 +249,7 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
         onEquipment={() => setEquipment(true)}
         onHelp={() => setHelp(true)}
       />
-      <Schedule owner={owner} shopNow={shop.shopNow!} onEdit={onEdit} onResolveDraft={onResolveDraft} />
+      <Schedule owner={owner} shopNow={shop.shopNow!} onEdit={onEdit} onResolveDraft={onResolveDraft} onCancel={onCancelBooking} />
       <div className="bottom">
         <OwnerPanel owner={owner} activity={shop.activity} onOutcome={onOutcome} onOpenChat={setLeft} onResolveDraft={onResolveDraft} onMarkOverdue={onMarkOverdue} />
         {[
