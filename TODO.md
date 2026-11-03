@@ -9,15 +9,8 @@ The rule from `CLAUDE.md` still holds: the video scenarios must run reliably bef
 
 ## P0: required to submit (about 5 days)
 
-1. **Deploy** (1–2 days). Do this first: hosting problems surface late, and redeploying afterwards is cheap.
-   - The server serves `web/dist`. Set up a hosted Postgres, run the migrations, and store the secrets on the host: PayPal, `ANTHROPIC_API_KEY`, the sandbox buyer login.
-   - The test card must be disabled in production. Cookies must be `Secure` over HTTPS.
-   - The Bryntum trial installs from public npm with no login, but its two postinstall scripts must be allowed to run on the host.
-   - Write a smoke-test script to run against the live URL after every deploy: load the page, Scenario 1 with the test card switched on only for that run, then Reset.
-2. **Protect the public URL** (half a day). These are my additions, and they matter because the link is public:
-   - **A global daily spend cap on Anthropic calls.** The per-shop cap doesn't stop many shops, bots or several judges at once. Past the cap, turns fall back to templates.
-   - **Rate-limit shop creation per IP.** Every new visitor creates a shop and makes 7 real sandbox captures, so a crawler could flood PayPal and the database.
-   - **Clean up shops untouched for 48 hours.** Void their open holds first.
+1. ~~**Deploy**~~ done 2026-11-03: Railway, from the `production` branch (`git push origin main:production`; `main` auto-commits, so it must not deploy directly). `Dockerfile` and `railway.json` build it; migrations run on start. After each deploy: `npm run smoke -- <url>` in `server/`. It can't click the PayPal popup, so check that by hand.
+2. ~~**Protect the public URL**~~ built 2026-11-03: daily Anthropic spend cap (`AGENT_DAILY_SPEND_USD`, default $5, then templates), new shops per IP (`SHOPS_PER_IP_PER_HOUR`, default 5, production only), per-session limits on chat, payment and reset requests (`server/src/server/rate-limit.ts`), and hourly cleanup of shops unseen for 48 hours. Confirm the per-IP limit on Railway before sharing the link: it assumes one proxy hop.
 3. **Bryntum trial** (an hour; decided 2026-11-02: the hackathon expects the free trial, so no paid licence). The trial watermark stays in the video and on the live site. Still to check: the hackathon's judging end date against the 45-day trial, and what the schedule does once the trial ends (`spikes/bryntum/FINDINGS.md`, gotcha 5).
 4. **Tricky-prompt eval** (1 day). Write the ~25 prompts in `evals/chat-prompts.md` (judge scenarios A1–A15 plus extras). Run them on Sonnet and fix any bad replies. Of all the things a judge might try, free-form chat is the most likely to look bad.
 5. **Demo video** (1 day): about 3 minutes, following "Suggested video cut" in `demo script.md`. Record it from the deployed site (or locally) after the UI revamp.
