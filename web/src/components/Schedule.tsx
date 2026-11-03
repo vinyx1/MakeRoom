@@ -168,14 +168,14 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel }: P
       resourceTimeRangesFeature: true,
       timeRangesFeature: { showCurrentTimeLine: false },
       eventDragFeature: { constrainDragToTimeline: true },
-      eventDragCreateFeature: false,
       // Bryntum's own delete stays off, so it can never remove a bar: the server decides, and the bar goes when the
       // refreshed schedule no longer has it. Delete and Backspace ask to cancel the booking instead.
       enableDeleteKey: false,
-      onEventKeyDown({ eventRecord, event }: any) {
-        if ((event.key !== 'Delete' && event.key !== 'Backspace') || eventRecord?.kind !== 'booking') return;
+      onEventKeyDown({ eventRecords, event }: any) {
+        const record = eventRecords?.[0];
+        if ((event.key !== 'Delete' && event.key !== 'Backspace') || record?.kind !== 'booking') return;
         event.preventDefault();
-        latest.current.onCancel({ bookingId: eventRecord.bookingId, name: eventRecord.name, version: eventRecord.version, status: eventRecord.status });
+        latest.current.onCancel({ bookingId: record.bookingId, name: record.name, version: record.version, status: record.status });
       },
       eventDragCreateFeature: false,
       // Delete and Backspace ask to cancel the booking. Bryntum never removes a bar by itself: the server decides, and the
