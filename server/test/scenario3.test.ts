@@ -214,16 +214,13 @@ describe('nobody can make it work: the requester hears an apology', () => {
     const [c] = await db.select().from(s.conversations).where(eq(s.conversations.customerId, d.customer(name).id));
     return (await db.select().from(s.messages).where(eq(s.messages.conversationId, c!.id))).filter((m) => m.body).at(-1)?.body;
   };
-  const dispatch = async (d: Awaited<ReturnType<typeof setup>>['d']) => {
-    const agent = createAgentService(db, templates, () => {}, { shopId: d.shop.id });
-    await agent.poll();
-    await agent.drain();
-  };
 
   it('Bob never answers: EXPIRED, hold voided, and Alice is offered 9pm tonight with an apology, once', async () => {
     const { gateway, d, proposalId } = await setup();
     const alice = d.bookingOf('Alice');
-    await dispatch(d); // Everything up to now, so only the expiry's messages are left.
+    // Started now, the dispatcher only reads what happens from here on: the expiry.
+    const agent = createAgentService(db, templates, () => {}, { shopId: d.shop.id });
+    await agent.poll();
     await db.update(s.shops).set({ clockOffsetMs: d.shop.clockOffsetMs + 31 * 60_000 }).where(eq(s.shops.id, d.shop.id));
     expect(await expireDue(db, gateway, d.shop.id)).toEqual([proposalId]);
     expect((await load.proposal(proposalId)).state).toBe('EXPIRED');
@@ -234,15 +231,15 @@ describe('nobody can make it work: the requester hears an apology', () => {
     expect([rev!.origin, rev!.isAlternative, rev!.quote.chargeCents]).toEqual(['alternative', true, 0]);
     expect((await load.changes(rev!.id))[0]!.newEndsAt).toEqual(at(d, 'Wed', 21));
 
-    const before = (await db.select().from(s.messages).where(eq(s.messages.shopId, d.shop.id))).filter((m) => m.body.includes('sorry')).length;
-    expect(before).toBe(0);
-    const agent = createAgentService(db, templates, () => {}, { shopId: d.shop.id });
-    await agent.enqueue(d.shop.id, alice.customerId, { kind: 'offer_ready', proposalId: next!.id, revisionIds: [rev!.id], role: 'requester', fallback: true, holdReleased: true, noAnswerOf: proposalId });
+    await agent.poll();
     await agent.drain();
-    const text = await lastMessage(d, 'Alice');
-    expect(text).toMatch(/really sorry/);
-    expect(text).toMatch(/get an answer from the other customer/);
-    expect(text).toMatch(/other models available.*coming back/);
+    const [conversation] = await db.select().from(s.conversations).where(eq(s.conversations.customerId, alice.customerId));
+    const told = (await db.select().from(s.messages).where(eq(s.messages.conversationId, conversation!.id))).filter((m) => m.body && m.author !== 'customer');
+    // One message about it, not "it ended" followed by "here's what I can do".
+    expect(told).toHaveLength(1);
+    expect(told[0]!.body).toMatch(/really sorry/);
+    expect(told[0]!.body).toMatch(/get an answer from the other customer/);
+    expect(told[0]!.body).toMatch(/other models available.*coming back/);
 
     // She accepts: until 9pm, with nothing charged. Bob's booking never moved.
     expect((await requesterAccept(db, gateway, d.shop.id, { proposalId: next!.id, customerId: alice.customerId })).status).toBe('committed');
@@ -251,20 +248,19 @@ describe('nobody can make it work: the requester hears an apology', () => {
   });
 
   it('the alternative itself expires: no further offer', async () => {
-    const { gateway, d, proposalId } = await setup();
+    const { gateway, d } = await setup();
     await db.update(s.shops).set({ clockOffsetMs: d.shop.clockOffsetMs + 31 * 60_000 }).where(eq(s.shops.id, d.shop.id));
     await expireDue(db, gateway, d.shop.id);
     await db.update(s.shops).set({ clockOffsetMs: d.shop.clockOffsetMs + 62 * 60_000 }).where(eq(s.shops.id, d.shop.id));
     expect(await expireDue(db, gateway, d.shop.id)).toHaveLength(1);
     const open = (await db.select().from(s.proposals).where(eq(s.proposals.shopId, d.shop.id))).filter((p) => ['DRAFT', 'AWAITING_APPROVALS'].includes(p.state));
     expect(open).toEqual([]);
-    expect(proposalId).toBeTruthy();
   });
 
   it('no other gear free for that time: no mention of it', async () => {
     const { d, proposalId } = await setup();
     const alice = d.bookingOf('Alice');
-    // Alice's own request holds the A7R V; with it taken for good, nothing else is free Wed 9pm → Thu 10am.
+    // The A7R V is the only other gear free Wed 6pm → Thu 10am; without it there's nothing to mention.
     await db.update(s.units).set({ active: false }).where(eq(s.units.id, d.unit('A7RV-1').id));
     const agent = createAgentService(db, templates, () => {}, { shopId: d.shop.id });
     await agent.enqueue(d.shop.id, alice.customerId, { kind: 'proposal_update', proposalId, outcome: 'REJECTED', couldNotFit: true });
@@ -275,10 +271,12 @@ describe('nobody can make it work: the requester hears an apology', () => {
   });
 
   it('the requester backing out themselves gets no apology for it', async () => {
-    const { d, proposalId } = await setup();
+    const { gateway, d, proposalId } = await setup();
     const agent = createAgentService(db, templates, () => {}, { shopId: d.shop.id });
-    await agent.enqueue(d.shop.id, d.bookingOf('Alice').customerId, { kind: 'proposal_update', proposalId, outcome: 'REJECTED', couldNotFit: false });
+    await agent.poll();
+    await requesterCancel(db, gateway, d.shop.id, { proposalId, customerId: d.bookingOf('Alice').customerId });
+    await agent.poll();
     await agent.drain();
-    expect(await lastMessage(d, 'Alice')).not.toMatch(/sorry/);
+    expect(await lastMessage(d, 'Alice')).toMatch(/didn’t go through/);
   });
 });
