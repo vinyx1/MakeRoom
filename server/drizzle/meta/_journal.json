@@ -64,6 +64,13 @@
       "when": 1793299028091,
       "tag": "0008_auto_reply",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793720736015,
+      "tag": "0009_public_url_protection",
+      "breakpoints": true
     }
   ]
 }

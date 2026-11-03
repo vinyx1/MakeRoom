@@ -20,6 +20,7 @@ import {
   affectedAccept, affectedRefuse, createRequesterOrder, expireDue, markOverdue, markReturned, ownerDecision, ownerSetPrice, requestChange, requesterAccept,
   requesterCancel, resolveDraft,
 } from '../proposals/flow.ts';
+import { createRateLimiter, limitFor } from './rate-limit.ts';
 import { resetShop, shopForSession, newSessionToken } from './shops.ts';
 import { customerView, ownerView } from './views.ts';
 
@@ -51,6 +52,12 @@ export type AppOptions = {
   agent?: AgentService;
   /** How often the SSE stream checks for new activity. */
   ssePollMs?: number;
+  /** New shops one IP may create per hour; each makes real sandbox payments. Unset: no limit. */
+  shopsPerIpPerHour?: number;
+  /** Limit chat, payment and reset requests per session (`rate-limit.ts`). */
+  rateLimit?: boolean;
+  /** How many proxies sit in front of the server, so `req.ip` is the visitor's and a forged header can't change it. */
+  trustedProxies?: number;
   /** The built frontend (web/dist), served from `/` in production. In development Vite serves it. */
   webRoot?: string;
   logger?: boolean;
@@ -103,7 +110,8 @@ function parse<T extends z.ZodType>(schema: T, value: unknown): z.infer<T> {
 export function buildApp(opts: AppOptions) {
   const { db, gateway } = opts;
   // Close open connections on shutdown: the SSE stream never ends by itself, so a browser tab would hold it up forever.
-  const app = Fastify({ logger: opts.logger ?? false, forceCloseConnections: true });
+  const app = Fastify({ logger: opts.logger ?? false, forceCloseConnections: true, trustProxy: opts.trustedProxies ?? false });
+  const limiter = createRateLimiter();
   app.register(cookie);
   if (opts.webRoot) app.register(fastifyStatic, { root: opts.webRoot });
   app.decorateRequest('shop', null as unknown as Shop);
@@ -116,7 +124,14 @@ export function buildApp(opts: AppOptions) {
       token = newSessionToken();
       reply.setCookie(SESSION_COOKIE, token, { path: '/', httpOnly: true, sameSite: 'lax', secure: opts.secureCookies ?? false, maxAge: 7 * 24 * 3600 });
     }
-    req.shop = await shopForSession(db, gateway, token);
+    req.shop = await shopForSession(db, gateway, token, opts.shopsPerIpPerHour ? { ip: req.ip, perHour: opts.shopsPerIpPerHour } : undefined);
+    // Cleanup deletes shops nobody has opened lately. Hourly is precise enough for a 48-hour window.
+    if (Date.now() - req.shop.lastSeenAt.getTime() > 3600_000)
+      await db.update(s.shops).set({ lastSeenAt: new Date() }).where(eq(s.shops.id, req.shop.id));
+
+    const limit = opts.rateLimit && req.method === 'POST' ? limitFor(req.routeOptions.url ?? '') : null;
+    if (limit && !limiter.allow(`${req.shop.id}:${limit.name}`, limit.max, limit.windowMs))
+      return reply.code(429).send({ error: limit.message });
   });
 
   app.setErrorHandler((err: Error & { statusCode?: number }, req, reply) => {

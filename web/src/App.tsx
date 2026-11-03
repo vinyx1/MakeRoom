@@ -18,7 +18,7 @@ export function App() {
   }, []);
   const shop = useShop();
 
-  if (shop.error) return <div className="splash error">Can't reach the RentFlow server: {shop.error}</div>;
+  if (shop.error) return <div className="splash error">Can't load the demo: {shop.error}</div>;
   if (!config || !shop.owner)
     return (
       <div className="splash">

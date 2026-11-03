@@ -24,8 +24,14 @@ Postgres extension needed: `btree_gist` (exclusion constraints mixing `=` / `<>`
 | `policy jsonb` | All tunable limits, validated by a Zod schema: `default_buffer_minutes` (240), `approval_timeout_minutes` (30), `discount_band_pct` (10), `compensation_cap_cents` (5000), `shift_compensation_cents_per_hour` (300), `downgrade_goodwill_cents` (500), `max_shift_hours` (6), `max_bookings_touched` (3), `search_window_hours` (24), `model_change_penalty_hours` (6), `max_revisions` (3), `max_fallback_plans` (2), `grace_minutes` (60), `cancel_full_refund_hours` (24), `cancel_late_refund_pct` (50), `payment_retry_limit` (3) |
 | `agent_turns_used` | Judge-mode usage cap counter |
 | `session_key` | Hash of the visitor's session cookie; the shop is looked up by this, never by URL |
+| `creator_ip_hash` | Hash of the visitor's IP at first seed, for the per-IP limit on new shops; null after a reset |
+| `last_seen_at` | Real time, updated at most hourly; shops unseen for 48 hours are deleted, holds voided first |
 
 The owner is implicit: one per shop, acting through the dashboard. No owner table.
+
+### `agent_daily_spend`
+
+`day` (UTC, `YYYY-MM-DD`), `micro_usd`. Anthropic spend across all shops. Not tied to a shop, so deleting one doesn't forget what it spent. Past the cap (`AGENT_DAILY_SPEND_USD`, default $5), turns fall back to templates.
 
 ## 2. Inventory
 

@@ -47,6 +47,8 @@ export type AgentConfig = {
   effort: 'low' | 'medium' | 'high';
   /** Agent turns per shop (judge-mode usage cap). */
   turnCap: number;
+  /** Anthropic spend per UTC day across all shops. Past it, turns fall back to templates. Unset: no cap. */
+  dailySpendCapUsd?: number;
 };
 
 export type TurnReport = {
@@ -124,7 +126,8 @@ export async function runTurn(db: Db, config: AgentConfig, input: { shopId: stri
   }
 
   const atCap = shop.agentTurnsUsed >= config.turnCap;
-  if (config.client && !atCap) {
+  const overBudget = !!config.client && config.dailySpendCapUsd !== undefined && (await spentTodayUsd(db)) >= config.dailySpendCapUsd;
+  if (config.client && !atCap && !overBudget) {
     report.model = config.model;
     try {
       const { prompt, citable } = await db.transaction(async (tx) => buildPrompt(tx, shopId, customerId, conversation.id, event, turn));
@@ -174,9 +177,11 @@ export async function runTurn(db: Db, config: AgentConfig, input: { shopId: stri
   if (turn.messagesSent === 0 && offerOpen) {
     const text = atCap
       ? "I've reached my message limit for this demo session. The shop will follow up with you directly."
-      : await db.transaction(async (tx) => templateFor(tx, shopId, customerId, event));
+      : overBudget && event.kind === 'customer_message'
+        ? "The assistant has reached its usage limit for today, so I can't answer messages right now. Anything already on your cards still works."
+        : await db.transaction(async (tx) => templateFor(tx, shopId, customerId, event));
     await db.insert(s.messages).values({ shopId, conversationId: conversation.id, author: 'system', body: text, at: now() });
-    fallbacks.push(atCap ? 'usage cap' : 'template message');
+    fallbacks.push(atCap ? 'usage cap' : overBudget ? 'daily spend cap' : 'template message');
   }
   report.fallback = fallbacks.length ? fallbacks.join(', ') : null;
   if (report.fallback) step(`backend fallback: ${report.fallback}`);
@@ -186,9 +191,23 @@ export async function runTurn(db: Db, config: AgentConfig, input: { shopId: stri
   const u = report.usage;
   report.costUsd = (u.input * inPrice + u.cacheWrite * inPrice * 1.25 + u.cacheRead * inPrice * 0.1 + u.output * outPrice) / 1e6;
   report.ms = Date.now() - t0;
+  if (report.costUsd > 0) await addSpendUsd(db, report.costUsd);
   if (report.model) await db.update(s.shops).set({ agentTurnsUsed: sql`${s.shops.agentTurnsUsed} + 1` }).where(eq(s.shops.id, shopId));
   await logActivity(db, { shopId, at: now(), actor: 'agent', kind: 'agent_turn', payload: { ...report } });
   return report;
+}
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+async function spentTodayUsd(db: Db) {
+  const [row] = await db.select().from(s.agentDailySpend).where(eq(s.agentDailySpend.day, today()));
+  return (row?.microUsd ?? 0) / 1e6;
+}
+
+async function addSpendUsd(db: Db, usd: number) {
+  const microUsd = Math.ceil(usd * 1e6);
+  await db.insert(s.agentDailySpend).values({ day: today(), microUsd })
+    .onConflictDoUpdate({ target: s.agentDailySpend.day, set: { microUsd: sql`${s.agentDailySpend.microUsd} + ${microUsd}` } });
 }
 
 async function drive(runner: AsyncIterable<Anthropic.Beta.BetaMessage>, report: TurnReport, step: (line: string) => void) {

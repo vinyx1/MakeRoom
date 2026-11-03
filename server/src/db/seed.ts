@@ -26,7 +26,7 @@ export const demoWeekStart = (realNow: Date, tz = DEMO_TIMEZONE) =>
 
 export type DemoShop = ReturnType<typeof demoShopData>;
 
-export function demoShopData({ sessionKey, realNow = new Date() }: { sessionKey: string; realNow?: Date }) {
+export function demoShopData({ sessionKey, realNow = new Date(), creatorIpHash = null }: { sessionKey: string; realNow?: Date; creatorIpHash?: string | null }) {
   const monday = demoWeekStart(realNow);
   const t = ({ week = 0, day, hour }: DemoTime) =>
     monday.plus({ weeks: week, days: WEEKDAY[day] - 1 }).set({ hour }).toJSDate();
@@ -45,6 +45,8 @@ export function demoShopData({ sessionKey, realNow = new Date() }: { sessionKey:
     agentTurnsUsed: 0,
     autoReplyCustomers: false,
     sessionKey,
+    creatorIpHash,
+    lastSeenAt: realNow,
     createdAt: realNow,
   };
   const shopId = shop.id;
@@ -181,11 +183,13 @@ export function demoShopData({ sessionKey, realNow = new Date() }: { sessionKey:
   };
 }
 
-export function seedShop(db: Db, opts: { sessionKey: string; realNow?: Date }) {
+type SeedOptions = { sessionKey: string; realNow?: Date; creatorIpHash?: string | null };
+
+export function seedShop(db: Db, opts: SeedOptions) {
   return db.transaction((tx) => seedShopTx(tx, opts));
 }
 
-export async function seedShopTx(tx: Tx, opts: { sessionKey: string; realNow?: Date }) {
+export async function seedShopTx(tx: Tx, opts: SeedOptions) {
   const d = demoShopData(opts);
   await tx.insert(s.shops).values(d.shop);
   await tx.insert(s.equipmentModels).values(d.models);

@@ -121,6 +121,10 @@ export const shops = pgTable('shops', {
   autoReplyCustomers: boolean().notNull().default(false),
   /** Hash of the visitor's session cookie. The shop is looked up by this, never by URL. */
   sessionKey: text().notNull().unique(),
+  /** Hash of the visitor's IP when the shop was first created, for the per-IP limit. Null for a reseed (Reset demo). */
+  creatorIpHash: text(),
+  /** Real time, not the shop clock: stale shops are cleaned up by this. Updated at most hourly. */
+  lastSeenAt: at().notNull().defaultNow(),
   createdAt: at().notNull().defaultNow(),
 });
 
@@ -593,6 +597,12 @@ export const ownerDrafts = pgTable('owner_drafts', {
  * Activity events whose agent turns have been started. The insert is the claim: when several server processes
  * share a database, only the one whose insert succeeds starts the turns, so each event reaches customers once.
  */
+export const agentDailySpend = pgTable('agent_daily_spend', {
+  /** The UTC day, as YYYY-MM-DD. Separate from shops so deleting a shop doesn't forget what it spent. */
+  day: text().primaryKey(),
+  microUsd: bigint({ mode: 'number' }).notNull().default(0),
+});
+
 export const agentDispatches = pgTable('agent_dispatches', {
   activitySeq: bigint({ mode: 'number' }).primaryKey(),
   claimedAt: at().notNull().defaultNow(),
