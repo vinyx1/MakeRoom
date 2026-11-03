@@ -55,6 +55,7 @@ The rule from `CLAUDE.md` still holds: the video scenarios must run reliably bef
     - raise the cap to 3 options per card (each option claims its unit, so keep it small);
     - offer a downgrade only when nothing better exists (already true when it's the only plan, as for Eve).
     The seed has only two gimbals, so Scenario 2 still ends in a downgrade. To demo this, add a third, higher-tier gimbal. Move to P1 if it goes in the video.
+18. **Add more customers to the demo** (about a day). Let someone add a customer and give them a booking, instead of only the 7 seeded ones. It needs a form, validation and a real sandbox prepayment for each booking. No video scenario needs this, and the chat panes already switch between all 7, so it comes after everything above. First check that a customer can book a free slot through chat in the UI (judge E7); if that works, a "try this" prompt in the UI revamp covers most of the value.
 
 ## P3: security hardening (last)
 
@@ -62,12 +63,12 @@ Checked 2026-10-29. No keys are in git (history scanned). No secrets reach the b
 
 The abuse protections in P0 item 2 (the global spend cap, the per-IP shop limit, shop cleanup) stay in P0: they protect money and uptime on the public URL. The rest:
 
-18. **A separate Anthropic key for the deployment**, with a monthly spend limit set in the Anthropic console: the hard backstop behind the in-app cap. Revoke it after judging.
-19. **Sandbox only, everywhere.** The buyer login shown on the page must be a dedicated sandbox account whose password isn't used anywhere else. No live PayPal credentials, ever.
-20. **Database:** the host's managed Postgres with TLS and a long generated password, not open to the whole internet if the host allows that. `DATABASE_URL` lives only in the host's secret settings.
-21. **Bryntum registry login** kept as a secret in the build environment, never in a committed `.npmrc`. Bryntum's trial code is never committed.
-22. **Host settings:** `NODE_ENV=production`, HTTPS only, installs from the lockfile with `npm ci` (versions are already pinned exactly).
-23. **Optional extras:** security headers (`@fastify/helmet`, with a content security policy that allows PayPal and the Bryntum assets), and a rate limit on chat messages and payment routes per session.
+19. **A separate Anthropic key for the deployment**, with a monthly spend limit set in the Anthropic console: the hard backstop behind the in-app cap. Revoke it after judging.
+20. **Sandbox only, everywhere.** The buyer login shown on the page must be a dedicated sandbox account whose password isn't used anywhere else. No live PayPal credentials, ever.
+21. **Database:** the host's managed Postgres with TLS and a long generated password, not open to the whole internet if the host allows that. `DATABASE_URL` lives only in the host's secret settings.
+22. **Bryntum registry login** kept as a secret in the build environment, never in a committed `.npmrc`. Bryntum's trial code is never committed.
+23. **Host settings:** `NODE_ENV=production`, HTTPS only, installs from the lockfile with `npm ci` (versions are already pinned exactly).
+24. **Optional extras:** security headers (`@fastify/helmet`, with a content security policy that allows PayPal and the Bryntum assets), and a rate limit on chat messages and payment routes per session.
 
 ## Not doing
 
