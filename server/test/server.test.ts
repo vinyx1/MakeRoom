@@ -8,6 +8,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { createDb } from '../src/db/client.ts';
 import { eq } from 'drizzle-orm';
 import * as s from '../src/db/schema.ts';
+import { createAgentService } from '../src/agent/service.ts';
 import { SESSION_COOKIE, buildApp } from '../src/server/app.ts';
 import { cleanupStaleShops, sessionKeyOf } from '../src/server/shops.ts';
 import { fakeGateway } from './fake-gateway.ts';
@@ -322,5 +323,36 @@ describe('protecting the public URL', () => {
     // Coming back after cleanup gets a new shop, with the same cookie.
     await owner(v);
     expect((await shopOf(v))!.id).not.toBe(staleId);
+  });
+});
+
+describe('the owner steps into a chat', () => {
+  it('pauses the assistant until they hand it back', async () => {
+    const agent = createAgentService(db, { client: null, model: 'none', effort: 'low', turnCap: 60 });
+    const talking = buildApp({ db, gateway, agent });
+    const first = await talking.inject({ method: 'GET', url: '/api/owner' });
+    const cookies = { [SESSION_COOKIE]: first.cookies.find((c) => c.name === SESSION_COOKIE)!.value };
+    const charlie = (first.json() as OwnerView).customers.find((c) => c.name === 'Charlie')!.id;
+    const post = (url: string, payload: object) => talking.inject({ method: 'POST', url: `/api/customers/${charlie}/${url}`, cookies, payload });
+    const view = async () => (await talking.inject({ method: 'GET', url: `/api/customers/${charlie}`, cookies })).json() as { handedOff: boolean; messages: { author: string; body: string }[] };
+
+    // The assistant answers until the owner steps in.
+    await post('messages', { text: 'Can you do better on the price?' });
+    await agent.drain();
+    expect((await view()).messages.map((m) => m.author)).toEqual(['customer', 'system']);
+    expect((await view()).handedOff).toBe(false);
+
+    await post('owner-message', { text: 'Hey Charlie, $45 is our standard rate.' });
+    expect((await view()).handedOff).toBe(true);
+    await post('messages', { text: "I don't have $45 on me right now." });
+    await agent.drain();
+    expect((await view()).messages.map((m) => m.author)).toEqual(['customer', 'system', 'owner', 'customer']);
+
+    await post('hand-back', {});
+    expect((await view()).handedOff).toBe(false);
+    await post('messages', { text: 'Thanks. What are your hours?' });
+    await agent.drain();
+    expect((await view()).messages.at(-1)!.author).toBe('system');
+    await talking.close();
   });
 });

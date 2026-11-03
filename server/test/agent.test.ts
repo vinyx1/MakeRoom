@@ -135,12 +135,33 @@ describe('tools', () => {
     expect(questions).toHaveLength(1);
   });
 
-  it('a handoff turns the agent’s messages into drafts for the owner', async () => {
+  it('a handoff delivers the message saying a person will reply, and holds back anything from a later turn', async () => {
     const { d } = await shop();
     const { call, conversationId } = await toolsFor(d, 'Bob');
     expect(await call('escalate_to_owner', { reason: 'asks_for_person', summary: 'Bob wants to talk to someone.' })).toMatchObject({ handed_off: true });
-    expect(await call('send_message', { text: 'A person from the shop will reply shortly.' })).toMatchObject({ sent: false, saved_as_draft_for_owner: true });
-    expect((await messagesOf(conversationId))[0]!.isOwnerDraft).toBe(true);
+    expect(await call('send_message', { text: 'A person from the shop will reply shortly.' })).toMatchObject({ sent: true });
+    expect((await messagesOf(conversationId))[0]!.isOwnerDraft).toBe(false);
+
+    // A turn that was already running when the chat went to the shop.
+    const running = await toolsFor(d, 'Bob');
+    expect(await running.call('send_message', { text: 'Anything else?' })).toMatchObject({ sent: false, saved_as_draft_for_owner: true });
+  });
+
+  it('while the shop has the chat: no reply to the customer, no model call, and request news still arrives', async () => {
+    const { d } = await shop();
+    const bob = d.customer('Bob').id;
+    const { conversationId } = await toolsFor(d, 'Bob');
+    await db.update(s.conversations).set({ handedOffAt: d.now, handoffReason: 'owner_replied' }).where(eq(s.conversations.id, conversationId));
+    // A client that would throw on any call: nothing here may reach the model.
+    const withKey = { ...templates, client: new Anthropic({ apiKey: 'unused' }) };
+
+    const quiet = await runTurn(db, withKey, { shopId: d.shop.id, customerId: bob, event: { kind: 'customer_message', text: 'hello?' } });
+    expect(quiet).toMatchObject({ fallback: 'skipped: with the shop', model: null, requests: 0 });
+    expect(await messagesOf(conversationId)).toEqual([]);
+
+    const news = await runTurn(db, withKey, { shopId: d.shop.id, customerId: bob, event: { kind: 'kept_booking', proposalId: randomUUID() } });
+    expect(news).toMatchObject({ model: null, requests: 0, fallback: 'template message' });
+    expect((await messagesOf(conversationId)).map((m) => [m.author, m.isOwnerDraft])).toEqual([['system', false]]);
   });
 });
 
