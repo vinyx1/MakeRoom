@@ -24,7 +24,7 @@ Every scenario starts from the same shop, so we only need one seed script. Days 
 | Dana | Tue 9am → Thu 9am | RS3-1 | picked up |
 | Eve | Thu 2pm → Sat 6pm | RS3-1 | confirmed; booking note: "for Canon R5 + RF 24-70" |
 
-Facts: `CRANE4-1.balances_r5_rf2470 = unknown`. Shop hours 9am–9pm. All bookings are prepaid via PayPal. **Demo "now" is Wed 2pm**, set on the injectable clock when the shop is seeded. Scenario 5 (Frank) needs its own fixture, still to be designed.
+Facts: `CRANE4-1.balances_r5_rf2470 = unknown`. Shop hours 9am–9pm. All bookings are prepaid via PayPal. **Demo "now" is Wed 6pm**, set on the injectable clock when the shop is seeded. Scenario 5 (Frank) needs its own fixture, still to be designed.
 
 ---
 
@@ -59,7 +59,7 @@ Facts: `CRANE4-1.balances_r5_rf2470 = unknown`. Shop hours 9am–9pm. All bookin
 3. **Owner card:** "Moves Eve to a cheaper gimbal (downgrade), $20 refund, net +$5. Needs a fact: Eve is shooting on a Canon R5 + RF 24-70. Does the Crane 4 balance that rig?" The owner answers **Yes** and approves.
 4. The agent asks: "Save this as a fact so I don't ask again?" The owner clicks **Save**, and the fact flips to `yes` in the equipment panel.
 5. Dana authorizes payment for the extra day through a PayPal link. The agent offers Eve the Crane 4 with the $20 refund, and she accepts. The authorization is captured and the changes commit.
-6. *(Optional 5-second tag:)* the equipment panel shows the saved fact with its source ("owner, Wed 2:05pm"). Any later plan that needs it uses it without asking. A reset reseeds facts too, so the tag can't be shown by replaying.
+6. *(Optional 5-second tag:)* the equipment panel shows the saved fact with its source ("owner, Wed 6:05pm"). Any later plan that needs it uses it without asking. A reset reseeds facts too, so the tag can't be shown by replaying.
 
 **What it shows:** owner drag-to-extend, the `unknown` fact flow, the agent learning a constraint, and the agent stating facts only from the database.
 

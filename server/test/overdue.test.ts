@@ -28,10 +28,11 @@ async function shop() {
   const gateway = fakeGateway();
   const d = await seedShop(db, { sessionKey: randomUUID() });
   await seedPrepayments(db, gateway, d.shop.id);
+  await advance(d, -4); // Seeding sets Wed 6pm, the moment Alice is due; these tests start before that, at 2pm.
   return { d, gateway };
 }
 
-/** The demo clock: seeded at Wed 2pm. */
+/** The demo clock: these tests start it at Wed 2pm (see `shop`). */
 const advance = (d: Seeded, hours: number) =>
   db.update(s.shops).set({ clockOffsetMs: sql`${s.shops.clockOffsetMs} + ${hours * 3600_000}` }).where(eq(s.shops.id, d.shop.id));
 

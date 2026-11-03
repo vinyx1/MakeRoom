@@ -25,7 +25,7 @@ export function Header({ owner, shopNow, onFastForward, onAutoReply, onReset, on
         <button onClick={() => onFastForward(30)} title="Jump the shop clock ahead; offers waiting past their timeout expire">
           +30 min
         </button>
-        <button onClick={() => onFastForward(240)} title="Jump four hours, e.g. past a rental's return time to try an overdue return">
+        <button onClick={() => onFastForward(240)} title="Jump the shop clock ahead four hours">
           +4 h
         </button>
       </div>
@@ -123,7 +123,7 @@ export function Help({ onClose }: { onClose: () => void }) {
         </ol>
         <h4>4 · A late return</h4>
         <ol>
-          <li>Press +4 h: it's now Wed 6pm and Alice's camera is due back. It shows under Owner as “Due back”.</li>
+          <li>The demo starts at Wed 6pm, when Alice's camera is due back, so it shows under Owner as “Due back”.</li>
           <li>Mark overdue, expected back Thu 10am. That runs into Bob's pickup, so the plans come to you first: Approve one.</li>
           <li>As Bob: accept it, or keep the booking (then you're alerted to sort it out). Mark returned when she's back.</li>
         </ol>
