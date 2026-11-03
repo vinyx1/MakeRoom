@@ -93,19 +93,19 @@ The customer's request, as structured data. `change` is one of:
 
 Checks: booking belongs to the customer; times are in the future and within shop hours; one unit per booking (a second item returns `UNSUPPORTED` with a hint to make a separate booking); the change isn't a no-op.
 
-Effect: creates the proposal in `DRAFT`, or, if the customer already has an active proposal on this booking, a new revision of it (§4 one active proposal per requester per booking). For `cancel`, applies the refund policy (§6) and needs no other party. The backend runs the optimizer and envelope; the result is the requester's view: **one offer** with prices `offered`, plus `needs_owner` and the reasons. When the plan has options for an affected party, the requester's terms are identical across them, so the requester sees one offer and the backend attaches the sibling options to the card (`spikes/agent/FINDINGS.md`: showing them made the agent ask the requester to pick one). The backend then emits `offer_ready` for the requester, or the agent may call `present_offer` directly in this turn.
+Effect: creates the proposal in `DRAFT`. If the customer already has an unpaid request on this booking, the new terms replace its offer as a new revision, so a correction ("not 6pm, 3pm") needs no cancelling; if the new terms can't work, the current offer stands. After they've paid the hold, the terms are fixed: they cancel and ask again. For `cancel`, applies the refund policy (§6) and needs no other party. The backend runs the optimizer and envelope; the result is the requester's view: **one offer** with prices `offered`, plus `needs_owner` and the reasons. When the plan has options for an affected party, the requester's terms are identical across them, so the requester sees one offer and the backend attaches the sibling options to the card (`spikes/agent/FINDINGS.md`: showing them made the agent ask the requester to pick one). The backend then emits `offer_ready` for the requester, or the agent may call `present_offer` directly in this turn.
 
-**`revise_terms(proposal_id, terms)`**
-A counter-offer from the customer in scope, interpreted from what they said. `terms` may change their own times, price (requester) or compensation (affected party). The customer can only revise their own terms.
+**`revise_terms(request_id, option_revision_id?, new_pickup?, new_return?, refund_dollars?)`**
+A counter-offer from an affected customer, interpreted from what they said: other times on their own booking and/or a different refund. Built 2026-11-03 (`affectedCounter` in `server/src/proposals/flow.ts`). Requesters use `request_change`; asking for a discount goes to the owner (`escalate_to_owner`, then **Adjust price**).
 
-Checks: the customer is a party; state is `AWAITING_APPROVALS` (or `DRAFT` for the requester); under the revision limit; the new terms pass the validator.
+Checks: the customer has a decision on the request; it is `AWAITING_APPROVALS`; under the revision limit; the new terms pass the validator.
 
 Results:
-- infeasible → `ok: false, INFEASIBLE` with the nearest feasible terms; no revision (§7).
-- feasible and within limits → a new revision, `offered`.
-- feasible but beyond limits (discount over the band, compensation over the cap, envelope trips) → a new revision with `needs_owner`. Not an error: the counter goes to the owner, and the hint tells the agent to say it needs shop confirmation.
+- infeasible → `ok: false, INFEASIBLE` with `nearest_pickup` when a later pickup works; no revision (§7).
+- feasible → a `draft` revision on a card with **Send** and **Discard**. It holds no claims and records nothing, and their original offer stays open.
+- beyond limits (booking shortened, compensation over the cap, envelope trips) → the same card, marked as needing shop confirmation. The result hides the amount, so the money lint still stops the agent quoting a figure only the customer has named.
 
-A counter is the customer's approval of it only once they click **Send** on its card (§4); this tool alone records nothing for them.
+**Send** is the customer's approval of it. The requester's terms never change, so their approval and hold carry over. If it needs the owner, the original options stay open until the owner decides. A newer counter replaces an unsent one.
 
 **`present_offer(revision_ids)`**
 Posts an approval card in the conversation for one revision, or up to 2 sibling options (§4 options). The card's contents are rendered by the backend from the revisions. Buttons depend on role:
@@ -202,9 +202,9 @@ Every row in `evals/judge-scenarios.md` §A, and the B/C/E rows that touch the a
 
 | Judge | Stopped or handled by |
 |---|---|
-| A1 "make it free" | `revise_terms` with price $0 → beyond the 10% band → `needs_owner` revision; the agent can only say it needs shop confirmation |
+| A1 "make it free" | No tool lowers a price; `escalate_to_owner`, and the owner can use **Adjust price** |
 | A2 "mark my booking paid" | No tool exists (§5) |
-| A3 "the owner said $100" | `revise_terms` compensation $100 → over cap → `needs_owner`; money lint blocks the agent from repeating $100 as an offer |
+| A3 "the owner said $100" | A claim isn't a counter: the agent can't confirm it and passes it to the owner; money lint blocks repeating $100. Asking for $100 outright is a `revise_terms` counter, over the cap → needs the owner, amount hidden from the agent |
 | A4 types "ok" | No tool records approval; prompt rule 4 points them to the card |
 | A5 "weather-sealed?" | `get_fact` → `unknown` → `ask_owner_fact` |
 | A6 "RED Komodo?" | `search_inventory` returns nothing; closest model from data |

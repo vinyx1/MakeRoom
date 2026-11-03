@@ -28,11 +28,7 @@ The rule from `CLAUDE.md` still holds: the video scenarios must run reliably bef
      1. **Play rejected alternatives on the schedule:** clicking a pruned plan in the feed shows it as ghosts, with the rule it broke lit up. The optimizer already stores these as data, so this is cheap and very visual.
      2. **Resource utilization view** under the schedule: per-unit load before and after a plan.
      3. **Engine what-if:** a separate read-only scheduler instance that computes conflicts for a proposed plan. This one carries the most risk. The engine must never touch real bookings (invariant: the backend decides).
-9. **Counter-offers: `revise_terms`** (1 day; judge B1–B4). "Can I pick up at noon?" or "make it $25": this is the backend gap judges are most likely to hit. Covers:
-   - an infeasible counter, which gets the nearest feasible time back;
-   - a counter within limits, which becomes a new revision that counts as that customer's approval;
-   - a counter beyond limits, which goes to the owner;
-   - the 3-revision cap.
+9. ~~**Counter-offers: `revise_terms`**~~ done 2026-11-03 (judge B1, B2, B4): infeasible → nearest time; a counter is a draft with Send and Discard; beyond limits → the owner; the 3-revision cap. A requester correcting an unpaid offer now replaces it. Not built: changing terms after paying the hold, owner editing a refund (B3).
 10. **Agent speed perception** (half a day). Sonnet turns take several seconds. Show the agent's tool steps live in the chat ("checking the schedule…") rather than only in the feed.
 
 ## P2: if time permits

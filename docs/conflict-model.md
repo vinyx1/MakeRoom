@@ -115,6 +115,7 @@ The Bryntum client can be stale too: every owner edit carries the versions it wa
 - Approvals are explicit clicks on an approval card bound to a revision id. So are refusals (**Keep my booking as is**), withdrawals and sending a counter. Chat text like "ok", "no" or "the owner said I get $100" records nothing; the agent responds by pointing to the card. Tools and buttons: `docs/agent-tools.md`.
 - The card's contents (times, unit, model, price, compensation) are rendered by the backend from the revision, never from agent text. The agent discusses the offer around the card; the card is what a party agrees to, so a stale or invented claim in chat cannot become a commitment.
 - Customers' acceptances are worded "pending shop confirmation" until the proposal commits.
+- **Built (2026-11-03):** affected customers' counters (`affectedCounter`, `counterSend`, `counterDiscard`) and requesters correcting an unpaid offer (`requestChange` replaces it). `draft` revisions aren't live: only their author sees one, on a card. Not built: a requester changing terms after paying the hold (they cancel and ask again), an owner modifying compensation (judge B3).
 - Limits: at most 3 revisions per proposal, then the agent escalates or closes. Each approval request times out after 30 min (configurable).
 - One active proposal per requester per booking: a second request from Alice about the same booking is a counter on her proposal.
 
