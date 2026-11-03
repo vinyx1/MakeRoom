@@ -6,7 +6,10 @@ import { join } from 'node:path';
 import { DateTime } from 'luxon';
 import { afterAll, describe, expect, it } from 'vitest';
 import { createDb } from '../src/db/client.ts';
+import { eq } from 'drizzle-orm';
+import * as s from '../src/db/schema.ts';
 import { SESSION_COOKIE, buildApp } from '../src/server/app.ts';
+import { cleanupStaleShops } from '../src/server/shops.ts';
 import { fakeGateway } from './fake-gateway.ts';
 
 const { db, pool } = createDb();
@@ -240,5 +243,82 @@ describe('hosting', () => {
     expect(page.headers['set-cookie']).toBeUndefined();
     await hosted.close();
     rmSync(root, { recursive: true });
+  });
+});
+
+describe('protecting the public URL', () => {
+  const cookieOf = (res: { cookies: { name: string; value: string }[] }) => res.cookies.find((c) => c.name === SESSION_COOKIE)?.value;
+
+  it('limits new shops per IP, ignoring a forged header, and leaves existing shops alone', async () => {
+    const limited = buildApp({ db, gateway, shopsPerIpPerHour: 2, trustedProxies: 1 });
+    // Railway's edge appends the visitor's real address last; anything before it came from the visitor.
+    const ip = `203.0.113.${Math.floor(Math.random() * 250) + 1}`;
+    const visit = (forged: string, cookies = {}) =>
+      limited.inject({ method: 'GET', url: '/api/owner', cookies, headers: { 'x-forwarded-for': `${forged}, ${ip}` } });
+
+    const first = await visit('1.1.1.1');
+    expect(first.statusCode).toBe(200);
+    expect((await visit('2.2.2.2')).statusCode).toBe(200);
+    const third = await visit('3.3.3.3');
+    expect(third.statusCode).toBe(429);
+    expect(third.json().error).toMatch(/Too many new demo shops/);
+    const before = (await db.select({ id: s.shops.id }).from(s.shops)).length;
+    expect((await visit('4.4.4.4')).statusCode).toBe(429);
+    expect((await db.select({ id: s.shops.id }).from(s.shops)).length).toBeLessThanOrEqual(before + 8);
+
+    // The visitor who already has a shop keeps it.
+    expect((await visit('1.1.1.1', { [SESSION_COOKIE]: cookieOf(first)! })).statusCode).toBe(200);
+    // Someone else on another network isn't affected.
+    const other = await limited.inject({ method: 'GET', url: '/api/owner', headers: { 'x-forwarded-for': `198.51.100.${Math.floor(Math.random() * 250) + 1}` } });
+    expect(other.statusCode).toBe(200);
+    await limited.close();
+  });
+
+  it('a burst of new visitors from one IP can only make the limit', async () => {
+    const limited = buildApp({ db, gateway, shopsPerIpPerHour: 2, trustedProxies: 1 });
+    const ip = `192.0.2.${Math.floor(Math.random() * 250) + 1}`;
+    const results = await Promise.all(Array.from({ length: 6 }, () => limited.inject({ method: 'GET', url: '/api/owner', headers: { 'x-forwarded-for': ip } })));
+    expect(results.map((r) => r.statusCode).sort()).toEqual([200, 200, 429, 429, 429, 429]);
+    await limited.close();
+  });
+
+  it('limits chat and resets per session, and one session\'s limit doesn\'t touch another', async () => {
+    const limited = buildApp({ db, gateway, rateLimit: true });
+    const first = await limited.inject({ method: 'GET', url: '/api/owner' });
+    const cookies = { [SESSION_COOKIE]: cookieOf(first)! };
+    const alice = (first.json() as { customers: { id: string; name: string }[] }).customers.find((c) => c.name === 'Alice')!.id;
+    const chat = () => limited.inject({ method: 'POST', url: `/api/customers/${alice}/messages`, cookies, payload: { text: 'hi' } });
+    // No agent here, so an accepted message answers 503; the limit answers 429 before that.
+    for (let i = 0; i < 20; i++) expect((await chat()).statusCode).toBe(503);
+    const over = await chat();
+    expect(over.statusCode).toBe(429);
+    expect(over.json().error).toMatch(/Too many messages/);
+
+    const second = await limited.inject({ method: 'GET', url: '/api/owner' });
+    const bob = (second.json() as { customers: { id: string; name: string }[] }).customers.find((c) => c.name === 'Alice')!.id;
+    const other = await limited.inject({ method: 'POST', url: `/api/customers/${bob}/messages`, cookies: { [SESSION_COOKIE]: cookieOf(second)! }, payload: { text: 'hi' } });
+    expect(other.statusCode).toBe(503);
+    await limited.close();
+  });
+
+  it('cleans up shops unseen for 48 hours, voiding holds first, and keeps recent ones', async () => {
+    const v = visitor();
+    const { customer, booking, at, view } = await owner(v);
+    const offered = await v.post('/api/requests', { customerId: customer('Alice'), request: { kind: 'extend', bookingId: booking('Alice').id, newEndsAt: at('Thu', 10) } });
+    await v.post(`/api/proposals/${offered.body.proposal.id}/order`, { customerId: customer('Alice') });
+    await v.post(`/api/proposals/${offered.body.proposal.id}/accept`, { customerId: customer('Alice') });
+    const staleId = view.shop.id;
+    const fresh = await owner(visitor());
+    const before = gateway.calls.length;
+
+    await db.update(s.shops).set({ lastSeenAt: new Date(Date.now() - 49 * 3600_000) }).where(eq(s.shops.id, staleId));
+    expect(await cleanupStaleShops(db, gateway)).toBeGreaterThanOrEqual(1);
+    expect(await db.select().from(s.shops).where(eq(s.shops.id, staleId))).toEqual([]);
+    expect(gateway.calls.slice(before).map((c) => c.method)).toContain('voidAuthorization');
+    expect(await db.select().from(s.shops).where(eq(s.shops.id, fresh.view.shop.id))).toHaveLength(1);
+
+    // Coming back after cleanup gets a new shop, with the same cookie.
+    const back = await owner(v);
+    expect(back.view.shop.id).not.toBe(staleId);
   });
 });

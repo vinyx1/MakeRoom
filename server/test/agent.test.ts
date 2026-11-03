@@ -192,6 +192,25 @@ describe('fallbacks (no model)', () => {
     expect(aliceLast.body).toContain('Charged: $45.00');
   });
 
+  it('past the daily spend cap, chat gets a limit message and offers still go out on templates', async () => {
+    const { d } = await shop();
+    const day = new Date().toISOString().slice(0, 10);
+    const overCap = { ...templates, client: new Anthropic({ apiKey: 'unused' }), dailySpendCapUsd: 0 };
+    const alice = d.customer('Alice').id;
+    const report = await runTurn(db, overCap, { shopId: d.shop.id, customerId: alice, event: { kind: 'customer_message', text: 'hi' } });
+    expect(report).toMatchObject({ fallback: 'daily spend cap', model: null, requests: 0 });
+    const { conversationId } = await toolsFor(d, 'Alice');
+    expect((await messagesOf(conversationId)).at(-1)!.body).toMatch(/usage limit for today/);
+
+    // Spend adds up across shops and days are separate rows, and the demo never stalls on the cap.
+    await db.insert(s.agentDailySpend).values({ day, microUsd: 1 }).onConflictDoNothing();
+    const offered = await requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) } });
+    if (offered.status !== 'offered') throw new Error(offered.status);
+    const offer = await runTurn(db, overCap, { shopId: d.shop.id, customerId: alice, event: { kind: 'offer_ready', proposalId: offered.proposal.id, revisionIds: offered.revisions.map((r) => r.id), role: 'requester' } });
+    expect(offer.fallback).toBe('card, daily spend cap');
+    expect((await messagesOf(conversationId)).at(-1)!.body).toMatch(/review it on the card/);
+  });
+
   it('the usage cap stops turns with a friendly message', async () => {
     const { d } = await shop();
     await db.update(s.shops).set({ agentTurnsUsed: 60 }).where(eq(s.shops.id, d.shop.id));

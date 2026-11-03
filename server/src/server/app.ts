@@ -110,7 +110,7 @@ function parse<T extends z.ZodType>(schema: T, value: unknown): z.infer<T> {
 export function buildApp(opts: AppOptions) {
   const { db, gateway } = opts;
   // Close open connections on shutdown: the SSE stream never ends by itself, so a browser tab would hold it up forever.
-  const app = Fastify({ logger: opts.logger ?? false, forceCloseConnections: true, trustProxy: opts.trustedProxies ?? false });
+  const app = Fastify({ logger: opts.logger ?? false, forceCloseConnections: true, trustProxy: opts.trustedProxies ? (_addr: string, hop: number) => hop < opts.trustedProxies! : false });
   const limiter = createRateLimiter();
   app.register(cookie);
   if (opts.webRoot) app.register(fastifyStatic, { root: opts.webRoot });
