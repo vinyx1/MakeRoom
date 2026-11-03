@@ -4,6 +4,7 @@
 // and every id is checked against the session's shop.
 
 import cookie from '@fastify/cookie';
+import fastifyStatic from '@fastify/static';
 import { and, eq, gt, inArray, max, sql } from 'drizzle-orm';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -50,6 +51,8 @@ export type AppOptions = {
   agent?: AgentService;
   /** How often the SSE stream checks for new activity. */
   ssePollMs?: number;
+  /** The built frontend (web/dist), served from `/` in production. In development Vite serves it. */
+  webRoot?: string;
   logger?: boolean;
 };
 
@@ -99,8 +102,10 @@ function parse<T extends z.ZodType>(schema: T, value: unknown): z.infer<T> {
 
 export function buildApp(opts: AppOptions) {
   const { db, gateway } = opts;
-  const app = Fastify({ logger: opts.logger ?? false });
+  // Close open connections on shutdown: the SSE stream never ends by itself, so a browser tab would hold it up forever.
+  const app = Fastify({ logger: opts.logger ?? false, forceCloseConnections: true });
   app.register(cookie);
+  if (opts.webRoot) app.register(fastifyStatic, { root: opts.webRoot });
   app.decorateRequest('shop', null as unknown as Shop);
 
   // Every /api route except config acts on the visitor's own shop, seeded on first visit.

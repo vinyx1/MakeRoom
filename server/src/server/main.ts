@@ -2,6 +2,7 @@
 // then `npm run db:migrate`) and the PayPal sandbox credentials in server/.env.
 
 import '../env.ts';
+import { existsSync } from 'node:fs';
 import Anthropic from '@anthropic-ai/sdk';
 import { createAgentService } from '../agent/service.ts';
 import { createAutoReply } from '../demo/auto-reply.ts';
@@ -10,6 +11,7 @@ import { payPalGateway } from '../payments/paypal.ts';
 import { buildApp, sweepExpiries } from './app.ts';
 
 const { db, pool } = createDb();
+const webRoot = new URL('../../../web/dist/', import.meta.url).pathname;
 const gateway = payPalGateway();
 // Sonnet 5.5 for the live demo (decided 2026-10-29: Opus 5.5 was ~$0.04/turn); AGENT_MODEL overrides.
 const agent = createAgentService(db, {
@@ -30,6 +32,8 @@ const app = buildApp({
     : undefined,
   // `npm run dev:test-card`: pay with the sandbox test card from a terminal client (scripts/try.ts).
   allowTestCard: process.env.DEV_TEST_CARD === '1' && process.env.NODE_ENV !== 'production',
+  // In production the server hosts the frontend too; `npm run build` in web/ makes this folder.
+  webRoot: process.env.NODE_ENV === 'production' && existsSync(webRoot) ? webRoot : undefined,
   logger: true,
 });
 

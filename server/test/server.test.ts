@@ -3,6 +3,9 @@
 import { DateTime } from 'luxon';
 import { afterAll, describe, expect, it } from 'vitest';
 import { createDb } from '../src/db/client.ts';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { SESSION_COOKIE, buildApp } from '../src/server/app.ts';
 import { fakeGateway } from './fake-gateway.ts';
 
@@ -214,5 +217,28 @@ describe('live activity feed (SSE)', () => {
     await readUntil('proposal_created'); // and live events
     expect(text).toMatch(/id: \d+\nevent: activity\ndata: \{/);
     controller.abort();
+  });
+});
+
+describe('hosting', () => {
+  it('shutting down does not wait for an open SSE stream', async () => {
+    const hosted = buildApp({ db, gateway, ssePollMs: 50 });
+    const url = await hosted.listen({ port: 0, host: '127.0.0.1' });
+    const stream = await fetch(`${url}/api/events`);
+    expect(stream.status).toBe(200);
+    const closed = await Promise.race([hosted.close().then(() => 'closed'), new Promise((r) => setTimeout(() => r('hung'), 3000))]);
+    expect(closed).toBe('closed');
+  });
+
+  it('serves the built frontend, without touching a shop', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'rentflow-web-'));
+    writeFileSync(join(root, 'index.html'), '<title>RentFlow</title>');
+    const hosted = buildApp({ db, gateway, webRoot: root });
+    const page = await hosted.inject({ method: 'GET', url: '/' });
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain('RentFlow');
+    expect(page.headers['set-cookie']).toBeUndefined();
+    await hosted.close();
+    rmSync(root, { recursive: true });
   });
 });
