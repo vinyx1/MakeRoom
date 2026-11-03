@@ -8,7 +8,7 @@
 //
 // Every plan carries its quote (src/quote), which adds the money checks and ranking rules 4–5.
 //
-// Not yet: placing unassigned bookings (Scenario 4), and a nearest alternative for requests other than extensions.
+// Not yet: placing unassigned bookings (Scenario 4), and a nearest alternative for time shifts.
 
 import type { Quote } from '../db/schema.ts';
 import { rentalPriceCents } from '../pricing.ts';
@@ -107,7 +107,7 @@ export function optimize(snapshot: Snapshot, request: Request): OptimizeResult {
     const fits = search.plans[0]!.changes.length === 1;
     return { status: fits ? 'fits' : 'needs_other_changes', plans: search.plans, pruned: search.pruned };
   }
-  return { status: 'infeasible', nearest: nearestExtension(idx, request), pruned: search.pruned };
+  return { status: 'infeasible', nearest: nearest(idx, request), pruned: search.pruned };
 }
 
 function requesterPlacements(idx: Index, request: Request): Requester {
@@ -338,7 +338,44 @@ export function planCounter(
 }
 
 export function nearestAlternative(snapshot: Snapshot, request: Request): Plan | null {
-  return nearestExtension(indexSnapshot(snapshot), request);
+  return nearest(indexSnapshot(snapshot), request);
+}
+
+const nearest = (idx: Index, request: Request) => nearestExtension(idx, request) ?? nearestNewBooking(idx, request);
+
+/**
+ * The longest stretch inside the times asked for that a unit of the model is free, shop hours and turnaround included:
+ * "Thu 9am → Tue 3pm" with someone on Saturday becomes "Thu 9am → Fri 9pm". Priced at the normal rate.
+ */
+function nearestNewBooking(idx: Index, request: Request): Plan | null {
+  if (request.kind !== 'new_booking') return null;
+  const hours = idx.snap.shop;
+  const buffer = idx.policy.default_buffer_minutes * 60_000;
+  const wanted = { start: request.startsAt, end: new Date(request.endsAt.getTime() + buffer) };
+  let best: Placement | null = null;
+  for (const u of [...idx.unitsOfModel(request.modelId)].sort((a, b) => cmp(a.label, b.label))) {
+    const busy = [
+      ...idx.activeBookings.filter((b) => b.unitId === u.id).map(occupancy),
+      ...idx.unavailabilityOn(u.id).map((x) => x.period),
+      ...idx.capacityClaimsOn(u.id).map((c) => c.period!),
+    ].filter((p) => overlaps(p, wanted)).sort((a, b) => a.start.getTime() - b.start.getTime());
+    let from = request.startsAt > idx.snap.now ? request.startsAt : idx.snap.now;
+    for (const block of [...busy, null]) {
+      const until = block ? new Date(Math.min(block.start.getTime() - buffer, request.endsAt.getTime())) : request.endsAt;
+      const startsAt = earliestOpenAtOrAfter(from, hours), endsAt = latestOpenAtOrBefore(until, hours);
+      const length = endsAt.getTime() - startsAt.getTime();
+      if (length >= 3600_000 && (!best || length > best.endsAt.getTime() - best.startsAt.getTime()))
+        best = { unitId: u.id, modelId: request.modelId, startsAt, endsAt, bufferEndsAt: new Date(endsAt.getTime() + buffer) };
+      if (block && block.end > from) from = block.end;
+    }
+  }
+  if (!best) return null;
+  const change: ProposedChange = { bookingId: null, customerId: request.customerId, after: best };
+  const v = validate(idx, { changes: [change], requesterCustomerId: request.customerId });
+  if (v.violations.length) return null;
+  const plans = new Map<string, Plan>();
+  addPlan(idx, plans, [change], request.customerId, v, true);
+  return [...plans.values()][0]!;
 }
 
 function nearestExtension(idx: Index, request: Request): Plan | null {

@@ -318,7 +318,7 @@ export function makeTools(scope: ToolScope) {
           if (r.status === 'infeasible')
             return ok({
               outcome: 'infeasible',
-              nearest: r.nearest ? { terms: r.nearest.changes.filter((c) => c.isRequester).map((c) => `until ${shopTime(idx).display(c.after.endsAt)}`), price: usd(r.nearest.quote.chargeCents), price_status: 'indicative' } : null,
+              nearest: r.nearest ? { terms: r.nearest.changes.filter((c) => c.isRequester).map((c) => (c.bookingId ? `until ${shopTime(idx).display(c.after.endsAt)}` : `${shopTime(idx).display(c.after.startsAt)} until ${shopTime(idx).display(c.after.endsAt)}`)), price: usd(r.nearest.quote.chargeCents), price_status: 'indicative' } : null,
               hint: r.nearest ? 'Not possible as asked; offer the nearest option.' : 'Not possible, even by moving other bookings. Say so.',
             });
           const top = r.plans[0]!;

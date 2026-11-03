@@ -10,7 +10,7 @@ import * as s from '../src/db/schema.ts';
 import { seedShop } from '../src/db/seed.ts';
 import { seedPrepayments } from '../src/payments/prepay.ts';
 import {
-  affectedAccept, affectedCounter, affectedRefuse, counterDiscard, counterSend, createRequesterOrder, ownerDecision, requestChange, requesterAccept,
+  affectedAccept, affectedCounter, affectedRefuse, counterDiscard, counterSend, createRequesterOrder, expireDue, ownerDecision, requestChange, requesterAccept,
 } from '../src/proposals/flow.ts';
 import { customerView } from '../src/server/views.ts';
 import { fakeGateway } from './fake-gateway.ts';
@@ -227,5 +227,62 @@ describe('an affected customer counters', () => {
     await affectedRefuse(db, gateway, d.shop.id, { proposalId, customerId: bob });
     expect((await load.revision(r.revision.id)).status).toBe('dropped');
     expect(await counterSend(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: r.revision.id })).toEqual({ status: 'already_decided' });
+  });
+});
+
+describe('a new booking that can\'t go ahead gets the longest free stretch', () => {
+  /** Hank already has the only A7R V from Saturday; Alice wants it Thursday to next Tuesday. */
+  async function aliceWantsTheRV() {
+    const base = await shop();
+    const { gateway, d, alice } = base;
+    const rv = d.modelsByName.a7rv.id;
+    const hank = d.bookingOf('Hank');
+    const sat9 = new Date(at(d, 'Fri', 9).getTime() + 24 * 3600_000);
+    const sun18 = new Date(at(d, 'Fri', 18).getTime() + 48 * 3600_000);
+    await db.insert(s.bookings).values({ ...hank, id: randomUUID(), modelId: rv, unitId: d.unit('A7RV-1').id, startsAt: sat9, endsAt: sun18, bufferEndsAt: new Date(sun18.getTime() + 4 * 3600_000) });
+    const tue15 = new Date(at(d, 'Fri', 15).getTime() + 4 * 24 * 3600_000);
+    const r = await requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'new_booking', customerId: alice, modelId: rv, startsAt: at(d, 'Thu', 9), endsAt: tue15 } });
+    if (r.status !== 'offered') throw new Error(JSON.stringify(r));
+    expect(r.isAlternative).toBe(false);
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: r.proposal.id, customerId: alice });
+    expect((await requesterAccept(db, gateway, d.shop.id, { proposalId: r.proposal.id, customerId: alice })).status).toBe('awaiting_approvals');
+    return { ...base, proposalId: r.proposal.id, heldCents: r.chargeCents };
+  }
+  const offeredIn = async (proposalId: string) =>
+    (await db.select().from(s.revisions).where(and(eq(s.revisions.proposalId, proposalId), eq(s.revisions.status, 'offered')))).filter((r) => r.isAlternative);
+
+  it('everyone refuses: until Fri 9pm, covered by the hold, and only that much is captured', async () => {
+    const { gateway, d, alice, proposalId, heldCents } = await aliceWantsTheRV();
+    // Refuse until nobody is left to ask.
+    for (let i = 0; i < 5 && !(await offeredIn(proposalId)).length; i++) {
+      const asked = await db.select().from(s.approvals).where(and(eq(s.approvals.proposalId, proposalId), eq(s.approvals.role, 'affected'), eq(s.approvals.status, 'pending')));
+      await affectedRefuse(db, gateway, d.shop.id, { proposalId, customerId: asked[0]!.customerId! });
+    }
+    const [alternative] = await offeredIn(proposalId);
+    expect(alternative!.quote.chargeCents).toBe(13_000); // Thu 9am → Fri 9pm is 2 started days at $65
+    expect(alternative!.quote.chargeCents).toBeLessThan(heldCents);
+    const [change] = await db.select().from(s.revisionChanges).where(eq(s.revisionChanges.revisionId, alternative!.id));
+    expect([change!.newStartsAt, change!.newEndsAt]).toEqual([at(d, 'Thu', 9), at(d, 'Fri', 21)]);
+    expect((await cardsOf(d, alice))[0]).toMatchObject({ role: 'requester', chargeCents: 13_000, heldCents });
+
+    const before = gateway.calls.length;
+    expect((await requesterAccept(db, gateway, d.shop.id, { proposalId, customerId: alice })).status).toBe('committed');
+    expect(JSON.stringify(gateway.calls.slice(before))).toContain('13000');
+    const mine = await db.select().from(s.bookings).where(and(eq(s.bookings.customerId, alice), eq(s.bookings.unitId, d.unit('A7RV-1').id)));
+    expect(mine.map((b) => b.endsAt)).toEqual([at(d, 'Fri', 21)]);
+  });
+
+  it('nobody answers: the same stretch on a new card, which she pays for afresh', async () => {
+    const { gateway, d, alice, proposalId } = await aliceWantsTheRV();
+    await db.update(s.shops).set({ clockOffsetMs: d.shop.clockOffsetMs + 31 * 60_000 }).where(eq(s.shops.id, d.shop.id));
+    expect(await expireDue(db, gateway, d.shop.id)).toEqual([proposalId]);
+    expect((await load.orders(proposalId)).map((o) => o.status)).toEqual(['voided']);
+
+    const [card] = await cardsOf(d, alice);
+    expect(card).toMatchObject({ role: 'requester', chargeCents: 13_000, heldCents: 0 });
+    expect(card!.proposalId).not.toBe(proposalId);
+    expect(card!.options[0]!.isAlternative).toBe(true);
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: card!.proposalId, customerId: alice });
+    expect((await requesterAccept(db, gateway, d.shop.id, { proposalId: card!.proposalId, customerId: alice })).status).toBe('committed');
   });
 });

@@ -37,7 +37,7 @@ Chat-wording quality (tone, clarity) is covered by `evals/chat-prompts.md`. Thes
 | B7 | As Bob, refuses both options outright | Bob's booking is untouched. Rev 2 is Plan C (Charlie upgrades, Bob swaps units). If Charlie also refuses, Alice gets the 9pm alternative. | §7, demo Scenario 3 |
 | B8 | As owner, declines Plan B but not Plan A | Only Plan B is dropped. Bob is re-offered Plan A. | §4 options |
 | B9 | As owner, declines the whole proposal | `REJECTED`, authorization voided. Bob is told his booking stands, and Alice gets an alternative. | §7 |
-| B10 | Nobody answers; judge fast-forwards 30 min | `EXPIRED`, authorization voided, claims released. Alice gets an apology and the closest free alternative (9pm tonight) on a new card. | §4 timeout, §7, Judge mode fast-forward |
+| B10 | Nobody answers; judge fast-forwards 30 min | `EXPIRED`, authorization voided, claims released. Alice gets an apology and the closest alternative (9pm tonight, at no charge) on a new card. | §4 timeout, §7, Judge mode fast-forward |
 
 ## C. Payments
 

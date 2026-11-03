@@ -1516,14 +1516,14 @@ async function expire(tx: Tx, p: Proposal, now: Date) {
 
 /**
  * Another customer never answered, so the request ended. As after a refusal, the requester still gets the closest the
- * schedule allows, as a new request: the expired one stays EXPIRED. Free alternatives only, since their hold is gone.
- * Not when the requester was the one who didn't answer: they've been offered what there is.
+ * schedule allows, as a new request: the expired one stays EXPIRED. Their hold is gone, so if it costs anything they
+ * pay on the new card. Not when the requester was the one who didn't answer: they've been offered what there is.
  */
 async function offerClosestAfterNoAnswer(tx: Tx, p: Proposal, holdReleased: boolean, now: Date) {
   if (p.state !== 'AWAITING_APPROVALS' || p.source !== 'customer_request' || !p.requesterCustomerId) return;
   const snapshot = await loadSnapshot(tx, p.shopId);
   const nearest = nearestAlternative(snapshot, loadRequest(p.request as StoredRequest));
-  if (!nearest || nearest.quote.chargeCents > 0) return;
+  if (!nearest) return;
   const expiresAt = new Date(now.getTime() + snapshot.shop.policy.approval_timeout_minutes * 60_000);
   const [next] = await tx
     .insert(s.proposals)

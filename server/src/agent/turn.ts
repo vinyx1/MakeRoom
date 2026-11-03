@@ -307,7 +307,7 @@ async function describeEvent(tx: Tx, idx: Index, customerId: string, event: Agen
       const why = event.repriced
         ? 'The shop has changed the price of their request; the new terms are on a fresh card (the earlier card no longer applies).'
         : event.fallback
-        ? `${event.noAnswerOf ? "The shop couldn't get an answer from the other customer in time, so their request ended" : "The other customer couldn't change their booking"}, and the exact change they asked for isn't possible. Open with a warm, sincere apology that the shop couldn't fit their request. The card has the closest the shop can do instead, as long as the schedule allows: say plainly it is an alternative, not what they asked for, and say until when. ${event.holdReleased ? 'It costs nothing extra, and their payment hold has been released.' : 'Their existing payment hold covers it, so accepting needs no new payment.'} If they don't want it, Cancel my request on the card keeps their original booking.${(await otherGearFree(tx, idx, event.proposalId, customerId, event.revisionIds)) ? ` ${MENTION_OTHER_GEAR}` : ''}`
+        ? `${event.noAnswerOf ? "The shop couldn't get an answer from the other customer in time, so their request ended" : "The other customer couldn't change their booking"}, and the exact change they asked for isn't possible. Open with a warm, sincere apology that the shop couldn't fit their request. The card has the closest the shop can do instead, as long as the schedule allows: say plainly it is an alternative, not what they asked for, and give its exact times. ${await alternativeMoney(tx, event)} If they don't want it, Cancel my request on the card keeps their original booking.${(await otherGearFree(tx, idx, event.proposalId, customerId, event.revisionIds)) ? ` ${MENTION_OTHER_GEAR}` : ''}`
         : event.replanOf
         ? 'The shop changed the schedule while their earlier request was pending, so that request was cancelled and its payment hold released. The shop has made them a fresh offer for the same change.'
         : p?.source === 'owner_resolve'
@@ -374,6 +374,19 @@ async function otherGearFree(tx: Tx, idx: Index, proposalId: string, customerId:
 }
 
 const OTHER_GEAR_TEMPLATE = " We do have other models available for that time; the only inconvenience would be coming back to the shop to pick one up.";
+
+/** What the closest alternative means for their money, in words the agent can repeat. */
+async function alternativeMoney(tx: Tx, event: Extract<AgentEvent, { kind: 'offer_ready' }>) {
+  const charge = await alternativeCharge(tx, event);
+  if (event.noAnswerOf) return `Their earlier payment hold has been released. ${charge > 0 ? `This costs ${usd(charge)} at the normal rate, and accepting places a new hold through PayPal.` : 'It costs nothing extra.'}`;
+  if (event.holdReleased) return 'It costs nothing extra, and their payment hold has been released.';
+  return `It costs ${usd(charge)} at the normal rate, covered by their existing payment hold, so accepting needs no new payment and any difference is never charged.`;
+}
+
+async function alternativeCharge(tx: Tx, event: Extract<AgentEvent, { kind: 'offer_ready' }>) {
+  const [rev] = await tx.select().from(s.revisions).where(inArray(s.revisions.id, event.revisionIds));
+  return rev?.quote.chargeCents ?? 0;
+}
 
 /** Backend-written facts about a committed or ended request, from this customer's side. Their amounts are citable. */
 async function eventFacts(tx: Tx, idx: Index, customerId: string, event: AgentEvent): Promise<string> {
@@ -488,7 +501,7 @@ async function templateFor(tx: Tx, shopId: string, customerId: string, event: Ag
   if (event.kind === 'offer_ready')
     return event.role === 'requester'
       ? event.fallback
-        ? `We're really sorry we couldn't fit your request: ${event.noAnswerOf ? "we couldn't get an answer from the other customer in time" : 'the other customer needs their booking'}. The closest we can do, as long as the schedule allows, is on the card below${event.holdReleased ? ' at no extra charge, and your payment hold has been released' : ''}. If you'd rather not, your original booking stays as it is.${(await otherGearFree(tx, indexSnapshot(await loadSnapshot(tx, shopId)), event.proposalId, customerId, event.revisionIds)) ? OTHER_GEAR_TEMPLATE : ''}`
+        ? `We're really sorry we couldn't fit your request: ${event.noAnswerOf ? "we couldn't get an answer from the other customer in time" : 'the other customer needs their booking'}. The closest we can do, as long as the schedule allows, is on the card below${event.holdReleased ? `${(await alternativeCharge(tx, event)) > 0 ? ' at the normal rate; your earlier hold has been released, so accepting places a new one' : ' at no extra charge, and your payment hold has been released'}` : ''}. If you'd rather not, your original booking stays as it is.${(await otherGearFree(tx, indexSnapshot(await loadSnapshot(tx, shopId)), event.proposalId, customerId, event.revisionIds)) ? OTHER_GEAR_TEMPLATE : ''}`
         : 'The shop has set up your change. Please review it on the card and accept to authorize the payment; nothing is charged until everything is confirmed.'
       : (await sourceOf(tx, event.proposalId)) === 'overdue'
         ? "The equipment for your booking is running late coming back from the previous rental, so the shop is offering you the options on the card below. You're free to decline with Keep my booking as is; the shop will contact you if it isn't back in time."
