@@ -20,7 +20,7 @@ Postgres extension needed: `btree_gist` (exclusion constraints mixing `=` / `<>`
 |---|---|
 | `name`, `timezone` | e.g. `America/Los_Angeles` |
 | `opens_at`, `closes_at` | `time`, shop hours (9:00, 21:00) |
-| `clock_offset_ms` | Injectable clock: shop "now" = server now + offset. Fast-forward adds to it; seeding sets it so now = Wed 6pm. |
+| `clock_offset_ms` | Injectable clock: shop "now" = server now + offset. Fast-forward adds to it; seeding sets it so now = Wed 5:30pm, 30 minutes before Alice is due back. |
 | `policy jsonb` | All tunable limits, validated by a Zod schema: `default_buffer_minutes` (240), `approval_timeout_minutes` (30), `discount_band_pct` (10), `compensation_cap_cents` (5000), `shift_compensation_cents_per_hour` (300), `downgrade_goodwill_cents` (500), `max_shift_hours` (6), `max_bookings_touched` (3), `search_window_hours` (24), `model_change_penalty_hours` (6), `max_revisions` (3), `max_fallback_plans` (2), `grace_minutes` (60), `cancel_full_refund_hours` (24), `cancel_late_refund_pct` (50), `payment_retry_limit` (3) |
 | `agent_turns_used` | Judge-mode usage cap counter |
 | `session_key` | Hash of the visitor's session cookie; the shop is looked up by this, never by URL |

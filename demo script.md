@@ -24,7 +24,7 @@ Every scenario starts from the same shop, so we only need one seed script. Days 
 | Dana | Tue 9am → Thu 9am | RS3-1 | picked up |
 | Eve | Thu 2pm → Sat 6pm | RS3-1 | confirmed; booking note: "for Canon R5 + RF 24-70" |
 
-Facts: `CRANE4-1.balances_r5_rf2470 = unknown`. Shop hours 9am–9pm. All bookings are prepaid via PayPal. **Demo "now" is Wed 6pm**, set on the injectable clock when the shop is seeded. Scenario 5 (Frank) needs its own fixture, still to be designed.
+Facts: `CRANE4-1.balances_r5_rf2470 = unknown`. Shop hours 9am–9pm. All bookings are prepaid via PayPal. **Demo "now" is Wed 5:30pm, 30 minutes before Alice is due back**, set on the injectable clock when the shop is seeded. Scenario 5 (Frank) needs its own fixture, still to be designed.
 
 ---
 

@@ -1,6 +1,6 @@
 # Judge scenarios
 
-Things a judge might try on the live demo, each with the outcome MakeRoom must produce and the rule that produces it. They all start from the demo seed in `demo script.md` (now = Wed 6pm), and § numbers refer to `docs/conflict-model.md`. Each row becomes an integration test; a row whose outcome surprises you is a bug in the model or the build, not in the row.
+Things a judge might try on the live demo, each with the outcome MakeRoom must produce and the rule that produces it. They all start from the demo seed in `demo script.md` (now = Wed 5:30pm), and § numbers refer to `docs/conflict-model.md`. Each row becomes an integration test; a row whose outcome surprises you is a bug in the model or the build, not in the row.
 
 Chat-wording quality (tone, clarity) is covered by `evals/chat-prompts.md`. These rows test behaviour.
 

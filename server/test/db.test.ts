@@ -66,11 +66,13 @@ async function revisionOf(seeded: Seeded, proposalId: string, seq: number, optio
 }
 
 describe('seed', () => {
-  it('builds the demo shop with the clock at Wednesday 6pm shop time', async () => {
+  it('builds the demo shop with the clock at Wednesday 5:30pm shop time, 30 minutes before Alice is due', async () => {
     const seeded = await seed();
     const shopNow = DateTime.fromMillis(Date.now() + seeded.shop.clockOffsetMs, { zone: seeded.shop.timezone });
     expect(shopNow.weekday).toBe(3);
-    expect(shopNow.hour).toBe(18);
+    expect(shopNow.hour).toBe(17);
+    expect(shopNow.minute).toBe(30);
+    expect(seeded.bookingOf('Alice').endsAt.getTime() - (Date.now() + seeded.shop.clockOffsetMs)).toBeGreaterThan(29 * 60_000);
 
     const bookings = await db.select().from(s.bookings).where(eq(s.bookings.shopId, seeded.shop.id));
     expect(bookings).toHaveLength(7);

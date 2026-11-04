@@ -55,10 +55,10 @@ describe('tools', () => {
     const { models } = await call('search_inventory', { query: 'A7R' });
     const model = models.find((m: { name: string }) => m.name === 'Sony A7R V').model_id;
 
-    // The demo starts at exactly 6pm, so by the time anyone asks, a 6pm pickup has already passed.
+    // The demo starts at exactly 5:30pm, so by the time anyone asks, a 5:30pm pickup has already passed.
     const past = await call('check_availability', { model_id: model, start: local(0), end: local(15) });
-    expect(past).toMatchObject({ ok: false, code: 'IN_PAST', earliest: { display: expect.stringMatching(/6:15pm$/) } });
-    // Shop hours: 3 hours from now is 9pm (open), 4 hours is 10pm (closed).
+    expect(past).toMatchObject({ ok: false, code: 'IN_PAST', earliest: { display: expect.stringMatching(/5:45pm$/) } });
+    // Shop hours: 4 hours from now is 9:30pm, after the 9pm close.
     expect(await call('check_availability', { model_id: model, start: local(4), end: local(15) })).toMatchObject({ ok: false, code: 'OUTSIDE_SHOP_HOURS' });
     expect(await call('check_availability', { model_id: model, start: local(3), end: local(15) })).toMatchObject({ ok: true, free: true });
   });

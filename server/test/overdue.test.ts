@@ -28,7 +28,7 @@ async function shop() {
   const gateway = fakeGateway();
   const d = await seedShop(db, { sessionKey: randomUUID() });
   await seedPrepayments(db, gateway, d.shop.id);
-  await advance(d, -4); // Seeding sets Wed 6pm, the moment Alice is due; these tests start before that, at 2pm.
+  await advance(d, -3.5); // Seeding sets Wed 5:30pm; these tests start earlier, at 2pm.
   return { d, gateway };
 }
 
