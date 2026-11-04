@@ -402,6 +402,12 @@ describe('after an affected customer picks an option that needs the shop', () =>
     expect(await statusOf(d, bob)).toMatchObject({ headline: 'You chose option B: waiting on the shop', canWithdraw: true });
   });
 
+  it('tells the requester only the shop is left', async () => {
+    const { d, gateway, alice, bob, proposalId, optionB } = await bobAsked();
+    await affectedAccept(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: optionB.id });
+    expect((await statusOf(d, alice)).headline).toBe('Accepted: waiting on the shop');
+  });
+
   it('offers the other option again if the owner declines the pick (judge B8)', async () => {
     const { d, gateway, bob, proposalId, optionA, optionB } = await bobAsked();
     await affectedAccept(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: optionB.id });

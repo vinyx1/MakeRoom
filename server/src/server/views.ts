@@ -150,9 +150,11 @@ async function requestStatuses(tx: Tx, idx: ReturnType<typeof indexSnapshot>, sh
     const rows = shownRev ? changes.map((c) => c.change).filter((c) => c.revisionId === shownRev.id) : [];
     const ownerApproved = !!shownRev && approvals.some((a) => a.revisionId === shownRev.id && a.role === 'owner' && a.status === 'approved');
     const lines = shownRev && rows.some((c) => c.partyCustomerId === customerId) ? renderOption(idx, shownRev, rows, customerId, role, ownerApproved).lines : [];
+    // Someone who has picked isn't being waited on, though the sibling of their pick stays pending (judge B8).
+    const pickedBy = new Set(approvals.filter((a) => a.proposalId === p.id && a.role === 'affected' && a.status === 'approved' && live.some((r) => r.id === a.revisionId)).map((a) => a.customerId));
     const waitingOn = [...new Set(
       approvals
-        .filter((a) => live.some((r) => r.id === a.revisionId) && a.status === 'pending' && a.customerId !== customerId)
+        .filter((a) => live.some((r) => r.id === a.revisionId) && a.status === 'pending' && a.customerId !== customerId && !(a.customerId && pickedBy.has(a.customerId)))
         .map((a) => (a.role === 'owner' ? 'the shop' : 'another customer')),
     )];
     const waiting = waitingOn.length ? `waiting on ${waitingOn.join(' and ')}` : 'waiting for confirmation';
