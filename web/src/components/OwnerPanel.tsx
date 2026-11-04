@@ -298,13 +298,13 @@ function FeedLine({ a, owner }: { a: Activity; owner: OwnerView }) {
     case 'customer_message':
       return line('cust', <>{name(p.customerId)}: “{p.text}”</>);
     case 'agent_step':
-      return line('agent', <>Assistant ({name(p.customerId)}) → {p.tool}{p.ok ? '' : ` ✗ ${p.code}`}</>);
+      return line('agent', <>Assistant ({name(p.customerId)}) → {p.tool}{p.ok ? '' : ` failed: ${p.code}`}</>);
     case 'agent_turn':
       return line('dim', <>Turn for {name(p.customerId)}: {(p.ms / 1000).toFixed(1)}s, ${Number(p.costUsd).toFixed(3)}{p.fallback ? ` · ${p.fallback}` : ''}</>);
     case 'agent_message_blocked':
       return line('warn', <>Blocked a message to {name(p.customerId)}: {p.amounts.join(', ')} didn't come from a tool</>);
     case 'optimizer_run':
-      return line('opt', <>Optimizer: {p.plans.length} plan{p.plans.length === 1 ? '' : 's'}{p.pruned.length ? `, ruled out ${p.pruned.length}` : ''}</>, p.pruned.map((x: { message: string }) => `✗ ${x.message}`));
+      return line('opt', <>Optimizer: {p.plans.length} plan{p.plans.length === 1 ? "" : "s"}{p.pruned.length ? `, ruled out ${p.pruned.length}:` : ""}</>, p.pruned.map((x: { message: string }) => x.message));
     case 'proposal_created':
       return line('', <>Request created{p.source === 'owner_resolve' ? ' by Resolve with agent' : ''}</>);
     case 'offer_ready':
