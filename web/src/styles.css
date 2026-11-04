@@ -173,7 +173,7 @@ code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; b
 .msg .who { font-weight: 600; line-height: 16px; }
 .msg .when { margin-left: 6px; font-weight: 400; font-size: 12px; color: var(--muted); }
 .msg .body { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 19px; margin-top: 1px; }
-.msg.assistant .who { color: var(--proposal-ink); }
+.msg.agent .who { color: var(--proposal-ink); }
 .msg.system .body { color: var(--muted); }
 .msg.card-msg { display: block; }
 .empty { color: var(--muted); }
@@ -187,6 +187,25 @@ code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; b
 .composer textarea::placeholder { color: var(--muted); }
 .composer-row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
 .composer-row label { display: flex; align-items: center; gap: 6px; }
+
+/* The one customer's chat: who else has a card waiting on them */
+.nudge { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px var(--gutter); background: var(--proposal-soft); color: var(--proposal-ink); font-size: 12px; font-weight: 500; border-top: 1px solid var(--rule); flex: none; }
+.nudge button { flex: none; background: var(--surface); }
+
+/* The owner's messages */
+.thread-list { list-style: none; margin: 0; padding: 0; overflow: auto; flex: 1; min-height: 0; }
+.thread-row { display: flex; align-items: center; gap: 10px; width: 100%; height: auto; min-height: 56px; padding: 8px var(--gutter); border: none; border-bottom: 1px solid var(--rule); border-radius: 0; background: var(--surface); text-align: left; white-space: normal; }
+.thread-text { display: block; flex: 1; min-width: 0; }
+.thread-top { display: flex; align-items: center; gap: 6px; }
+.thread-name { font-weight: 500; }
+.thread-when { margin-left: auto; font-size: 12px; color: var(--muted); flex: none; }
+.thread-preview { display: block; font-size: 12px; line-height: 17px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.thread-row.unread .thread-name { font-weight: 600; }
+.thread-row.unread .thread-preview { color: var(--text); }
+.unread-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); }
+.thread-note { font-size: 12px; color: var(--muted); text-align: center; flex: none; }
+.back { flex: none; width: 28px; padding: 0; font-size: 18px; line-height: 1; }
+.msg.draft .body { color: var(--muted); }
 
 /* Cards in a chat */
 .card { border: 1px solid var(--edge); border-radius: var(--radius-card); padding: 10px var(--gutter); background: var(--surface); }

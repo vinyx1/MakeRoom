@@ -205,7 +205,7 @@ export function Help({ onClose }: { onClose: () => void }) {
       <div className="modal help" onClick={(e) => e.stopPropagation()}>
         <h3>How to demo</h3>
         <p className="muted small">
-          You play everyone: the owner (bottom left) and two customers (bottom right; switch them with the menus). Payments use the PayPal sandbox; the
+          You play everyone: the owner (Needs you and Messages) and one customer at a time (bottom right; switch with the menu by their name, or the prompt that appears when someone has an offer to answer). Payments use the PayPal sandbox; the
           buyer login is shown on each payment card. Reset demo starts over any time.
         </p>
         <h4>1 · The extension</h4>

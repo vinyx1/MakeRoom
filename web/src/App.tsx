@@ -1,5 +1,5 @@
-// Layout: a sidebar and top bar around one sheet. On the sheet, the schedule across the top; below it the owner, then
-// two customer chats (requester and affected party, each switchable), so cause and effect are in one frame.
+// Layout: a sidebar and top bar around one sheet. On the sheet, the schedule across the top; below it the owner's
+// decisions, the owner's messages, and one customer's chat (switchable), so cause and effect are in one frame.
 
 import { DateTime } from 'luxon';
 import { PayPalProvider } from '@paypal/react-paypal-js/sdk-v6';
@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { type Config, type Outcome, type OwnerView, api } from './api';
 import { ChatPane } from './components/ChatPane';
 import { EditDialog, type EditPrompt, EquipmentDrawer, Help, Mark, Sidebar, type Toast, Toasts, TopBar } from './components/Chrome';
+import { OwnerMessages } from './components/OwnerMessages';
 import { OwnerPanel } from './components/OwnerPanel';
 import { type EditRequest, Schedule } from './components/Schedule';
 import { isTyping, shopTime, usd, useShop } from './live';
@@ -53,6 +54,24 @@ function roleIn(owner: OwnerView, customerId: string): string {
   if (open.some((p) => p.revisions.some((r) => r.changes.some((c) => c.partyCustomerId === customerId))))
     return 'Affected by a request';
   return 'Customer';
+}
+
+/** Other customers with a card asking them to decide, in the same terms as their own chat shows it. */
+function waitingOn(owner: OwnerView, playing: string) {
+  const ids = new Set<string>();
+  for (const p of owner.proposals) {
+    if (p.state === 'DRAFT' && p.requesterCustomerId) ids.add(p.requesterCustomerId);
+    if (p.state !== 'AWAITING_APPROVALS') continue;
+    const approvals = p.revisions.flatMap((r) => r.approvals.filter((a) => a.role === 'affected'));
+    const answered = new Set(approvals.filter((a) => a.status === 'approved').map((a) => a.customerId));
+    for (const r of p.revisions) {
+      const ownerOk = r.approvals.some((a) => a.role === 'owner' && a.status === 'approved');
+      if (r.envelopeTrips.length && !ownerOk) continue;
+      for (const a of r.approvals) if (a.role === 'affected' && a.status === 'pending' && a.customerId && !answered.has(a.customerId)) ids.add(a.customerId);
+    }
+  }
+  ids.delete(playing);
+  return owner.customers.filter((c) => ids.has(c.id));
 }
 
 function describe(o: Outcome): Omit<Toast, 'id'> {
@@ -107,8 +126,8 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
   const owner = shop.owner!;
   const customers = owner.customers;
   const byName = (n: string) => customers.find((c) => c.name === n)?.id ?? customers[0]!.id;
-  const [left, setLeft] = useState(() => byName('Alice'));
-  const [right, setRight] = useState(() => byName('Bob'));
+  const [playing, setPlaying] = useState(() => byName('Alice'));
+  const [ownerThread, setOwnerThread] = useState<string | null>(null);
   const [equipment, setEquipment] = useState(false);
   const [help, setHelp] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -117,8 +136,8 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
 
   // After a reset the customers have new ids; point the panes at the same names again.
   useEffect(() => {
-    if (!customers.some((c) => c.id === left)) setLeft(byName('Alice'));
-    if (!customers.some((c) => c.id === right)) setRight(byName('Bob'));
+    if (!customers.some((c) => c.id === playing)) setPlaying(byName('Alice'));
+    if (ownerThread && !customers.some((c) => c.id === ownerThread)) setOwnerThread(null);
   }, [customers]);
 
   const toast = useCallback((t: Omit<Toast, 'id'>) => {
@@ -278,24 +297,27 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
       <main className="sheet">
       <Schedule owner={owner} shopNow={shop.shopNow!} onEdit={onEdit} onResolveDraft={onResolveDraft} onCancel={onCancelBooking} onReturned={onReturned} onMarkOverdue={onMarkOverdue} />
       <div className="bottom">
-        <OwnerPanel owner={owner} activity={shop.activity} onOutcome={onOutcome} onOpenChat={setLeft} onResolveDraft={onResolveDraft} onMarkOverdue={onMarkOverdue} />
-        {[
-          [left, setLeft],
-          [right, setRight],
-        ].map(([id, set], i) => (
-          <ChatPane
-            key={i}
-            customerId={id as string}
-            customers={customers}
-            onCustomer={set as (id: string) => void}
-            config={config}
-            zone={owner.shop.timezone}
-            tick={shop.tick}
-            typing={isTyping(shop.activity, id as string)}
-            role={roleIn(owner, id as string)}
-            onOutcome={onOutcome}
-          />
-        ))}
+        <OwnerPanel owner={owner} activity={shop.activity} onOutcome={onOutcome} onOpenChat={setOwnerThread} onResolveDraft={onResolveDraft} onMarkOverdue={onMarkOverdue} />
+        <OwnerMessages
+          owner={owner}
+          openId={ownerThread}
+          onOpen={setOwnerThread}
+          typing={(id) => isTyping(shop.activity, id)}
+          onOutcome={onOutcome}
+          onChanged={() => void shop.refresh()}
+        />
+        <ChatPane
+          customerId={playing}
+          customers={customers}
+          onCustomer={setPlaying}
+          config={config}
+          zone={owner.shop.timezone}
+          tick={shop.tick}
+          typing={isTyping(shop.activity, playing)}
+          role={roleIn(owner, playing)}
+          waitingOn={waitingOn(owner, playing)}
+          onOutcome={onOutcome}
+        />
       </div>
       </main>
       {equipment && <EquipmentDrawer owner={owner} onClose={() => setEquipment(false)} />}

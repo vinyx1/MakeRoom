@@ -1,5 +1,5 @@
-// One customer's chat with the assistant, with their approval cards inline. The owner can also write here
-// ("Reply as the shop"), and hand a conversation back after a handoff.
+// One customer's chat with the assistant, as that customer sees it, with their approval cards inline. The demo's
+// visitor plays them here; the owner's side of the chats is OwnerMessages.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { type Config, type Customer, type CustomerView, type Outcome, api } from '../api';
@@ -17,6 +17,8 @@ type Props = {
   tick: number;
   typing: boolean;
   role: string;
+  /** Other customers with a card waiting on them: with one chat on screen, this is how the visitor finds them. */
+  waitingOn: Customer[];
   onOutcome: (o: Outcome) => void;
 };
 
@@ -24,10 +26,9 @@ type Props = {
 const TRY: Record<string, string> = { Alice: 'Shoot ran over. Can I keep the camera until Thursday at 10am?' };
 const TRY_ANYONE = 'When is my booking?';
 
-export function ChatPane({ customerId, customers, onCustomer, config, zone, tick, typing, role, onOutcome }: Props) {
+export function ChatPane({ customerId, customers, onCustomer, config, zone, tick, typing, role, waitingOn, onOutcome }: Props) {
   const [view, setView] = useState<CustomerView | null>(null);
   const [text, setText] = useState('');
-  const [asShop, setAsShop] = useState(false);
   const [sending, setSending] = useState(false);
   const bottom = useRef<HTMLDivElement>(null);
 
@@ -39,13 +40,12 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
     bottom.current?.scrollIntoView({ block: 'end' });
   }, [view?.messages.length, typing]);
 
-  const send = async (typed = text, shop = asShop) => {
+  const send = async (typed = text) => {
     const body = typed.trim();
     if (!body) return;
     setSending(true);
     try {
-      if (shop) await api.ownerMessage(customerId, body);
-      else await api.send(customerId, body);
+      await api.send(customerId, body);
       setText('');
       await load();
     } catch (e) {
@@ -96,7 +96,7 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
         {view?.messages.length === 0 && view.cards.length === 0 && view.requests.length === 0 && (
           <div className="empty">
             <p>You're writing as {name}. Nothing here yet.</p>
-            <button className="try" disabled={sending} onClick={() => void send(TRY[name] ?? TRY_ANYONE, false)}>
+            <button className="try" disabled={sending} onClick={() => void send(TRY[name] ?? TRY_ANYONE)}>
               {TRY[name] ?? TRY_ANYONE}
             </button>
           </div>
@@ -149,13 +149,14 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
       </div>
 
       {view?.handedOff && (
-        <div className="handoff">
-          The shop is handling this chat, so the assistant is paused.
-          <button className="link" onClick={() => api.handBack(customerId).then(load)}>
-            Hand back to the assistant
-          </button>
-        </div>
+        <div className="handoff">The shop is handling this chat, so the assistant is paused.</div>
       )}
+      {waitingOn.map((c) => (
+        <div className="nudge" key={c.id}>
+          {c.name} has an offer to answer.
+          <button onClick={() => onCustomer(c.id)}>Open {c.name}'s chat</button>
+        </div>
+      ))}
       <form
         className="composer"
         onSubmit={(e) => {
@@ -166,7 +167,7 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
         <textarea
           value={text}
           rows={2}
-          placeholder={asShop ? `Write to ${name} as the shop…` : `Message as ${name}…`}
+          placeholder={`Message as ${name}…`}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -176,9 +177,7 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
           }}
         />
         <div className="composer-row">
-          <label className="small muted">
-            <input type="checkbox" checked={asShop} onChange={(e) => setAsShop(e.target.checked)} /> Reply as the shop
-          </label>
+          <span />
           <button className="primary" disabled={sending || !text.trim()}>
             Send
           </button>
