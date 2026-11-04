@@ -214,7 +214,7 @@ code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; b
 
 /* Schedule: bookings, ghosts (pending plans) and red drafts. Bryntum keeps its own theme around them;
    only the marks that carry a meaning here are recoloured, so amber and orange stay reserved. */
-:root { --b-current-time-color: #1d1f22; --b-time-range-line-primary: #1d1f22; --b-time-range-line-color: #1d1f22; --b-time-range-line-width: 1px; }
+:root { --now-line: #d93025; --b-current-time-color: var(--now-line); --b-time-range-line-primary: var(--now-line); --b-time-range-line-color: var(--now-line); --b-time-range-line-width: 1px; }
 .b-sch-resource-time-range { --b-primary: #5a6068; --b-resource-time-range-background: repeating-linear-gradient(135deg, #eef0f2 0 5px, #f7f8f9 5px 10px); color: var(--muted); background: repeating-linear-gradient(135deg, #e7e9ec 0 5px, #f3f4f6 5px 10px) !important; }
 .b-sch-resource-time-range .b-sch-event-content { color: var(--muted) !important; font-weight: 500; }
 .b-sch-event { border-radius: 4px !important; }

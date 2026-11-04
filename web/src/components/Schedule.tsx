@@ -27,6 +27,7 @@ class ScheduleEvent extends EventModel {
       { name: 'version', type: 'number' },
       { name: 'inRequest', type: 'boolean' }, // a pending request would change this booking
       { name: 'overdue', type: 'boolean' }, // picked up and not back on time
+      { name: 'dueBack', type: 'boolean' }, // picked up and past its return time, whether or not it's marked overdue
       { name: 'tip' }, // tooltip text, already composed
     ];
   }
@@ -40,12 +41,14 @@ type Props = {
   onEdit: (edit: EditRequest) => Promise<boolean>;
   onResolveDraft: (draftId: string) => void;
   onCancel: (booking: { bookingId: string; name: string; version: number; status: string }) => void;
+  onReturned: (bookingId: string) => void;
+  onMarkOverdue: (bookingId: string) => void;
 };
 
 const UNASSIGNED = 'unassigned';
 const hoursBetween = (a: string, b: string) => Math.round((new Date(b).getTime() - new Date(a).getTime()) / 3600_000);
 
-export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel }: Props) {
+export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel, onReturned, onMarkOverdue }: Props) {
   const project = useRef<BryntumSchedulerProProjectModel>(null);
   const tz = owner.shop.timezone;
   const nameOf = (id: string | null) => owner.customers.find((c) => c.id === id)?.name ?? 'Customer';
@@ -79,7 +82,7 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel }: P
         {
           id: b.id, name: nameOf(b.customerId), kind: 'booking', status: b.status, bookingId: b.id, version: b.version,
           startDate: b.startsAt, endDate: b.endsAt, manuallyScheduled: true, postamble: `${hoursBetween(b.endsAt, b.bufferEndsAt)}h`,
-          draggable: !picked, resizable: picked ? 'end' : true, inRequest: touched.has(b.id), overdue: picked && !!b.overdueMarkedAt,
+          draggable: !picked, resizable: picked ? 'end' : true, inRequest: touched.has(b.id), overdue: picked && !!b.overdueMarkedAt, dueBack: picked && new Date(b.endsAt) <= new Date(owner.shop.now),
           tip: `${nameOf(b.customerId)} · ${modelOf(b.modelId)}\n${t(b.startsAt)} → ${t(b.endsAt)}\n${picked ? (b.overdueMarkedAt ? 'Overdue' : 'Picked up') : 'Confirmed'} · paid ${usd(b.priceCents)}${b.note ? `\n“${b.note}”` : ''}`,
         },
         b.unitId,
@@ -201,8 +204,8 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel }: P
   }, [tz]);
 
   // Bryntum keeps the config from the first render, so its handlers read the latest props from here.
-  const latest = useRef({ onEdit, onResolveDraft, onCancel, tz });
-  latest.current = { onEdit, onResolveDraft, onCancel, tz };
+  const latest = useRef({ onEdit, onResolveDraft, onCancel, onReturned, onMarkOverdue, tz });
+  latest.current = { onEdit, onResolveDraft, onCancel, onReturned, onMarkOverdue, tz };
   const submit = (record: any, resourceId: string, start: Date, end: Date, finalize: (ok: boolean) => void) => {
     if (record.kind !== 'booking') return finalize(false);
     const real = (d: Date) => TimeZoneHelper.fromTimeZone(d, latest.current.tz);
@@ -257,7 +260,25 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel }: P
         return false;
       },
       taskEditFeature: false,
-      eventMenuFeature: false,
+      // Clicking a booking opens its actions. Each one goes to the same backend action as the rest of the app, and
+      // Bryntum's own items stay off, so the schedule never changes a booking by itself.
+      eventMenuFeature: {
+        triggerEvent: 'click',
+        items: { editEvent: false, cutEvent: false, copyEvent: false, deleteEvent: false, unassignEvent: false, splitEvent: false, renameSegment: false },
+        processItems({ eventRecord, items }: any) {
+          if (eventRecord.kind !== 'booking') return false;
+          if (eventRecord.status === 'picked_up') {
+            items.markReturned = { text: 'Mark returned', icon: 'fa fa-check', weight: 100, onItem: () => latest.current.onReturned(eventRecord.bookingId) };
+            if (eventRecord.dueBack)
+              items.markOverdue = { text: eventRecord.overdue ? 'Update expected return…' : 'Mark overdue…', icon: 'fa fa-clock', weight: 110, onItem: () => latest.current.onMarkOverdue(eventRecord.bookingId) };
+          } else {
+            items.cancelBooking = {
+              text: 'Delete booking…', icon: 'fa fa-trash', weight: 100,
+              onItem: () => latest.current.onCancel({ bookingId: eventRecord.bookingId, name: eventRecord.name, version: eventRecord.version, status: eventRecord.status }),
+            };
+          }
+        },
+      },
       scheduleMenuFeature: false,
       cellEditFeature: false,
       dependenciesFeature: false,

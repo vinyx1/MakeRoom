@@ -225,6 +225,17 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
     [owner, customers, onOutcome],
   );
 
+  const onReturned = useCallback(
+    async (bookingId: string) => {
+      try {
+        onOutcome(await api.markReturned(bookingId));
+      } catch (e) {
+        toast({ kind: 'error', text: (e as Error).message });
+      }
+    },
+    [onOutcome, toast],
+  );
+
   // Mark overdue: ask when the customer now expects to bring it back (shop time), then re-plan around it.
   const onMarkOverdue = useCallback(
     async (bookingId: string) => {
@@ -265,7 +276,7 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
         }}
       />
       <main className="sheet">
-      <Schedule owner={owner} shopNow={shop.shopNow!} onEdit={onEdit} onResolveDraft={onResolveDraft} onCancel={onCancelBooking} />
+      <Schedule owner={owner} shopNow={shop.shopNow!} onEdit={onEdit} onResolveDraft={onResolveDraft} onCancel={onCancelBooking} onReturned={onReturned} onMarkOverdue={onMarkOverdue} />
       <div className="bottom">
         <OwnerPanel owner={owner} activity={shop.activity} onOutcome={onOutcome} onOpenChat={setLeft} onResolveDraft={onResolveDraft} onMarkOverdue={onMarkOverdue} />
         {[

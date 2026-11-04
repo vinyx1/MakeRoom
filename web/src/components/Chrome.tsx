@@ -228,7 +228,7 @@ export function Help({ onClose }: { onClose: () => void }) {
           <li>Alice's request is cancelled, her hold released, and she gets a fresh offer that now fits.</li>
         </ol>
         <h4>Cancelling a booking</h4>
-        <p className="muted small">Select a booking on the schedule and press Delete. It asks you to confirm the customer agreed by phone, then refunds everything they paid.</p>
+        <p className="muted small">Click a booking on the schedule and choose Delete booking, or select it and press Delete. It asks you to confirm the customer agreed by phone, then refunds everything they paid. For a rental that's out, the same click offers Mark returned.</p>
         <h4>4 · A late return</h4>
         <ol>
           <li>The demo starts at Wed 6pm, when Alice's camera is due back, so it shows under Owner as “Due back”.</li>
