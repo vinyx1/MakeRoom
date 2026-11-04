@@ -5,6 +5,8 @@ import { randomUUID } from 'node:crypto';
 import { and, eq, isNull } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 import { afterAll, describe, expect, it } from 'vitest';
+import { TurnState, makeTools } from '../src/agent/tools.ts';
+import { conversationOf } from '../src/agent/turn.ts';
 import { createDb } from '../src/db/client.ts';
 import * as s from '../src/db/schema.ts';
 import { seedShop } from '../src/db/seed.ts';
@@ -284,5 +286,23 @@ describe('a new booking that can\'t go ahead gets the longest free stretch', () 
     expect(card!.options[0]!.isAlternative).toBe(true);
     await createRequesterOrder(db, gateway, d.shop.id, { proposalId: card!.proposalId, customerId: alice });
     expect((await requesterAccept(db, gateway, d.shop.id, { proposalId: card!.proposalId, customerId: alice })).status).toBe('committed');
+  });
+});
+
+describe('a customer who answers before the agent has finished writing to them', () => {
+  it("doesn't re-offer the options: the agent is told their choice is already recorded", async () => {
+    const { d, gateway, bob, proposalId, optionA, optionB } = await bobAsked();
+    // The card is on screen while the agent's turn runs, so Bob can pick before it reaches present_offer.
+    await affectedAccept(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: optionB.id });
+
+    const conversation = await conversationOf(db, d.shop.id, bob, d.now);
+    const turn = new TurnState();
+    const tools = makeTools({ db, shopId: d.shop.id, customerId: bob, conversationId: conversation.id, turn, now: () => d.now, onStep: () => {} });
+    const present = tools.find((t) => t.name === 'present_offer')!.run as (i: unknown) => Promise<string>;
+    const result = JSON.parse(await present({ revision_ids: [turn.ids.of('rv', optionA.id), turn.ids.of('rv', optionB.id)] }));
+
+    expect(result).toMatchObject({ ok: false, code: 'INVALID_STATE' });
+    expect(result.hint).toContain('already');
+    expect(turn.cardsPosted).toBe(0);
   });
 });
