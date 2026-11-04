@@ -1,6 +1,6 @@
 # Conflict model
 
-How RentFlow turns any schedule change into a safe outcome. The invariants in `CLAUDE.md` are the guarantees; this file is the mechanism. Every path ends in one of: **committed** (everyone agreed, money moved), **rejected / expired / cancelled** (nothing changed, authorization voided), **failed** (nothing changed, capture refunded), or **escalated** (a person decides).
+How MakeRoom turns any schedule change into a safe outcome. The invariants in `CLAUDE.md` are the guarantees; this file is the mechanism. Every path ends in one of: **committed** (everyone agreed, money moved), **rejected / expired / cancelled** (nothing changed, authorization voided), **failed** (nothing changed, capture refunded), or **escalated** (a person decides).
 
 ## Build tiers
 

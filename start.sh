@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Starts RentFlow, or restarts it if it's already running. Safe to run any time.
+# Starts MakeRoom, or restarts it if it's already running. Safe to run any time.
 #
 #   ./start.sh               Postgres, migrations, API and frontend, in the background
 #   ./start.sh --test-card   same, with the sandbox test card on (needed for `npm run try`)
@@ -105,7 +105,7 @@ done
 echo "Starting Postgres..."
 (cd "$ROOT" && docker compose up -d --wait >/dev/null 2>&1) || (cd "$ROOT" && docker compose up -d >/dev/null)
 for i in $(seq 1 30); do
-  if (cd "$ROOT" && docker compose exec -T postgres pg_isready -U rentflow >/dev/null 2>&1); then break; fi
+  if (cd "$ROOT" && docker compose exec -T postgres pg_isready -U makeroom >/dev/null 2>&1); then break; fi
   if [ "$i" = 30 ]; then
     echo "Postgres didn't become ready." >&2
     exit 1
@@ -129,6 +129,6 @@ wait_for_port "The API" "$SERVER_PORT" "$LOGS/server.log"
 wait_for_port "The frontend" "$WEB_PORT" "$LOGS/web.log"
 
 echo
-echo "RentFlow is running on port $WEB_PORT (API on port $SERVER_PORT)."
+echo "MakeRoom is running on port $WEB_PORT (API on port $SERVER_PORT)."
 if [ "$TEST_CARD" = 1 ]; then echo "Test card is on: use npm run try in server/."; fi
 echo "Logs are in .run/. Stop it with ./start.sh stop."

@@ -1,4 +1,4 @@
-// Checks a deployed RentFlow from the outside: `npm run smoke -- https://your-app.up.railway.app`.
+// Checks a deployed MakeRoom from the outside: `npm run smoke -- https://your-app.up.railway.app`.
 // Costs one new shop (7 sandbox captures), one reset (7 more) and one agent turn (about 2 cents).
 // It can't click PayPal's popup, so the buyer approving a payment stays a manual check.
 
@@ -36,7 +36,7 @@ async function api(method: 'GET' | 'POST', path: string, body?: unknown) {
     headers: { ...(cookie ? { cookie } : {}), ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-  const set = res.headers.getSetCookie().find((c) => c.startsWith('rentflow_session='));
+  const set = res.headers.getSetCookie().find((c) => c.startsWith('makeroom_session='));
   if (set) cookie = set.split(';')[0]!;
   const text = await res.text();
   let json: any = null;
@@ -53,7 +53,7 @@ console.log(`Checking ${base}`);
 
 await step('page and frontend code load', async () => {
   const page = await api('GET', '/');
-  must(page.status === 200 && page.text.includes('<title>RentFlow</title>'), `page answered ${page.status}`);
+  must(page.status === 200 && page.text.includes('<title>MakeRoom</title>'), `page answered ${page.status}`);
   const asset = page.text.match(/assets\/[^"]+\.js/)?.[0];
   must(asset, 'no script in the page');
   const js = await fetch(`${base}/${asset}`);

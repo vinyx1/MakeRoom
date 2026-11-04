@@ -52,7 +52,7 @@ Open http://localhost:5190 → **Pay with PayPal** → log in to the popup with 
 
 ## Agent tool loop (`agent/`)
 
-Can Claude run RentFlow's customer turns through typed tools: call the right ones, follow refusals, stay in scope, and never invent a price?
+Can Claude run MakeRoom's customer turns through typed tools: call the right ones, follow refusals, stay in scope, and never invent a price?
 
 **One-time setup:** put an Anthropic API key in `spikes/agent/.env` as `ANTHROPIC_API_KEY=sk-ant-...` (gitignored). The key spends real money, but these runs cost fractions of a cent on Haiku.
 

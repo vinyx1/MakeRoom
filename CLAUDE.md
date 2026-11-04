@@ -1,4 +1,4 @@
-# RentFlow
+# MakeRoom
 
 An AI rental-operations agent for a small camera rental shop. It resolves scheduling conflicts by searching for feasible rearrangements, negotiating with affected customers, and coordinating PayPal payments before committing changes. Built for the PayPal AI Hackathon (Devpost), targeting **Best Use of Bryntum** and **Agentic Commerce / PayPal + AI**. Build window: ~20 days from 2026-10-23.
 
@@ -26,7 +26,7 @@ Planning → spikes. Bryntum spike done: all 9 questions pass; read `spikes/bryn
 
 ## Vocabulary
 
-- **Owner**: the shop running RentFlow; uses the dashboard. **Customer**: Alice, Bob, Charlie, etc.; talks to the agent by chat.
+- **Owner**: the shop running MakeRoom; uses the dashboard. **Customer**: Alice, Bob, Charlie, etc.; talks to the agent by chat.
 - **Model** vs **unit**: customers book a model (Sony A7 IV); the system assigns a unit (A7IV-1). Same-model unit swaps need no approval, only a notice. One unit per booking.
 - **Proposal**: any change to the schedule, from any source (customer request, owner edit, agent resolution). Made of immutable **revisions**; a change to terms creates a new revision.
 - **Requester** vs **affected party**: the requester wants the change; affected parties are customers whose bookings the plan changes.

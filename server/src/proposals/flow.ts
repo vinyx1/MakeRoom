@@ -498,7 +498,7 @@ export async function createRequesterOrder(
     intent: 'AUTHORIZE', amountCents: revision.quote.chargeCents, testCard: input.testCard,
     // A new id per attempt: a failed order's id would replay the failed order.
     requestId: `order:${compactId(proposal.id)}:${compactId(revision.id)}:${compactId(input.customerId)}:${prep.attempt}`,
-    description: `RentFlow: ${revision.quote.lines.map((l) => l.label).join(', ')}`,
+    description: `MakeRoom: ${revision.quote.lines.map((l) => l.label).join(', ')}`,
   });
   if (!created.ok) return { status: 'payment_failed', error: created.error };
 

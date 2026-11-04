@@ -5,10 +5,10 @@ import { createDb } from '../src/db/client.ts';
 import { TEST_DATABASE_URL } from '../vitest.config.ts';
 
 export async function setup() {
-  const admin = new pg.Client({ connectionString: TEST_DATABASE_URL.replace(/\/rentflow_test$/, '/rentflow') });
+  const admin = new pg.Client({ connectionString: TEST_DATABASE_URL.replace(/\/makeroom_test$/, '/makeroom') });
   await admin.connect();
-  await admin.query('DROP DATABASE IF EXISTS rentflow_test WITH (FORCE)');
-  await admin.query('CREATE DATABASE rentflow_test');
+  await admin.query('DROP DATABASE IF EXISTS makeroom_test WITH (FORCE)');
+  await admin.query('CREATE DATABASE makeroom_test');
   await admin.end();
 
   const { db, pool } = createDb(TEST_DATABASE_URL);

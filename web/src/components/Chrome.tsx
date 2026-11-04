@@ -18,7 +18,7 @@ export function Header({ owner, shopNow, onFastForward, onAutoReply, onReset, on
   return (
     <header className="top">
       <div className="brand">
-        <b>RentFlow</b> <span className="muted">· {owner.shop.name}</span>
+        <b>MakeRoom</b> <span className="muted">· {owner.shop.name}</span>
       </div>
       <div className="clock" title="The demo runs on its own clock">
         Shop time <b>{shopTime(shopNow, owner.shop.timezone, 'ccc d LLL, h:mma')}</b>

@@ -1,6 +1,6 @@
 # Agent tools
 
-The boundary between Claude and RentFlow. Claude acts only through the tools below; anything without a tool, it cannot do. Rules the tools enforce come from `docs/conflict-model.md` (§ numbers below); tables come from `docs/data-model.md`.
+The boundary between Claude and MakeRoom. Claude acts only through the tools below; anything without a tool, it cannot do. Rules the tools enforce come from `docs/conflict-model.md` (§ numbers below); tables come from `docs/data-model.md`.
 
 Design stance: **Claude interprets and talks; the backend decides.** The agent never runs the state machine, picks a fallback plan, records a decision, or moves money. The backend does all of that and calls the agent when someone needs to be told something.
 

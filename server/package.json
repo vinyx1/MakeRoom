@@ -1,5 +1,5 @@
 {
-  "name": "rentflow-server",
+  "name": "makeroom-server",
   "private": true,
   "type": "module",
   "scripts": {

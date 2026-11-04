@@ -1,11 +1,12 @@
 # Local Postgres for development and tests: `docker compose up -d`.
+name: makeroom
 services:
   postgres:
     image: postgres:17
     environment:
-      POSTGRES_USER: rentflow
-      POSTGRES_PASSWORD: rentflow
-      POSTGRES_DB: rentflow
+      POSTGRES_USER: makeroom
+      POSTGRES_PASSWORD: makeroom
+      POSTGRES_DB: makeroom
     ports:
       - "5432:5432"
     volumes:

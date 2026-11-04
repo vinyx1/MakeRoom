@@ -18,5 +18,5 @@ export function withShopLock<T>(db: Db, shopId: string, fn: (tx: Tx) => Promise<
  * `bookings_picked_up_guard` trigger rejects it otherwise.
  */
 export async function allowOwnerShorten(tx: Tx) {
-  await tx.execute(sql`SELECT set_config('rentflow.owner_shorten', 'on', true)`);
+  await tx.execute(sql`SELECT set_config('makeroom.owner_shorten', 'on', true)`);
 }

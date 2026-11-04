@@ -6,7 +6,7 @@ import { CURRENCY, type GatewayResult, type PaymentGateway } from './gateway.ts'
 const BASE = 'https://api-m.sandbox.paypal.com';
 
 /** The sandbox test card from the PayPal spike; seeded prepayments use it, with no buyer click. */
-const TEST_CARD = { number: '4111111111111111', expiry: '2030-12', security_code: '123', name: 'RentFlow Demo' };
+const TEST_CARD = { number: '4111111111111111', expiry: '2030-12', security_code: '123', name: 'MakeRoom Demo' };
 
 export type PayPalResult = { status: number; ok: boolean; body: any; debugId: string | null };
 
@@ -88,7 +88,7 @@ export function payPalGateway(client: PayPalClient = createPayPalClient()): Paym
           '/v2/checkout/orders',
           {
             intent,
-            purchase_units: [{ reference_id: 'rentflow', description, amount: money(amountCents) }],
+            purchase_units: [{ reference_id: 'makeroom', description, amount: money(amountCents) }],
             ...(testCard ? { payment_source: { card: TEST_CARD } } : {}),
           },
           { requestId },

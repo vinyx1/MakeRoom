@@ -1,6 +1,6 @@
 # Data model
 
-The tables RentFlow stores, how they link, and where each rule from `CLAUDE.md` and `docs/conflict-model.md` lives. Implemented in `server/src/db/schema.ts` (Drizzle) and `server/drizzle/0001_constraints.sql` and `0003_immutable_revisions.sql` (exclusion constraints and triggers, which Drizzle can't express); `server/test/db.test.ts` checks each database guarantee below.
+The tables MakeRoom stores, how they link, and where each rule from `CLAUDE.md` and `docs/conflict-model.md` lives. Implemented in `server/src/db/schema.ts` (Drizzle) and `server/drizzle/0001_constraints.sql` and `0003_immutable_revisions.sql` (exclusion constraints and triggers, which Drizzle can't express); `server/test/db.test.ts` checks each database guarantee below.
 
 Conventions for every table:
 
@@ -118,7 +118,7 @@ Gotcha: the constraint must be **deferred** to commit time. A plan applies sever
 
 Gotcha: `buffer_ends_at` is stored, not generated, because `timestamptz + interval` is not immutable in Postgres and can't be used in a generated column or constraint expression.
 
-**Trigger backstop** for invariant 3: reject an update where `OLD.status = 'picked_up'` and `unit_id` changes, or `ends_at` moves earlier without an owner-sourced change. "Owner-sourced" is a transaction-local setting, `rentflow.owner_shorten = on`, set by `allowOwnerShorten` in `server/src/db/lock.ts`. The validator enforces this first; the trigger catches bugs.
+**Trigger backstop** for invariant 3: reject an update where `OLD.status = 'picked_up'` and `unit_id` changes, or `ends_at` moves earlier without an owner-sourced change. "Owner-sourced" is a transaction-local setting, `makeroom.owner_shorten = on`, set by `allowOwnerShorten` in `server/src/db/lock.ts`. The validator enforces this first; the trigger catches bugs.
 
 ## 4. Proposals
 

@@ -6,7 +6,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { DateTime } from 'luxon';
 
-const BASE = process.env.RENTFLOW_URL ?? 'http://127.0.0.1:3000';
+const BASE = process.env.MAKEROOM_URL ?? 'http://127.0.0.1:3000';
 const SESSION_FILE = new URL('../.try-session', import.meta.url).pathname;
 let cookie = existsSync(SESSION_FILE) ? readFileSync(SESSION_FILE, 'utf8').trim() : '';
 
@@ -474,7 +474,7 @@ try {
   console.error(`Can't reach the server at ${BASE}: start it with \`npm run dev:test-card\` in server/. (${String(e)})`);
   process.exit(1);
 }
-say(`${c.bold}RentFlow terminal tester${c.off}  shop time ${fmt(owner.shop.now)}. Type \`help\`.`);
+say(`${c.bold}MakeRoom terminal tester${c.off}  shop time ${fmt(owner.shop.now)}. Type \`help\`.`);
 rl.setPrompt(`${c.bold}owner>${c.off} `);
 rl.prompt();
 void follow();

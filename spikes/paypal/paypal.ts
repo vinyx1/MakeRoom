@@ -54,7 +54,7 @@ const money = (cents: number, currency: string) => ({ currency_code: currency, v
 export const createOrder = (intent: 'AUTHORIZE' | 'CAPTURE', cents: number, currency: string, requestId?: string) =>
   call('POST', '/v2/checkout/orders', {
     intent,
-    purchase_units: [{ reference_id: 'rentflow', description: 'RentFlow spike', amount: money(cents, currency) }],
+    purchase_units: [{ reference_id: 'makeroom', description: 'MakeRoom spike', amount: money(cents, currency) }],
   }, { requestId });
 
 // Server-side card order: no buyer click. PayPal authorizes or captures it immediately on create.
@@ -66,7 +66,7 @@ export const createCardOrder = (
 ) =>
   call('POST', '/v2/checkout/orders', {
     intent,
-    purchase_units: [{ reference_id: 'rentflow', description: 'RentFlow spike', amount: money(cents, currency) }],
+    purchase_units: [{ reference_id: 'makeroom', description: 'MakeRoom spike', amount: money(cents, currency) }],
     payment_source: {
       card: opts.vaultId
         ? { vault_id: opts.vaultId }

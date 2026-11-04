@@ -71,6 +71,13 @@
       "when": 1793720736015,
       "tag": "0009_public_url_protection",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793767863680,
+      "tag": "0010_makeroom_setting",
+      "breakpoints": true
     }
   ]
 }

@@ -32,7 +32,7 @@ declare module 'fastify' {
   }
 }
 
-export const SESSION_COOKIE = 'rentflow_session';
+export const SESSION_COOKIE = 'makeroom_session';
 
 export type AppOptions = {
   db: Db;

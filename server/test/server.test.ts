@@ -235,12 +235,12 @@ describe('hosting', () => {
   });
 
   it('serves the built frontend, without touching a shop', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'rentflow-web-'));
-    writeFileSync(join(root, 'index.html'), '<title>RentFlow</title>');
+    const root = mkdtempSync(join(tmpdir(), 'makeroom-web-'));
+    writeFileSync(join(root, 'index.html'), '<title>MakeRoom</title>');
     const hosted = buildApp({ db, gateway, webRoot: root });
     const page = await hosted.inject({ method: 'GET', url: '/' });
     expect(page.statusCode).toBe(200);
-    expect(page.body).toContain('RentFlow');
+    expect(page.body).toContain('MakeRoom');
     expect(page.headers['set-cookie']).toBeUndefined();
     await hosted.close();
     rmSync(root, { recursive: true });

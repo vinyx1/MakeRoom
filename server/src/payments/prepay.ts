@@ -23,7 +23,7 @@ export async function seedPrepayments(db: Db, gateway: PaymentGateway, shopId: s
   const results = await Promise.all(
     bookings.map(async (b) => ({
       booking: b,
-      result: await gateway.createOrder({ intent: 'CAPTURE', amountCents: b.priceCents, requestId: randomUUID(), description: 'RentFlow demo prepayment', testCard: true }),
+      result: await gateway.createOrder({ intent: 'CAPTURE', amountCents: b.priceCents, requestId: randomUUID(), description: 'MakeRoom demo prepayment', testCard: true }),
     })),
   );
 

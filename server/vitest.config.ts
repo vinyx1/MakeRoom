@@ -1,7 +1,7 @@
 import { loadEnv } from 'vite';
 import { defineConfig } from 'vitest/config';
 
-export const TEST_DATABASE_URL = 'postgres://rentflow:rentflow@localhost:5432/rentflow_test';
+export const TEST_DATABASE_URL = 'postgres://makeroom:makeroom@localhost:5432/makeroom_test';
 
 export default defineConfig({
   test: {

@@ -1,4 +1,4 @@
-# RentFlow: what's left
+# MakeRoom: what's left
 
 Written 2026-10-29. Deadline about **Nov 12**, so roughly 13 working days. Estimates are for focused days with Claude.
 The rule from `CLAUDE.md` still holds: the video scenarios must run reliably before anything new is added.

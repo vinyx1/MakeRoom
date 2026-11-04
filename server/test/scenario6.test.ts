@@ -207,8 +207,8 @@ describe.skipIf(!process.env.PAYPAL_CLIENT_ID)('PayPal sandbox: voiding a real a
     const client = createPayPalClient();
     const order = await client.call('POST', '/v2/checkout/orders', {
       intent: 'AUTHORIZE',
-      purchase_units: [{ reference_id: 'rentflow-test', amount: { currency_code: 'USD', value: '45.00' } }],
-      payment_source: { card: { number: '4111111111111111', expiry: '2030-12', security_code: '123', name: 'RentFlow Test' } },
+      purchase_units: [{ reference_id: 'makeroom-test', amount: { currency_code: 'USD', value: '45.00' } }],
+      payment_source: { card: { number: '4111111111111111', expiry: '2030-12', security_code: '123', name: 'MakeRoom Test' } },
     }, { requestId: randomUUID() });
     expect(order.status).toBe(201);
     const authorizationId: string = order.body.purchase_units[0].payments.authorizations[0].id;
