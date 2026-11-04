@@ -156,8 +156,8 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel }: P
       timeResolution: { unit: 'hour', increment: 1 },
       snap: true,
       forceFit: true,
-      rowHeight: 42,
-      barMargin: 5,
+      rowHeight: 36,
+      barMargin: 4,
       eventStyle: 'rounded',
       columns: [
         { text: 'Unit', field: 'name', width: 104 },
