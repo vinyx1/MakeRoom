@@ -15,6 +15,7 @@ import { renderOption } from '../proposals/cards.ts';
 import { type StoredRequest, loadRequest } from '../proposals/request.ts';
 import { ACTIVE_STATES } from '../proposals/state-machine.ts';
 import { LIVE_REVISION_STATUSES, afterOf } from '../proposals/store.ts';
+import { offerStillOpen } from './offers.ts';
 import { shopTime, usd } from './scope.ts';
 import { MAX_TOOL_CALLS, TurnState, makeTools } from './tools.ts';
 
@@ -110,6 +111,7 @@ export async function runTurn(db: Db, config: AgentConfig, input: { shopId: stri
   const conversation = await conversationOf(db, shopId, customerId, now());
   const turn = new TurnState();
   turn.offerEvent = event.kind === 'offer_ready';
+  if (event.kind === 'offer_ready') turn.offer = event;
 
   // An offer can end before its turn runs (an owner override, an expiry, a fast click). Then there is nothing to
   // present: skip the turn rather than show a stale card; the proposal_update turn explains what happened.
@@ -190,7 +192,7 @@ export async function runTurn(db: Db, config: AgentConfig, input: { shopId: stri
     await postCard(db, shopId, conversation.id, event, now());
     fallbacks.push('card');
   }
-  if (turn.messagesSent === 0 && offerOpen) {
+  if (turn.messagesSent === 0 && offerOpen && !turn.offerClosed) {
     const text = atCap
       ? "I've reached my message limit for this demo session. The shop will follow up with you directly."
       : overBudget && event.kind === 'customer_message'
@@ -486,22 +488,6 @@ function wantsTo(p: typeof s.proposals.$inferSelect) {
 }
 
 /** The customer still has a decision to make on these revisions (or, as requester, the draft is still open). */
-async function offerStillOpen(db: Db, customerId: string, event: Extract<AgentEvent, { kind: 'offer_ready' }>) {
-  const [p] = await db.select().from(s.proposals).where(eq(s.proposals.id, event.proposalId));
-  if (!p) return false;
-  const live = (await db.select().from(s.revisions).where(and(eq(s.revisions.proposalId, p.id), inArray(s.revisions.status, [...LIVE_REVISION_STATUSES]))))
-    .filter((r) => event.revisionIds.includes(r.id));
-  if (!live.length) return false;
-  if (event.role === 'requester') return p.state === 'DRAFT' && p.requesterCustomerId === customerId;
-  if (p.state !== 'AWAITING_APPROVALS') return false;
-  const mine = await db
-    .select()
-    .from(s.approvals)
-    .where(and(inArray(s.approvals.revisionId, live.map((r) => r.id)), eq(s.approvals.customerId, customerId)));
-  // A pick leaves its sibling option pending, so one answered option closes the offer for this customer.
-  return mine.some((a) => a.status === 'pending') && !mine.some((a) => a.status === 'approved');
-}
-
 /** The backend posts the card itself when an offer_ready turn didn't (docs/agent-tools.md: never on the critical path). */
 async function postCard(db: Db, shopId: string, conversationId: string, event: Extract<AgentEvent, { kind: 'offer_ready' }>, at: Date) {
   await db.insert(s.messages).values({ shopId, conversationId, author: 'system', body: '', cardRevisionIds: event.revisionIds, at });
