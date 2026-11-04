@@ -14,7 +14,7 @@ import { BryntumSchedulerPro, BryntumSchedulerProProjectModel } from '@bryntum/s
 import { DateTime } from 'luxon';
 import { useEffect, useMemo, useRef } from 'react';
 import type { OwnerView } from '../api';
-import { onHighlightRequest } from '../highlight';
+import { onHighlightRequest, onScheduleToToday } from '../highlight';
 import { shopTime, usd } from '../live';
 
 class ScheduleEvent extends EventModel {
@@ -54,11 +54,10 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel }: P
   const t = (iso: string) => shopTime(iso, tz);
 
   const weekStart = DateTime.fromISO(owner.shop.now, { zone: tz }).startOf('week');
-  // The demo week, Monday to the following Tuesday (Hank), as real instants: Bryntum converts them to shop time.
-  // It ends at 10pm Tuesday, after Hank's buffer: the clocks change inside the week, so a midnight end would spill
-  // an hour into Wednesday in browsers whose offset to the shop changes that week. `autoAdjustTimeAxis: false`
-  // keeps Bryntum from widening the range to whole weeks.
-  const view = useMemo(() => ({ start: weekStart.toJSDate(), end: weekStart.plus({ days: 8, hours: 22 }).toJSDate() }), [weekStart.toMillis()]);
+  // A scrollable month around the demo week, as real instants: Bryntum converts them to shop time. It ends at 10pm:
+  // when the clocks change inside the range, a midnight end would spill an hour into the next day in browsers whose
+  // offset to the shop changes. `autoAdjustTimeAxis: false` keeps Bryntum from widening the range to whole weeks.
+  const view = useMemo(() => ({ start: weekStart.minus({ days: 7 }).toJSDate(), end: weekStart.plus({ days: 21, hours: 22 }).toJSDate() }), [weekStart.toMillis()]);
 
   const data = useMemo(() => {
     const resources = [
@@ -176,7 +175,30 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel }: P
     };
   }, [data]);
 
-  const timeRanges = useMemo(() => [{ id: 'now', name: '', startDate: shopNow }], [Math.floor(shopNow.getTime() / 60_000)]);
+  // The current-time line. Bryntum's own (`showCurrentTimeLine`) follows the browser's clock, not the shop's demo
+  // clock. Replacing this prop after the first render makes the line vanish, so the prop stays fixed and the record
+  // moves; a value set on a record is in the project's time zone, so it's converted first.
+  const timeRanges = useMemo(() => [{ id: 'now', name: '', startDate: shopNow }], []);
+  const scheduler = useRef<BryntumSchedulerPro>(null);
+  const shopMinute = Math.floor(shopNow.getTime() / 60_000);
+  useEffect(() => {
+    const line = (project.current as any)?.instance?.timeRangeStore?.getById('now');
+    if (line) line.startDate = TimeZoneHelper.toTimeZone(shopNow, tz);
+  }, [shopMinute, tz]);
+
+  // Opens on the current time, and comes back to it from the Today button.
+  const nowRef = useRef(shopNow);
+  nowRef.current = shopNow;
+  const showToday = (animate: boolean) =>
+    void (scheduler.current as any)?.instance?.scrollToDate(TimeZoneHelper.toTimeZone(nowRef.current, tz), { block: 'center', animate });
+  useEffect(() => {
+    const opening = window.setTimeout(() => showToday(false), 0);
+    const off = onScheduleToToday(() => showToday(true));
+    return () => {
+      window.clearTimeout(opening);
+      off();
+    };
+  }, [tz]);
 
   // Bryntum keeps the config from the first render, so its handlers read the latest props from here.
   const latest = useRef({ onEdit, onResolveDraft, onCancel, tz });
@@ -202,7 +224,8 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel }: P
       // Drags and resizes land on whole hours, so an owner edit doesn't miss shop hours by a few minutes.
       timeResolution: { unit: 'hour', increment: 1 },
       snap: true,
-      forceFit: true,
+      // Wide enough to read a booking; the range scrolls instead of being squeezed into the window.
+      tickSize: 150,
       rowHeight: 36,
       barMargin: 4,
       eventStyle: 'rounded',
@@ -281,7 +304,7 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel }: P
         resourceTimeRanges={data.resourceTimeRanges as any}
         timeRanges={timeRanges as any}
       />
-      <BryntumSchedulerPro project={project as any} {...(config as any)} />
+      <BryntumSchedulerPro ref={scheduler} project={project as any} {...(config as any)} />
     </div>
   );
 }

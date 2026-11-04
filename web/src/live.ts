@@ -57,6 +57,12 @@ export function useShop() {
   }, []);
 
   /** The shop clock, ticking: the server's "now" plus the time since it was fetched. */
+  // The clock keeps moving between server updates.
+  const [, setClockTick] = useState(0);
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockTick((n) => n + 1), 20_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const shopNow = owner ? new Date(new Date(owner.shop.now).getTime() + (Date.now() - fetchedAt)) : null;
 
   return { owner, activity, tick, refresh, reset, shopNow, error };

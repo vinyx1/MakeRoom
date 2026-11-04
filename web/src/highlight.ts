@@ -18,3 +18,15 @@ export function pointsAtRequest(proposalId: string | null | undefined) {
   if (!proposalId) return {};
   return { onMouseEnter: () => highlightRequest(proposalId), onMouseLeave: () => highlightRequest(null) };
 }
+
+const TODAY = 'makeroom:schedule-today';
+
+/** Scrolls the schedule back to the current time. */
+export function scheduleToToday() {
+  window.dispatchEvent(new Event(TODAY));
+}
+
+export function onScheduleToToday(listener: () => void) {
+  window.addEventListener(TODAY, listener);
+  return () => window.removeEventListener(TODAY, listener);
+}

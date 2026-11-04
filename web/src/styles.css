@@ -111,7 +111,8 @@ code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; b
 /* Top bar */
 .top { grid-column: 2; display: flex; align-items: center; gap: 12px; padding-right: 12px; min-width: 0; }
 .top h1 { font-size: 15px; line-height: 20px; font-weight: 600; white-space: nowrap; }
-.top .range { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.top > button { background: transparent; }
+.top > button:hover:not(:disabled) { background: var(--active); }
 .top .clock { margin-left: auto; display: flex; align-items: center; gap: 6px; white-space: nowrap; flex: none; }
 .top .clock b { font-weight: 500; margin-right: 6px; }
 .top .clock button { background: transparent; }

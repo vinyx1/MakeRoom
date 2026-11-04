@@ -3,6 +3,7 @@
 import { DateTime } from 'luxon';
 import { useState } from 'react';
 import type { OwnerView } from '../api';
+import { scheduleToToday } from '../highlight';
 import { shopTime, usd } from '../live';
 
 /** Three schedule bars, the middle one moved over to make room. */
@@ -30,12 +31,11 @@ function MiniMonth({ now, zone }: { now: string; zone: string }) {
   const today = DateTime.fromISO(now, { zone }).startOf('day');
   const first = today.startOf('month');
   const start = first.startOf('week');
-  // The schedule shows Monday of this week to the following Tuesday.
   const spanStart = today.startOf('week');
-  const spanEnd = spanStart.plus({ days: 8 });
+  const spanEnd = spanStart.plus({ days: 6 });
   const days = Array.from({ length: first.plus({ months: 1 }).diff(start, 'days').days > 35 ? 42 : 35 }, (_, i) => start.plus({ days: i }));
   return (
-    <section className="side-sec ref" aria-label={`${today.toFormat('LLLL yyyy')}, showing the week on the schedule`}>
+    <section className="side-sec ref" aria-label={`${today.toFormat('LLLL yyyy')}, with this week marked`}>
       <h2 className="side-title">{today.toFormat('LLLL yyyy')}</h2>
       <div className="month-grid">
         {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
@@ -138,11 +138,10 @@ export function Sidebar({ owner, onReset, onEquipment, onHelp }: SidebarProps) {
 
 export function TopBar({ owner, shopNow, onFastForward }: { owner: OwnerView; shopNow: Date; onFastForward: (minutes: number) => void }) {
   const zone = owner.shop.timezone;
-  const monday = DateTime.fromISO(owner.shop.now, { zone }).startOf('week');
   return (
     <header className="top">
       <h1>{owner.shop.name}</h1>
-      <span className="range">{monday.toFormat('ccc d LLL')} to {monday.plus({ days: 8 }).toFormat('ccc d LLL')}</span>
+      <button onClick={scheduleToToday} title="Scroll the schedule back to the current time">Today</button>
       <div className="clock" title="The demo runs on its own clock">
         <span className="muted">Shop time</span> <b>{shopTime(shopNow, zone, 'ccc d LLL, h:mma')}</b>
         <button onClick={() => onFastForward(30)} title="Jump the shop clock ahead; offers waiting past their timeout expire">
