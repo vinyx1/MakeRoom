@@ -109,6 +109,7 @@ export async function runTurn(db: Db, config: AgentConfig, input: { shopId: stri
   const now = () => new Date(Date.now() + shop.clockOffsetMs);
   const conversation = await conversationOf(db, shopId, customerId, now());
   const turn = new TurnState();
+  turn.offerEvent = event.kind === 'offer_ready';
 
   // An offer can end before its turn runs (an owner override, an expiry, a fast click). Then there is nothing to
   // present: skip the turn rather than show a stale card; the proposal_update turn explains what happened.
@@ -163,7 +164,7 @@ export async function runTurn(db: Db, config: AgentConfig, input: { shopId: stri
       const runner = config.client.beta.messages.toolRunner({ ...base, messages: [{ role: 'user', content: prompt }] });
       let last = await drive(runner, report, step);
 
-      if (turn.messagesSent === 0 && last?.stop_reason === 'end_turn') {
+      if (turn.messagesSent === 0 && !turn.offerClosed && last?.stop_reason === 'end_turn') {
         // Plain reply text is discarded; one chance to send it through send_message and the money lint (spike gotcha 4).
         report.nudged = true;
         step('nothing sent: nudging once');
@@ -493,11 +494,12 @@ async function offerStillOpen(db: Db, customerId: string, event: Extract<AgentEv
   if (!live.length) return false;
   if (event.role === 'requester') return p.state === 'DRAFT' && p.requesterCustomerId === customerId;
   if (p.state !== 'AWAITING_APPROVALS') return false;
-  const pending = await db
+  const mine = await db
     .select()
     .from(s.approvals)
-    .where(and(inArray(s.approvals.revisionId, live.map((r) => r.id)), eq(s.approvals.customerId, customerId), eq(s.approvals.status, 'pending')));
-  return pending.length > 0;
+    .where(and(inArray(s.approvals.revisionId, live.map((r) => r.id)), eq(s.approvals.customerId, customerId)));
+  // A pick leaves its sibling option pending, so one answered option closes the offer for this customer.
+  return mine.some((a) => a.status === 'pending') && !mine.some((a) => a.status === 'approved');
 }
 
 /** The backend posts the card itself when an offer_ready turn didn't (docs/agent-tools.md: never on the critical path). */

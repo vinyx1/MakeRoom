@@ -87,6 +87,9 @@ const Change = z.discriminatedUnion('type', [
   z.object({ type: z.literal('new_booking'), model_id: z.string(), start: localTime, end: localTime }),
 ]);
 
+/** An offer turn can lose the race with the customer's own click or the owner's. The outcome reaches them in its own turn. */
+const OFFER_MOVED_ON = 'The customer already answered, or the request already moved on, so this offer needs no message. End the turn without sending anything: they are told the outcome separately.';
+
 export function makeTools(scope: ToolScope) {
   const { db, shopId, customerId: me, turn } = scope;
   const read = <T>(fn: (tx: Tx, idx: Index) => Promise<T>) =>
@@ -461,7 +464,13 @@ export function makeTools(scope: ToolScope) {
             .where(and(inArray(s.approvals.revisionId, live.map((r) => r.id)), eq(s.approvals.customerId, me), eq(s.approvals.status, 'pending')));
           // A requester's card is open while the request is a draft, even when they agreed by phone (owner-attested).
           const open = role === 'requester' ? p!.state === 'DRAFT' : p!.state === 'AWAITING_APPROVALS' && pending.length > 0;
-          if (!open) return refuse('INVALID_STATE', 'This customer has no decision pending on that request.', 'Use get_my_proposals to explain what it is waiting on.');
+          if (!open) {
+            if (turn.offerEvent) {
+              turn.offerClosed = true;
+              return refuse('INVALID_STATE', 'This offer has already moved on.', OFFER_MOVED_ON);
+            }
+            return refuse('INVALID_STATE', 'This customer has no decision pending on that request.', 'Use get_my_proposals to explain what it is waiting on.');
+          }
           // Their card is on screen while this turn runs, so they can answer before it gets here. A pick leaves the
           // sibling option pending, so without this the agent would be shown one button and describe the other as missing.
           if (role === 'affected') {
@@ -469,8 +478,13 @@ export function makeTools(scope: ToolScope) {
               .select()
               .from(s.approvals)
               .where(and(inArray(s.approvals.revisionId, live.map((r) => r.id)), eq(s.approvals.customerId, me), eq(s.approvals.status, 'approved')));
-            if (answered.length)
+            if (answered.length) {
+              if (turn.offerEvent) {
+                turn.offerClosed = true;
+                return refuse('INVALID_STATE', 'This customer has already answered on the card.', OFFER_MOVED_ON);
+              }
               return refuse('INVALID_STATE', 'This customer has already answered on the card.', 'They already picked an option, so do not offer the options or describe the card again. Thank them, say what they chose from the context, and that it is waiting on what the context says.');
+            }
           }
           // The requester's card carries every sibling option; an affected party's carries the options they can pick.
           // A plan outside the envelope reaches a customer only once the owner has approved it (invariant 6).
