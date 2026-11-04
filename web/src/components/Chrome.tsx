@@ -219,7 +219,7 @@ export function Help({ onClose }: { onClose: () => void }) {
         <ol>
           <li>As Alice: “Shoot ran over. Can I keep the camera until Thursday at 10am?”</li>
           <li>Pay on her card with PayPal. The schedule shows the plan as ghosts.</li>
-          <li>As Bob: pick option B (2pm, $15 back). Or tick “Other customers reply automatically” and he picks it himself.</li>
+          <li>Bob answers by himself with option B (2pm, $15 back). To answer as him, untick “Other customers reply automatically” first.</li>
           <li>As the owner: Approve. The payment is captured, both bookings move, and Bob is refunded.</li>
         </ol>
         <h4>2 · The owner drags, the assistant asks</h4>

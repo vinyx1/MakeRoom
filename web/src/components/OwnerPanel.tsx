@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { type Activity, type Escalation, type Fact, type Outcome, type OwnerView, api } from '../api';
+import { pointsAtRequest } from '../highlight';
 import { shopTime, usd } from '../live';
 
 type Props = {
@@ -118,6 +119,7 @@ export function OwnerPanel({ owner, activity, onOutcome, onOpenChat, onResolveDr
               ))}
             </div>
           )}
+          <Payments activity={activity} owner={owner} />
         </div>
 
         <div className="feed">
@@ -131,9 +133,41 @@ export function OwnerPanel({ owner, activity, onOutcome, onOpenChat, onResolveDr
   );
 }
 
+const PAYMENT_STATE: Record<string, { label: string; tag: string }> = {
+  payment_authorized: { label: 'Held', tag: 'held' },
+  payment_captured: { label: 'Captured', tag: 'ok' },
+  payment_voided: { label: 'Hold released', tag: '' },
+  payment_refunded: { label: 'Refunded', tag: 'refund' },
+};
+
+/** Where each PayPal payment for a change stands now, newest first, from the same events as the feed. */
+function Payments({ activity, owner }: { activity: Activity[]; owner: OwnerView }) {
+  const name = (id: string) => owner.customers.find((c) => c.id === id)?.name ?? 'A customer';
+  const rows = new Map<string, Activity>();
+  for (const a of activity) {
+    // A refund is its own line; a hold's later states replace it. Seeded prepayments aren't part of any request.
+    if (!PAYMENT_STATE[a.kind] || (a.kind !== 'payment_refunded' && !a.proposalId)) continue;
+    const key = a.kind === 'payment_refunded' ? `refund-${a.seq}` : a.payload.orderId;
+    if (!rows.has(key)) rows.set(key, a);
+  }
+  if (rows.size === 0) return null;
+  return (
+    <div className="pending">
+      <h3 className="feed-title">Payments</h3>
+      {[...rows.values()].slice(0, 5).map((a) => (
+        <div className="pay-row" key={a.seq}>
+          <span>{name(a.payload.customerId)}</span>
+          <span className={`tag ${PAYMENT_STATE[a.kind]!.tag}`}>{PAYMENT_STATE[a.kind]!.label}</span>
+          <b>{usd(a.payload.amountCents)}</b>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const STATE: Record<string, string> = {
   DRAFT: 'waiting for the customer to accept and pay',
-  AWAITING_APPROVALS: 'paid; waiting for approvals',
+  AWAITING_APPROVALS: 'waiting for approvals',
   CAPTURING: 'being confirmed',
 };
 
@@ -163,7 +197,7 @@ function PendingRequest({ proposal: p, owner, onOutcome }: { proposal: OwnerView
     }
   };
   return (
-    <div className="preq">
+    <div className="preq" {...pointsAtRequest(p.id)}>
       <div className="preq-line">
         <span><b>{name}</b>: {what}</span>
         {!late && <b>{usd(rev.quote.chargeCents)}</b>}
@@ -210,7 +244,7 @@ function OwnerCard({ escalation: e, owner, onOutcome, onOpenChat }: { escalation
   const [summary, question] = e.summary.split(' Needs a fact: ');
 
   return (
-    <div className="ocard">
+    <div className="ocard" {...pointsAtRequest(e.proposalId)}>
       <div className="ocard-kind"><span className={`tag ${TAG[e.kind] ?? ''}`}>{LABEL[e.kind] ?? e.kind}</span></div>
       <div>{summary}</div>
       {questions.length > 0 && (

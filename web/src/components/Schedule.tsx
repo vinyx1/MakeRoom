@@ -12,8 +12,9 @@
 import { EventModel, StringHelper, TimeZoneHelper } from '@bryntum/schedulerpro';
 import { BryntumSchedulerPro, BryntumSchedulerProProjectModel } from '@bryntum/schedulerpro-react';
 import { DateTime } from 'luxon';
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { OwnerView } from '../api';
+import { onHighlightRequest } from '../highlight';
 import { shopTime, usd } from '../live';
 
 class ScheduleEvent extends EventModel {
@@ -123,11 +124,54 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel }: P
       );
     }
 
+    // What each request touches, for the highlight when its card is pointed at.
+    const byRequest = new Map<string, string[]>();
+    for (const p of owner.proposals) {
+      const ghostPrefixes = p.revisions.map((r) => `ghost-${r.id}-`);
+      const bookingIds = p.revisions.flatMap((r) => r.changes.map((c) => c.bookingId));
+      byRequest.set(p.id, events.map((e) => String(e.id)).filter((id) => bookingIds.includes(id) || ghostPrefixes.some((g) => id.startsWith(g))));
+    }
+
     const resourceTimeRanges = owner.unavailability.map((u) => ({
       id: u.id, resourceId: u.unitId, startDate: u.period.start, endDate: u.period.end, name: u.reason.replace('_', ' '),
     }));
-    return { resources, events, assignments, resourceTimeRanges };
+    return { resources, events, assignments, resourceTimeRanges, byRequest };
   }, [owner]);
+
+  const root = useRef<HTMLDivElement>(null);
+  const wraps = (ids: string[]) =>
+    ids.flatMap((id) => [...(root.current?.querySelectorAll<HTMLElement>(`.b-sch-event-wrap[data-event-id="${CSS.escape(id)}"]`) ?? [])]);
+
+  // Pointing at a request's card lights up what it would change.
+  const byRequest = useRef(data.byRequest);
+  byRequest.current = data.byRequest;
+  useEffect(
+    () =>
+      onHighlightRequest((proposalId) => {
+        root.current?.querySelectorAll('.b-sch-event-wrap.highlighted').forEach((el) => el.classList.remove('highlighted'));
+        if (proposalId) wraps(byRequest.current.get(proposalId) ?? []).forEach((el) => el.classList.add('highlighted'));
+      }),
+    [],
+  );
+
+  // A bar that appears or moves pulses once, so a click in a chat or on a card shows its effect on the schedule.
+  const lastSeen = useRef<Map<string, string> | null>(null);
+  useEffect(() => {
+    const placed = new Map(data.assignments.map((a) => [String(a.eventId), String(a.resourceId)]));
+    const seen = new Map(data.events.map((e) => [String(e.id), `${e.startDate}|${e.endDate}|${placed.get(String(e.id))}`]));
+    const before = lastSeen.current;
+    lastSeen.current = seen;
+    const changed = before ? [...seen].filter(([id, was]) => before.get(id) !== was).map(([id]) => id) : [];
+    // No shared bar means a reset or a first load: everything is new, and nothing was caused by a click.
+    if (!before || !changed.length || ![...seen.keys()].some((id) => before.has(id))) return;
+    const show = window.setTimeout(() => wraps(changed).forEach((el) => el.classList.add('pulse')), 250);
+    const clear = window.setTimeout(() => wraps(changed).forEach((el) => el.classList.remove('pulse')), 2850);
+    return () => {
+      window.clearTimeout(show);
+      window.clearTimeout(clear);
+      wraps(changed).forEach((el) => el.classList.remove('pulse'));
+    };
+  }, [data]);
 
   const timeRanges = useMemo(() => [{ id: 'now', name: '', startDate: shopNow }], [Math.floor(shopNow.getTime() / 60_000)]);
 
@@ -223,7 +267,7 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel }: P
   );
 
   return (
-    <div className="schedule">
+    <div className="schedule" ref={root}>
       <BryntumSchedulerProProjectModel
         ref={project}
         timeZone={tz}

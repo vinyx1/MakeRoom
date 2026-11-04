@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { type Config, type Customer, type CustomerView, type Outcome, api } from '../api';
+import { pointsAtRequest } from '../highlight';
 import { shopTime } from '../live';
 import { Card, StatusCard } from './Cards';
 import { Avatar, Mark } from './Chrome';
@@ -105,7 +106,7 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
             const card = cardFor(m.cardRevisionIds);
             if (card) shown.add(card.proposalId + card.role);
             return (
-              <div className="msg card-msg" key={m.id}>
+              <div className="msg card-msg" key={m.id} {...pointsAtRequest(card?.proposalId ?? statusFor(m.cardRevisionIds)?.proposalId)}>
                 {card ? (
                   <Card card={card} customerId={customerId} config={config} zone={zone} onOutcome={onOutcome} />
                 ) : (
@@ -131,7 +132,7 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
         {view?.cards
           .filter((c) => !shown.has(c.proposalId + c.role))
           .map((c) => (
-            <div className="msg card-msg" key={c.proposalId + c.role}>
+            <div className="msg card-msg" key={c.proposalId + c.role} {...pointsAtRequest(c.proposalId)}>
               <Card card={c} customerId={customerId} config={config} zone={zone} onOutcome={onOutcome} />
             </div>
           ))}
