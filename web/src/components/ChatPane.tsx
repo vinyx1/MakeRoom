@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { type Config, type Customer, type CustomerView, type Outcome, api } from '../api';
 import { shopTime } from '../live';
 import { Card, StatusCard } from './Cards';
+import { Avatar, Mark } from './Chrome';
 
 type Props = {
   customerId: string;
@@ -14,10 +15,15 @@ type Props = {
   zone: string;
   tick: number;
   typing: boolean;
+  role: string;
   onOutcome: (o: Outcome) => void;
 };
 
-export function ChatPane({ customerId, customers, onCustomer, config, zone, tick, typing, onOutcome }: Props) {
+/** One click to start, in the customer's own words. */
+const TRY: Record<string, string> = { Alice: 'Shoot ran over. Can I keep the camera until Thursday at 10am?' };
+const TRY_ANYONE = 'When is my booking?';
+
+export function ChatPane({ customerId, customers, onCustomer, config, zone, tick, typing, role, onOutcome }: Props) {
   const [view, setView] = useState<CustomerView | null>(null);
   const [text, setText] = useState('');
   const [asShop, setAsShop] = useState(false);
@@ -32,12 +38,12 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
     bottom.current?.scrollIntoView({ block: 'end' });
   }, [view?.messages.length, typing]);
 
-  const send = async () => {
-    const body = text.trim();
+  const send = async (typed = text, shop = asShop) => {
+    const body = typed.trim();
     if (!body) return;
     setSending(true);
     try {
-      if (asShop) await api.ownerMessage(customerId, body);
+      if (shop) await api.ownerMessage(customerId, body);
       else await api.send(customerId, body);
       setText('');
       await load();
@@ -68,8 +74,14 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
   return (
     <section className="pane chat">
       <header className="pane-head">
-        <span className="pane-title">Chat</span>
-        <select value={customerId} onChange={(e) => onCustomer(e.target.value)} aria-label="Customer">
+        <div className="pane-who">
+          <Avatar name={name} />
+          <div className="pane-names">
+            <span className="pane-title">{name}</span>
+            <span className="pane-role">{role}</span>
+          </div>
+        </div>
+        <select value={customerId} onChange={(e) => onCustomer(e.target.value)} aria-label="Show another customer's chat">
           {customers.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
@@ -83,7 +95,10 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
         {!view && <div className="muted small">Loading…</div>}
         {view?.messages.length === 0 && (
           <div className="empty">
-            Chatting as <b>{name}</b>. Ask about a booking, e.g. “Can I keep the camera until Thursday at 10am?”
+            <p>You're writing as {name}. Nothing here yet.</p>
+            <button className="try" disabled={sending} onClick={() => void send(TRY[name] ?? TRY_ANYONE, false)}>
+              {TRY[name] ?? TRY_ANYONE}
+            </button>
           </div>
         )}
         {view?.messages.map((m) => {
@@ -103,10 +118,13 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
           const who = m.author === 'customer' ? name : m.author === 'owner' ? 'Shop' : m.author === 'system' ? 'Shop' : 'Assistant';
           return (
             <div className={`msg ${m.author}`} key={m.id}>
-              <div className="who">
-                {who} <span className="when">{shopTime(m.at, zone, 'h:mma')}</span>
+              {who === 'Assistant' ? <Mark size={22} /> : <Avatar name={who} />}
+              <div>
+                <div className="who">
+                  {who}<span className="when">{shopTime(m.at, zone, 'h:mma').toLowerCase()}</span>
+                </div>
+                <div className="body">{m.body}</div>
               </div>
-              <div className="body">{m.body}</div>
             </div>
           );
         })}

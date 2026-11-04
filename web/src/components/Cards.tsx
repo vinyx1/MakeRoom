@@ -60,7 +60,7 @@ function RequesterCard({ card, customerId, config, onOutcome }: CardProps) {
   const needsPayment = card.chargeCents > 0 && card.heldCents < card.chargeCents;
 
   return (
-    <div className="card requester">
+    <div className="card">
       <div className="card-head">{offer.isAlternative ? 'The closest we can do' : 'Your offer'}</div>
       <Terms lines={offer.lines} needsShop={offer.needsShop} isAlternative={offer.isAlternative} />
       {needsPayment ? (
@@ -137,7 +137,7 @@ function AffectedCard({ card, customerId, onOutcome }: CardProps) {
     }
   };
   return (
-    <div className="card affected">
+    <div className="card">
       <div className="card-head">Another customer's request affects your booking</div>
       {card.options.map((o) => (
         <div className="option" key={o.revisionId}>
@@ -173,7 +173,7 @@ function CounterCard({ card, customerId, onOutcome }: CardProps) {
     }
   };
   return (
-    <div className="card affected">
+    <div className="card">
       <div className="card-head">Your counter-offer</div>
       <Terms lines={offer.lines} needsShop={offer.needsShop} isAlternative={false} />
       <div className="muted small">Nothing changes until you send this. Sending it counts as your agreement to these terms.</div>

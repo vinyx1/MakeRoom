@@ -27,13 +27,13 @@ export function OwnerPanel({ owner, activity, onOutcome, onOpenChat, onResolveDr
   return (
     <section className="pane owner">
       <header className="pane-head">
-        <span className="pane-title">Owner</span>
-        <span className={`count ${waiting ? 'hot' : ''}`}>{waiting ? `${waiting} need${waiting === 1 ? 's' : ''} you` : 'All clear'}</span>
+        <h2 className="pane-title">Needs you</h2>
+        <span className={`count ${waiting ? 'hot' : ''}`}>{waiting || 'Nothing'}</span>
       </header>
       <div className="owner-body">
         <div className="inbox">
           {saveOffers.map((f) => (
-            <div className="ocard save" key={f.factId}>
+            <div className="ocard" key={f.factId}>
               <div>
                 Save <b>{f.label}: {f.value}</b> as a fact, so the assistant doesn't ask again?
               </div>
@@ -66,8 +66,8 @@ export function OwnerPanel({ owner, activity, onOutcome, onOpenChat, onResolveDr
             />
           ))}
           {dueBack.map((b) => (
-            <div className={`ocard ${b.overdueMarkedAt ? 'overdue' : 'due'}`} key={`due-${b.id}`}>
-              <div className="ocard-kind">{b.overdueMarkedAt ? 'Overdue' : 'Due back'}</div>
+            <div className="ocard" key={`due-${b.id}`}>
+              <div className="ocard-kind"><span className={`tag ${b.overdueMarkedAt ? 'held' : ''}`}>{b.overdueMarkedAt ? 'Overdue' : 'Due back'}</span></div>
               <div>
                 {nameOf(b.customerId)}'s {owner.models.find((m) => m.id === b.modelId)?.name} ({unitOf(b.unitId)}) was due back {shopTime(b.endsAt, zone)}.
               </div>
@@ -82,9 +82,10 @@ export function OwnerPanel({ owner, activity, onOutcome, onOpenChat, onResolveDr
           {owner.drafts.map((d) => {
             const b = owner.bookings.find((x) => x.id === d.bookingId);
             return (
-              <div className="ocard draft" key={d.id}>
+              <div className="ocard" key={d.id}>
+                <div className="ocard-kind"><span className="tag conflict">Your draft, in conflict</span></div>
                 <div>
-                  <b>Red draft:</b> {nameOf(b?.customerId)}'s booking → {d.proposed.startsAt && shopTime(d.proposed.startsAt, zone)} – {d.proposed.endsAt && shopTime(d.proposed.endsAt, zone)} conflicts with another booking.
+                  {nameOf(b?.customerId)}'s booking → {d.proposed.startsAt && shopTime(d.proposed.startsAt, zone)} – {d.proposed.endsAt && shopTime(d.proposed.endsAt, zone)} conflicts with another booking.
                 </div>
                 <div className="row">
                   <button className="primary" onClick={() => onResolveDraft(d.id)}>
@@ -108,10 +109,10 @@ export function OwnerPanel({ owner, activity, onOutcome, onOpenChat, onResolveDr
               </div>
             </div>
           )}
-          {!waiting && <div className="muted small">Nothing needs you right now. Drag a booking on the schedule to change it.</div>}
+          {!waiting && <div className="empty-line">Nothing is waiting on you. Drag a booking on the schedule to change it.</div>}
           {owner.proposals.length > 0 && (
             <div className="pending">
-              <div className="feed-title">Pending requests</div>
+              <h3 className="feed-title">Pending requests</h3>
               {owner.proposals.map((p) => (
                 <PendingRequest key={p.id} proposal={p} owner={owner} onOutcome={onOutcome} />
               ))}
@@ -120,7 +121,7 @@ export function OwnerPanel({ owner, activity, onOutcome, onOpenChat, onResolveDr
         </div>
 
         <div className="feed">
-          <div className="feed-title">Activity</div>
+          <h3 className="feed-title">Activity</h3>
           {activity.map((a) => (
             <FeedLine key={a.seq} a={a} owner={owner} />
           ))}
@@ -163,11 +164,12 @@ function PendingRequest({ proposal: p, owner, onOutcome }: { proposal: OwnerView
   };
   return (
     <div className="preq">
-      <div>
-        <b>{name}</b>: {what}
-        {!late && <> · <b>{usd(rev.quote.chargeCents)}</b></>}
-        {rev.quote.discountCents > 0 && <span className="muted small"> ({usd(rev.quote.discountCents)} off)</span>}
+      <div className="preq-line">
+        <span><b>{name}</b>: {what}</span>
+        {!late && <b>{usd(rev.quote.chargeCents)}</b>}
       </div>
+      {rev.quote.discountCents > 0 && <div className="muted small">{usd(rev.quote.discountCents)} off</div>}
+      {!late && !free && p.state !== 'DRAFT' && <div style={{ margin: '3px 0' }}><span className="tag held">{p.state === 'CAPTURING' ? 'Capturing' : 'PayPal hold'}</span></div>}
       <div className="muted small">
         {late ? (p.state === 'CAPTURING' ? 'being confirmed' : 'waiting on you or the next customer') : p.state === 'DRAFT' && free ? 'waiting for the customer to accept' : (STATE[p.state] ?? p.state.toLowerCase())}
       </div>
@@ -208,8 +210,8 @@ function OwnerCard({ escalation: e, owner, onOutcome, onOpenChat }: { escalation
   const [summary, question] = e.summary.split(' Needs a fact: ');
 
   return (
-    <div className={`ocard ${e.kind}`}>
-      <div className="ocard-kind">{LABEL[e.kind] ?? e.kind}</div>
+    <div className="ocard">
+      <div className="ocard-kind"><span className={`tag ${TAG[e.kind] ?? ''}`}>{LABEL[e.kind] ?? e.kind}</span></div>
       <div>{summary}</div>
       {questions.length > 0 && (
         <div className="fact-q">
@@ -260,6 +262,9 @@ function OwnerCard({ escalation: e, owner, onOutcome, onOpenChat }: { escalation
   );
 }
 
+// Persimmon is the assistant proposing something; red and amber are problems.
+const TAG: Record<string, string> = { approval: 'proposal', plan_review: 'proposal', handoff: 'conflict', customer_issue: 'conflict', payment_failure: 'conflict', overdue: 'held' };
+
 const LABEL: Record<string, string> = {
   approval: 'Approval needed',
   plan_review: 'Review this plan',
@@ -276,14 +281,17 @@ function FeedLine({ a, owner }: { a: Activity; owner: OwnerView }) {
   const at = shopTime(a.at, owner.shop.timezone, 'h:mm');
   const line = (cls: string, text: React.ReactNode, sub?: string[]) => (
     <div className={`fl ${cls}`}>
-      <span className="fl-at">{at}</span> {text}
-      {sub && sub.length > 0 && (
-        <ul>
-          {sub.map((x) => (
-            <li key={x}>{x}</li>
-          ))}
-        </ul>
-      )}
+      <span className="fl-at">{at}</span>
+      <div>
+        {text}
+        {sub && sub.length > 0 && (
+          <ul>
+            {sub.map((x) => (
+              <li key={x}>{x}</li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
   switch (a.kind) {

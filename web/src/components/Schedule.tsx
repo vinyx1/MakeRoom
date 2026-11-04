@@ -198,7 +198,7 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel }: P
         renderData.cls.add(`kind-${eventRecord.kind}`);
         if (eventRecord.kind === 'draft')
           return `<span class="draft-name">${name}</span><button class="resolve-btn" type="button">Resolve with agent</button>`;
-        if (eventRecord.kind === 'ghost') return `<i>${name}</i>`;
+        if (eventRecord.kind === 'ghost') return name;
         if (eventRecord.status === 'picked_up') renderData.cls.add('picked-up');
         if (eventRecord.inRequest) renderData.cls.add('in-request');
         if (eventRecord.overdue) renderData.cls.add('overdue');

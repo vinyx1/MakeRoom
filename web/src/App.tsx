@@ -1,12 +1,12 @@
-// Layout: the schedule across the top; below it the owner, then two customer chats (requester and affected party,
-// each switchable), so cause and effect are in one frame.
+// Layout: a sidebar and top bar around one sheet. On the sheet, the schedule across the top; below it the owner, then
+// two customer chats (requester and affected party, each switchable), so cause and effect are in one frame.
 
 import { DateTime } from 'luxon';
 import { PayPalProvider } from '@paypal/react-paypal-js/sdk-v6';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { type Config, type Outcome, api } from './api';
+import { type Config, type Outcome, type OwnerView, api } from './api';
 import { ChatPane } from './components/ChatPane';
-import { EditDialog, type EditPrompt, EquipmentDrawer, Header, Help, type Toast, Toasts } from './components/Chrome';
+import { EditDialog, type EditPrompt, EquipmentDrawer, Help, Mark, Sidebar, type Toast, Toasts, TopBar } from './components/Chrome';
 import { OwnerPanel } from './components/OwnerPanel';
 import { type EditRequest, Schedule } from './components/Schedule';
 import { isTyping, shopTime, usd, useShop } from './live';
@@ -18,13 +18,20 @@ export function App() {
   }, []);
   const shop = useShop();
 
-  if (shop.error) return <div className="splash error">Can't load the demo: {shop.error}</div>;
+  if (shop.error)
+    return (
+      <main className="splash">
+        <h1><Mark /> MakeRoom</h1>
+        <div className="error">Can't load the demo: {shop.error}</div>
+      </main>
+    );
   if (!config || !shop.owner)
     return (
-      <div className="splash">
-        <div className="spinner" />
-        Setting up your demo shop… <span className="muted">(the demo bookings are being prepaid in the PayPal sandbox)</span>
-      </div>
+      <main className="splash">
+        <h1><Mark /> MakeRoom</h1>
+        <div>Setting up your demo shop…</div>
+        <div className="muted">The demo bookings are being prepaid in the PayPal sandbox. This takes a few seconds.</div>
+      </main>
     );
   const page = <Shop config={config} shop={shop} />;
   // The PayPal button needs the SDK; without a client id the rest of the demo still works.
@@ -38,6 +45,15 @@ export function App() {
 }
 
 const WAITING_ON: Record<string, string> = { owner: 'the shop', affected: 'the other customer', requester: 'the customer to accept and pay' };
+
+/** What this customer is to the schedule right now, in the words on their chat's header. */
+function roleIn(owner: OwnerView, customerId: string): string {
+  const open = owner.proposals.filter((p) => p.revisions.length > 0);
+  if (open.some((p) => p.requesterCustomerId === customerId)) return 'Asking for a change';
+  if (open.some((p) => p.revisions.some((r) => r.changes.some((c) => c.partyCustomerId === customerId))))
+    return owner.shop.autoReplyCustomers ? 'Affected · replies automatically' : 'Affected by a request';
+  return 'Customer';
+}
 
 function describe(o: Outcome): Omit<Toast, 'id'> {
   switch (o.status) {
@@ -233,14 +249,8 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
 
   return (
     <div className="app">
-      <Header
+      <Sidebar
         owner={owner}
-        shopNow={shop.shopNow!}
-        onFastForward={async (m) => {
-          const r = await api.fastForward(m);
-          toast({ kind: 'ok', text: `Shop clock +${m} min${r.expired.length ? `; ${r.expired.length} offer${r.expired.length === 1 ? '' : 's'} expired` : ''}.` });
-          void shop.refresh();
-        }}
         onAutoReply={async (on) => {
           await api.autoReply(on);
           void shop.refresh();
@@ -249,6 +259,16 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
         onEquipment={() => setEquipment(true)}
         onHelp={() => setHelp(true)}
       />
+      <TopBar
+        owner={owner}
+        shopNow={shop.shopNow!}
+        onFastForward={async (m) => {
+          const r = await api.fastForward(m);
+          toast({ kind: 'ok', text: `Shop clock +${m} min${r.expired.length ? `; ${r.expired.length} offer${r.expired.length === 1 ? '' : 's'} expired` : ''}.` });
+          void shop.refresh();
+        }}
+      />
+      <main className="sheet">
       <Schedule owner={owner} shopNow={shop.shopNow!} onEdit={onEdit} onResolveDraft={onResolveDraft} onCancel={onCancelBooking} />
       <div className="bottom">
         <OwnerPanel owner={owner} activity={shop.activity} onOutcome={onOutcome} onOpenChat={setLeft} onResolveDraft={onResolveDraft} onMarkOverdue={onMarkOverdue} />
@@ -265,10 +285,12 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
             zone={owner.shop.timezone}
             tick={shop.tick}
             typing={isTyping(shop.activity, id as string)}
+            role={roleIn(owner, id as string)}
             onOutcome={onOutcome}
           />
         ))}
       </div>
+      </main>
       {equipment && <EquipmentDrawer owner={owner} onClose={() => setEquipment(false)} />}
       {help && <Help onClose={() => setHelp(false)} />}
       {prompt && <EditDialog prompt={prompt} />}

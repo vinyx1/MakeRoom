@@ -1,48 +1,153 @@
-// The page's frame: header with the shop clock and judge-mode controls, the equipment drawer, help, and toasts.
+// The page's frame: the sidebar, the top bar with the shop clock, the equipment drawer, help, and toasts.
 
+import { DateTime } from 'luxon';
 import { useState } from 'react';
 import type { OwnerView } from '../api';
 import { shopTime, usd } from '../live';
 
-type HeaderProps = {
+/** Three schedule bars, the middle one moved over to make room. */
+export function Mark({ size = 20 }: { size?: number }) {
+  return (
+    <svg className="mark" width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">
+      <rect x="1" y="2" width="11" height="4" rx="1.5" fill="#1d1f22" />
+      <rect x="8" y="8" width="11" height="4" rx="1.5" fill="#d9480f" />
+      <rect x="1" y="14" width="11" height="4" rx="1.5" fill="#1d1f22" />
+    </svg>
+  );
+}
+
+/** A person's initial on a pale tint of their own, stable by name. */
+export function Avatar({ name }: { name: string }) {
+  const hue = [...name].reduce((sum, c) => sum + c.charCodeAt(0) * 47, 0) % 360;
+  return (
+    <span className="avatar" style={{ background: `hsl(${hue} 38% 88%)`, color: `hsl(${hue} 45% 26%)` }} aria-hidden="true">
+      {name.slice(0, 1).toUpperCase()}
+    </span>
+  );
+}
+
+function MiniMonth({ now, zone }: { now: string; zone: string }) {
+  const today = DateTime.fromISO(now, { zone }).startOf('day');
+  const first = today.startOf('month');
+  const start = first.startOf('week');
+  // The schedule shows Monday of this week to the following Tuesday.
+  const spanStart = today.startOf('week');
+  const spanEnd = spanStart.plus({ days: 8 });
+  const days = Array.from({ length: first.plus({ months: 1 }).diff(start, 'days').days > 35 ? 42 : 35 }, (_, i) => start.plus({ days: i }));
+  return (
+    <section className="side-sec ref" aria-label={`${today.toFormat('LLLL yyyy')}, showing the week on the schedule`}>
+      <h2 className="side-title">{today.toFormat('LLLL yyyy')}</h2>
+      <div className="month-grid">
+        {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+          <span className="dow" key={i}>{d}</span>
+        ))}
+        {days.map((d) => {
+          const inSpan = d >= spanStart && d <= spanEnd;
+          const cls = ['day', d.month !== first.month && 'out', inSpan && 'span', +d === +spanStart && 'span-start', +d === +spanEnd && 'span-end', +d === +today && 'today'];
+          return (
+            <span className={cls.filter(Boolean).join(' ')} key={d.toISODate()}>
+              {d.day}
+            </span>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/** Who comes to the counter today: the pickups and returns of the shop's day. */
+function AtTheCounter({ owner }: { owner: OwnerView }) {
+  const zone = owner.shop.timezone;
+  const today = DateTime.fromISO(owner.shop.now, { zone }).toISODate();
+  const nameOf = (id: string) => owner.customers.find((c) => c.id === id)?.name ?? 'A customer';
+  const unitOf = (id: string | null) => owner.units.find((u) => u.id === id)?.label ?? 'no unit yet';
+  const on = (iso: string) => DateTime.fromISO(iso, { zone }).toISODate() === today;
+  const rows = owner.bookings
+    .flatMap((b) => [
+      ...(on(b.startsAt) ? [{ key: `${b.id}-out`, at: b.startsAt, text: `${nameOf(b.customerId)} picks up ${unitOf(b.unitId)}` }] : []),
+      ...(on(b.endsAt) ? [{ key: `${b.id}-in`, at: b.endsAt, text: `${nameOf(b.customerId)} returns ${unitOf(b.unitId)}` }] : []),
+    ])
+    .sort((a, b) => a.at.localeCompare(b.at));
+  return (
+    <section className="side-sec ref">
+      <h2 className="side-title">At the counter today</h2>
+      {rows.length === 0 && <div className="small muted">No pickups or returns today.</div>}
+      <ul className="counter">
+        {rows.slice(0, 5).map((r) => (
+          <li key={r.key}>
+            <span className="when">{shopTime(r.at, zone, 'h:mma').toLowerCase()}</span>
+            <span>{r.text}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+type SidebarProps = {
   owner: OwnerView;
-  shopNow: Date;
-  onFastForward: (minutes: number) => void;
   onAutoReply: (on: boolean) => void;
   onReset: () => void;
   onEquipment: () => void;
   onHelp: () => void;
 };
 
-export function Header({ owner, shopNow, onFastForward, onAutoReply, onReset, onEquipment, onHelp }: HeaderProps) {
+export function Sidebar({ owner, onAutoReply, onReset, onEquipment, onHelp }: SidebarProps) {
+  const now = new Date(owner.shop.now);
   return (
-    <header className="top">
+    <aside className="side">
       <div className="brand">
-        <b>MakeRoom</b> <span className="muted">· {owner.shop.name}</span>
+        <Mark />
+        <span className="brand-name">MakeRoom</span>
       </div>
-      <div className="clock" title="The demo runs on its own clock">
-        Shop time <b>{shopTime(shopNow, owner.shop.timezone, 'ccc d LLL, h:mma')}</b>
-        <button onClick={() => onFastForward(30)} title="Jump the shop clock ahead; offers waiting past their timeout expire">
-          +30 min
-        </button>
-        <button onClick={() => onFastForward(240)} title="Jump the shop clock ahead four hours">
-          +4 h
-        </button>
-      </div>
-      <div className="controls">
-        <label title="Affected customers answer their offers by themselves, so you can play only the requester">
-          <input type="checkbox" checked={owner.shop.autoReplyCustomers} onChange={(e) => onAutoReply(e.target.checked)} /> Auto-reply customers
+      <MiniMonth now={owner.shop.now} zone={owner.shop.timezone} />
+      <AtTheCounter owner={owner} />
+      <section className="side-sec ref">
+        <h2 className="side-title">On the schedule</h2>
+        <ul className="legend">
+          <li><span className="swatch booked" /> Confirmed</li>
+          <li><span className="swatch out" /> Out with the customer</li>
+          <li><span className="swatch proposal" /> Proposed by the assistant</li>
+          {owner.drafts.length > 0 && <li><span className="swatch draft" /> Your draft, in conflict</li>}
+          {owner.bookings.some((b) => b.status === 'picked_up' && b.overdueMarkedAt) && <li><span className="swatch overdue" /> Overdue</li>}
+          {owner.bookings.some((b) => b.status === 'picked_up' && new Date(b.endsAt) <= now && !b.overdueMarkedAt) && <li className="muted small">Due back: see Needs you</li>}
+        </ul>
+      </section>
+      <div className="side-foot">
+        <label className="toggle" title="Affected customers answer their offers by themselves, so you can play only the requester">
+          <input type="checkbox" checked={owner.shop.autoReplyCustomers} onChange={(e) => onAutoReply(e.target.checked)} />
+          <span>Other customers reply automatically</span>
         </label>
-        <button onClick={onEquipment}>Equipment</button>
+        <div style={{ height: 8 }} />
+        <button className="nav-btn" onClick={onEquipment}>Equipment</button>
+        <button className="nav-btn" onClick={onHelp}>How to demo</button>
         <button
+          className="nav-btn"
           onClick={() => {
             if (window.confirm('Start the demo over? Every change in this shop is undone and open payment holds are released.')) onReset();
           }}
         >
           Reset demo
         </button>
-        <button onClick={onHelp} aria-label="How to demo">
-          ?
+      </div>
+    </aside>
+  );
+}
+
+export function TopBar({ owner, shopNow, onFastForward }: { owner: OwnerView; shopNow: Date; onFastForward: (minutes: number) => void }) {
+  const zone = owner.shop.timezone;
+  const monday = DateTime.fromISO(owner.shop.now, { zone }).startOf('week');
+  return (
+    <header className="top">
+      <h1>{owner.shop.name}</h1>
+      <span className="range">{monday.toFormat('ccc d LLL')} to {monday.plus({ days: 8 }).toFormat('ccc d LLL')}</span>
+      <div className="clock" title="The demo runs on its own clock">
+        <span className="muted">Shop time</span> <b>{shopTime(shopNow, zone, 'ccc d LLL, h:mma')}</b>
+        <button onClick={() => onFastForward(30)} title="Jump the shop clock ahead; offers waiting past their timeout expire">
+          +30 min
+        </button>
+        <button onClick={() => onFastForward(240)} title="Jump the shop clock ahead four hours">
+          +4 h
         </button>
       </div>
     </header>
@@ -99,14 +204,14 @@ export function Help({ onClose }: { onClose: () => void }) {
       <div className="modal help" onClick={(e) => e.stopPropagation()}>
         <h3>How to demo</h3>
         <p className="muted small">
-          You play everyone: the owner (left) and two customers (right; switch them with the menus). Payments use the PayPal sandbox; the
+          You play everyone: the owner (bottom left) and two customers (bottom right; switch them with the menus). Payments use the PayPal sandbox; the
           buyer login is shown on each payment card. Reset demo starts over any time.
         </p>
         <h4>1 · The extension</h4>
         <ol>
           <li>As Alice: “Shoot ran over. Can I keep the camera until Thursday at 10am?”</li>
           <li>Pay on her card with PayPal. The schedule shows the plan as ghosts.</li>
-          <li>As Bob: pick option B (2pm, $15 back). Or turn on Auto-reply customers and he picks it himself.</li>
+          <li>As Bob: pick option B (2pm, $15 back). Or tick “Other customers reply automatically” and he picks it himself.</li>
           <li>As the owner: Approve. The payment is captured, both bookings move, and Bob is refunded.</li>
         </ol>
         <h4>2 · The owner drags, the assistant asks</h4>
@@ -193,7 +298,7 @@ export function EditDialog({ prompt }: { prompt: EditPrompt }) {
   if (prompt.step === 'cancel')
     return (
       <div className="modal-back">
-        <div className="modal warn">
+        <div className="modal">
           <h3>Cancel {prompt.name}'s booking?</h3>
           <p>{prompt.summary}</p>
           <p><b>{prompt.refund}</b> goes back to {prompt.name}'s original payment: everything they paid for this booking.</p>
@@ -250,7 +355,7 @@ export function EditDialog({ prompt }: { prompt: EditPrompt }) {
     );
   return (
     <div className="modal-back">
-      <div className="modal warn">
+      <div className="modal">
         <h3>{prompt.name}'s booking is part of a pending request</h3>
         <p>
           {prompt.requesters.join(', ')}'s request depends on it. Overriding cancels that request and releases their payment hold; they'll be
