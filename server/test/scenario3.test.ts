@@ -1,6 +1,6 @@
 // Demo Scenario 3: the customer says no. Bob keeps his booking as is; the backend falls back to the next plan
 // (Charlie upgrades so Bob can swap units, notice only); Charlie says no too; Vincent gets the closest alternative,
-// at no extra charge, with their hold released. Plus withdrawal (judge B5), the requester cancelling, and expiry.
+// at no extra charge, with his hold released. Plus withdrawal (judge B5), the requester cancelling, and expiry.
 
 import { randomUUID } from 'node:crypto';
 import { and, desc, eq, isNull } from 'drizzle-orm';
@@ -86,7 +86,7 @@ describe('Scenario 3: the customer says no', () => {
     const rev2Approvals = await load.approvals(rev2.id);
     expect(rev2Approvals.map((a) => [a.role, a.customerId, a.status, a.source]).sort()).toEqual([
       ['affected', charlie.customerId, 'pending', null],
-      ['requester', vincent.customerId, 'approved', 'carried_over'], // …so their approval and hold carry over
+      ['requester', vincent.customerId, 'approved', 'carried_over'], // …so his approval and hold carry over
     ].sort());
     const p2 = await load.proposal(proposalId);
     expect([p2.state, p2.revisionSeq, p2.fallbackPlansUsed]).toEqual(['AWAITING_APPROVALS', 2, 1]);
@@ -105,7 +105,7 @@ describe('Scenario 3: the customer says no', () => {
     const [vincentChange] = await load.changes(rev3.id);
     expect(vincentChange!.newEndsAt).toEqual(at(d, 'Wed', 21));
     expect((await load.proposal(proposalId)).state).toBe('DRAFT');
-    // Nothing to pay any more, so their $45 hold is released right away.
+    // Nothing to pay any more, so his $45 hold is released right away.
     expect((await load.order(proposalId)).status).toBe('voided');
     expect((await load.events(proposalId, 'offer_ready')).at(-1)!.payload).toEqual({
       customerId: vincent.customerId, revisionIds: [rev3.id], role: 'requester', fallback: true, holdReleased: true,
@@ -119,7 +119,7 @@ describe('Scenario 3: the customer says no', () => {
     expect(gateway.calls.filter((c) => c.method !== 'createOrder').map((c) => c.method)).toEqual(['authorizeOrder', 'voidAuthorization']);
   });
 
-  it('step 5: Vincent ignores the alternative; it expires and their original booking stands', async () => {
+  it('step 5: Vincent ignores the alternative; it expires and his original booking stands', async () => {
     const { gateway, d, proposalId } = await setup();
     await affectedRefuse(db, gateway, d.shop.id, { proposalId, customerId: d.customer('Bob').id });
     await affectedRefuse(db, gateway, d.shop.id, { proposalId, customerId: d.customer('Charlie').id });
@@ -177,7 +177,7 @@ describe('the requester is kept informed', () => {
   const templates: AgentConfig = { client: null, model: 'none', effort: 'low', turnCap: 60 };
   const view = (d: Seeded, name: string) => db.transaction((tx) => customerView(tx, d.shop.id, d.customer(name).id));
 
-  it('when Bob keeps his booking and another plan goes out, Vincent hears their request and hold stand, and their card says so', async () => {
+  it('when Bob keeps his booking and another plan goes out, Vincent hears his request and hold stand, and his card says so', async () => {
     const { gateway, d, proposalId } = await setup();
     const agent = createAgentService(db, templates, undefined, { shopId: d.shop.id });
     await agent.poll(); // from now on
@@ -199,7 +199,7 @@ describe('the requester is kept informed', () => {
     expect((await view(d, 'Bob'))!.requests.find((r) => r.proposalId === proposalId)).toMatchObject({ tone: 'ended', headline: 'You kept your booking as is' });
   });
 
-  it('after they cancel, their card says it ended and the hold was released', async () => {
+  it('after he cancels, his card says it ended and the hold was released', async () => {
     const { gateway, d, proposalId } = await setup();
     await requesterCancel(db, gateway, d.shop.id, { proposalId, customerId: d.customer('Vincent').id });
     expect((await view(d, 'Vincent'))!.requests.find((r) => r.proposalId === proposalId)).toMatchObject({
@@ -241,7 +241,7 @@ describe('nobody can make it work: the requester hears an apology', () => {
     expect(told[0]!.body).toMatch(/get an answer from the other customer/);
     expect(told[0]!.body).toMatch(/other models available.*coming back/);
 
-    // They accept: until 9pm, with nothing charged. Bob's booking never moved.
+    // He accepts: until 9pm, with nothing charged. Bob's booking never moved.
     expect((await requesterAccept(db, gateway, d.shop.id, { proposalId: next!.id, customerId: vincent.customerId })).status).toBe('committed');
     expect((await load.booking(vincent.id)).endsAt).toEqual(at(d, 'Wed', 21));
     expect((await load.booking(d.bookingOf('Bob').id)).version).toBe(1);

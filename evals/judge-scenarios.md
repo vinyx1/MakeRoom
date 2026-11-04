@@ -29,7 +29,7 @@ Chat-wording quality (tone, clarity) is covered by `evals/chat-prompts.md`. Thes
 | # | Judge does | Expected outcome | Rule |
 |---|---|---|---|
 | B1 | As Bob, counters "noon pickup" | Infeasible (10am return + 4h buffer = 2pm). No new revision. The agent explains and offers 2pm. | §7 infeasible counter |
-| B2 | As Bob, counters "3pm and $25" | Rev 2. Bob's counter counts as his approval. Vincent's terms are unchanged, so their approval carries over. The owner re-approves because the trigger still fires and the compensation changed. | §4 re-approval, owner re-approval |
+| B2 | As Bob, counters "3pm and $25" | Rev 2. Bob's counter counts as his approval. Vincent's terms are unchanged, so his approval carries over. The owner re-approves because the trigger still fires and the compensation changed. | §4 re-approval, owner re-approval |
 | B3 | As owner, edits the refund to $10 | New revision. Only Bob is re-asked. | §4 re-approval |
 | B4 | Counters back and forth 4+ times | After 3 revisions, the agent escalates or closes. | §4 revision limit |
 | B5 | As Bob, accepts Plan B, then says "actually no" before the owner approves | Approval withdrawn, counted as a refusal. Bob is excluded from this conflict and the agent tries the next plan. | §4 withdrawal |
@@ -46,8 +46,8 @@ Chat-wording quality (tone, clarity) is covered by `evals/chat-prompts.md`. Thes
 | C1 | As Vincent, closes the PayPal popup without authorizing | Proposal stays in `DRAFT`. Bob is never contacted. It expires on timeout. | §5 authorize first |
 | C2 | Uses a sandbox card that gets declined | Same as C1. The agent says the payment didn't go through and offers a retry. | §5 |
 | C3 | Double-clicks Approve or Pay | One approval, one authorization. The second click is a no-op, or PayPal returns the same result for the same request ID. | §4 idempotent approvals, invariant 9 |
-| C4 | As owner, raises Vincent's price after they authorized | Vincent must re-approve and authorize again. The old authorization is voided. | §5 |
-| C5 | As owner, lowers Vincent's price after they authorized | Only the lower amount is captured. Vincent re-approves because their money changed. | §5 |
+| C4 | As owner, raises Vincent's price after he authorized | Vincent must re-approve and authorize again. The old authorization is voided. | §5 |
+| C5 | As owner, lowers Vincent's price after he authorized | Only the lower amount is captured. Vincent re-approves because his money changed. | §5 |
 | C6 | A refund fails (PayPal sandbox negative testing) | The schedule stays committed. The refund is retried with the same ID, and the owner is alerted after 3 failures. | Invariant 9 |
 | C7 | Compensation bigger than what the customer paid | Capped at their original capture. A plan that needs more goes to the owner. | §5 |
 | C7b | As Vincent, authorizes, then taps **Withdraw** before Bob answers | Proposal `REJECTED`, hold voided, claims released. Bob's card is withdrawn and he's told his booking stands. Vincent is never charged. | §4 withdrawal |

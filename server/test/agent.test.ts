@@ -82,7 +82,7 @@ describe('tools', () => {
     expect(r).toMatchObject({ ok: false, code: 'NOT_FOUND' });
   });
 
-  it('request_change gives Vincent one offer at $45 and tells them to present it', async () => {
+  it('request_change gives Vincent one offer at $45 and tells him to present it', async () => {
     const { d } = await shop();
     const { call } = await toolsFor(d, 'Vincent');
     const bk = (await call('get_my_bookings', {})).bookings[0].booking_id;
@@ -253,7 +253,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('live agent: Scenario 1 through 
     await agent.poll();
     const vincent = d.customer('Vincent').id, bob = d.customer('Bob').id;
 
-    // Step 1: Vincent types; the agent files the request, posts their card and quotes $45.
+    // Step 1: Vincent types; the agent files the request, posts his card and quotes $45.
     const { turn } = await agent.customerMessage(d.shop.id, vincent, 'Shoot ran over. Can I keep the camera until Thursday at 10am?');
     const r1 = (await turn)!;
     expect(r1.error).toBeNull();
@@ -264,7 +264,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('live agent: Scenario 1 through 
     expect(vincentSaid).toContain('$45');
     expect(vincentSaid).not.toMatch(/\b(bk|rq|rv)_/);
 
-    // Step 4: they pay through the card; the backend asks Bob.
+    // Step 4: he pays through the card; the backend asks Bob.
     const [proposal] = await db.select().from(s.proposals).where(eq(s.proposals.shopId, d.shop.id));
     await createRequesterOrder(db, gateway, d.shop.id, { proposalId: proposal!.id, customerId: vincent });
     expect((await requesterAccept(db, gateway, d.shop.id, { proposalId: proposal!.id, customerId: vincent })).status).toBe('awaiting_approvals');

@@ -1,6 +1,6 @@
 // Demo Scenario 6, "The race": while Vincent's proposal waits on Bob, the owner edits Bob's booking by hand.
 // Also judge scenarios D1–D5. Vincent's pending proposal is built directly (the proposal flow comes later),
-// exactly as the data model's Scenario 1 walkthrough leaves it after their authorization.
+// exactly as the data model's Scenario 1 walkthrough leaves it after his authorization.
 
 import { randomUUID } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
@@ -113,12 +113,12 @@ describe('Scenario 6: the owner drags Bob while Vincent waits', () => {
     expect(p.state).toBe('CANCELLED');
     expect(await reload.activeClaims(proposal.id)).toEqual([]);
 
-    // Their $45 authorization was voided once, with the deterministic request id.
+    // His $45 authorization was voided once, with the deterministic request id.
     expect(gateway.calls).toEqual([{ method: 'voidAuthorization', id: order.authorizationId, requestId: requestId(proposal.id, order.revisionId, 'void', order.customerId) }]);
     expect(result.paymentOps[0]!.status).toBe('succeeded');
     expect((await reload.order(order.id)).status).toBe('voided');
 
-    // Re-planned against the new schedule: with Bob at 2pm, their extension to Thu 10am now fits as is.
+    // Re-planned against the new schedule: with Bob at 2pm, his extension to Thu 10am now fits as is.
     expect(result.cancelled).toHaveLength(1);
     expect(result.cancelled[0]!.replan?.status).toBe('offered');
 

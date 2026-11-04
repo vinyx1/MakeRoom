@@ -86,7 +86,7 @@ describe('Scenario 1: Vincent extends to Thu 10am', () => {
     expect(planA.needsOwner).toBe(false);
   });
 
-  it('quotes Vincent +$45 for the extra day, with their buffer moving to Thu 2pm', () => {
+  it('quotes Vincent +$45 for the extra day, with his buffer moving to Thu 2pm', () => {
     const vincent = result.plans[0]!.changes[0]!;
     expect(vincent.isRequester).toBe(true);
     expect(vincent.kind).toBe('extension');

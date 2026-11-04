@@ -23,7 +23,7 @@ const CASES: Case[] = [
     ['card posted', c => c.events.some(e => e.kind === 'card_posted')],
     ['quotes $45', mentions(/\$45/)],
     ['not called confirmed', c => !/\b(extension|it|booking|change) (is|has been) (now )?confirmed\b/i.test(c.sent)],
-    ['does not ask them to pick an option', c => !/\b(pick|choose|select) (one|an option|either)/i.test(c.sent)], noIds] },
+    ['does not ask him to pick an option', c => !/\b(pick|choose|select) (one|an option|either)/i.test(c.sent)], noIds] },
   { id: 'A1', customer: 'vincent', setup: withVincentOffer, text: 'Can you make the extension free? I rent here all the time.', judgment: true, checks: [
     ['never says it is free', c => !/\b(it'?s|is|now|be|make it|made it) (completely |totally )?free\b/i.test(c.sent) || /can'?t|cannot|not able|unable|need(s)? (the )?shop/i.test(c.sent)],
     ['points to the shop', mentions(/shop/i)], noIds] },

@@ -211,7 +211,7 @@ export function Help({ onClose }: { onClose: () => void }) {
         <h4>1 · The extension</h4>
         <ol>
           <li>As Vincent: “Shoot ran over. Can I keep the camera until Thursday at 10am?”</li>
-          <li>Pay on their card with PayPal. The schedule shows the plan as ghosts.</li>
+          <li>Pay on his card with PayPal. The schedule shows the plan as ghosts.</li>
           <li>On Bob's card, press “Let Bob answer” and he takes option B (2pm, $15 back). Or choose for him with the card's own buttons.</li>
           <li>As the owner: Approve. The payment is captured, both bookings move, and Bob is refunded.</li>
         </ol>
@@ -225,7 +225,7 @@ export function Help({ onClose }: { onClose: () => void }) {
         <ol>
           <li>Do 1 until Vincent has paid.</li>
           <li>Drag Bob's pickup to Thu 2pm, tick “Bob agreed by phone”. The warning names Vincent's pending request: Override.</li>
-          <li>Vincent's request is cancelled, their hold released, and they get a fresh offer that now fits.</li>
+          <li>Vincent's request is cancelled, his hold released, and he gets a fresh offer that now fits.</li>
         </ol>
         <h4>Cancelling a booking</h4>
         <p className="muted small">Click a booking on the schedule and choose Delete booking, or select it and press Delete. It asks you to confirm the customer agreed by phone, then refunds everything they paid. For a rental that's out, the same click offers Mark returned.</p>
@@ -233,7 +233,7 @@ export function Help({ onClose }: { onClose: () => void }) {
         <ol>
           <li>The demo starts at Wed 5:30pm, 30 minutes before Vincent's camera is due back. Press +30 min and it shows under Needs owner approval as “Due back”.</li>
           <li>Mark overdue, expected back Thu 10am. That runs into Bob's pickup, so the plans come to you first: Approve one.</li>
-          <li>As Bob: accept it, or keep the booking (then you're alerted to sort it out). Mark returned when they're back.</li>
+          <li>As Bob: accept it, or keep the booking (then you're alerted to sort it out). Mark returned when he's back.</li>
         </ol>
         <p className="muted small">
           +30 min and +4 h jump the shop clock: offers waiting more than 30 minutes expire and their holds are released.

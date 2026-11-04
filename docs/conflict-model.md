@@ -117,7 +117,7 @@ The Bryntum client can be stale too: every owner edit carries the versions it wa
 - Customers' acceptances are worded "pending shop confirmation" until the proposal commits.
 - **Built (2026-11-03):** affected customers' counters (`affectedCounter`, `counterSend`, `counterDiscard`) and requesters correcting an unpaid offer (`requestChange` replaces it). `draft` revisions aren't live: only their author sees one, on a card. Not built: a requester changing terms after paying the hold (they cancel and ask again), an owner modifying compensation (judge B3).
 - Limits: at most 3 revisions per proposal, then the agent escalates or closes. Each approval request times out after 30 min (configurable).
-- One active proposal per requester per booking: a second request from Vincent about the same booking is a counter on their proposal.
+- One active proposal per requester per booking: a second request from Vincent about the same booking is a counter on his proposal.
 
 ## 5. Money
 

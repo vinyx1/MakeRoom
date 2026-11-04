@@ -330,7 +330,7 @@ Append-only: `seq` (insertion order, for stable feed order and SSE resume), `at`
 |---|---|
 | Vincent asks to extend | `messages` (customer). `proposals` (customer_request, requester Vincent, subject = Vincent's booking, DRAFT). |
 | Optimizer runs | `activity_log` (pruned alternatives with reasons). `revisions` seq 1 option A (Bob → A7R V) and option B (Bob 2pm, $15), each with `revision_changes` (Vincent extension + Bob's change), `quote`; option B has `owner_triggers = {booking_shortened}`. |
-| Quote to Vincent | `approvals` (rev 1 A and B, requester Vincent, pending) — their terms are identical in both. `messages` card → both revision ids. |
+| Quote to Vincent | `approvals` (rev 1 A and B, requester Vincent, pending) — his terms are identical in both. `messages` card → both revision ids. |
 | Vincent approves + authorizes | `approvals` → approved (card_click). `paypal_orders` (AUTHORIZE, $45) + `payment_ops` (authorize, succeeded). `claims`: Vincent's and Bob's bookings; A7IV-1 Wed 10pm–Thu 2pm (the extension past Vincent's current buffer); A7RV-1 Thu 9am–Fri 10pm. State → AWAITING_APPROVALS. |
 | Offer to Bob | `approvals` (affected Bob, pending, rev 1 A and B). `messages` card → both revisions. |
 | Bob taps B | Bob's approval on B → approved; rev 1 B → selected, rev 1 A → superseded; option A's claims (A7RV-1) released. Owner `approvals` row (pending) + `escalations` (approval). |
