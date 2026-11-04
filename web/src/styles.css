@@ -196,7 +196,7 @@ code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; b
 .option { border-top: 1px solid var(--rule); padding-top: 8px; margin-top: 8px; }
 .option-label { font-weight: 600; color: var(--proposal-ink); }
 .option.keep { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.badge { display: inline-block; font-size: 12px; line-height: 16px; padding: 1px 6px; border-radius: 4px; margin: 2px 0 6px; white-space: nowrap; }
+.badge { display: table; font-size: 12px; line-height: 16px; padding: 1px 6px; border-radius: 4px; margin: 2px 0 6px; white-space: nowrap; }
 .badge.shop { background: var(--held-soft); color: var(--held); }
 .badge.alt { background: var(--raised); color: var(--muted); }
 .badge.fact-yes { background: var(--ok-soft); color: var(--ok); }
@@ -210,7 +210,7 @@ code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; b
 
 /* Schedule: bookings, ghosts (pending plans) and red drafts. Bryntum keeps its own theme around them;
    only the marks that carry a meaning here are recoloured, so amber and orange stay reserved. */
-:root { --b-current-time-color: #1d1f22; --b-time-range-line-primary: #1d1f22; --b-time-range-line-color: #1d1f22; }
+:root { --b-current-time-color: #1d1f22; --b-time-range-line-primary: #1d1f22; --b-time-range-line-color: #1d1f22; --b-time-range-line-width: 1px; }
 .b-sch-resource-time-range { --b-primary: #5a6068; --b-resource-time-range-background: repeating-linear-gradient(135deg, #eef0f2 0 5px, #f7f8f9 5px 10px); color: var(--muted); background: repeating-linear-gradient(135deg, #e7e9ec 0 5px, #f3f4f6 5px 10px) !important; }
 .b-sch-resource-time-range .b-sch-event-content { color: var(--muted) !important; font-weight: 500; }
 .b-sch-event { border-radius: 4px !important; }

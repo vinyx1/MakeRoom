@@ -92,7 +92,7 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
 
       <div className="messages">
         {!view && <div className="muted small">Loading…</div>}
-        {view?.messages.length === 0 && (
+        {view?.messages.length === 0 && view.cards.length === 0 && (
           <div className="empty">
             <p>You're writing as {name}. Nothing here yet.</p>
             <button className="try" disabled={sending} onClick={() => void send(TRY[name] ?? TRY_ANYONE, false)}>
