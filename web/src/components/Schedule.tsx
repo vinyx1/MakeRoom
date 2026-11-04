@@ -129,7 +129,7 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel }: P
     return { resources, events, assignments, resourceTimeRanges };
   }, [owner]);
 
-  const timeRanges = useMemo(() => [{ id: 'now', name: `Now · ${shopTime(shopNow, tz, 'h:mma')}`, startDate: shopNow }], [Math.floor(shopNow.getTime() / 60_000)]);
+  const timeRanges = useMemo(() => [{ id: 'now', name: '', startDate: shopNow }], [Math.floor(shopNow.getTime() / 60_000)]);
 
   // Bryntum keeps the config from the first render, so its handlers read the latest props from here.
   const latest = useRef({ onEdit, onResolveDraft, onCancel, tz });

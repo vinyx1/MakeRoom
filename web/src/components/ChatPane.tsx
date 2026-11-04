@@ -77,17 +77,16 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
         <div className="pane-who">
           <Avatar name={name} />
           <div className="pane-names">
-            <span className="pane-title">{name}</span>
+            <select className="who-select" value={customerId} onChange={(e) => onCustomer(e.target.value)} aria-label="Show another customer's chat">
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
             <span className="pane-role">{role}</span>
           </div>
         </div>
-        <select value={customerId} onChange={(e) => onCustomer(e.target.value)} aria-label="Show another customer's chat">
-          {customers.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
         {view?.handedOff && <span className="badge shop">With the shop</span>}
       </header>
 

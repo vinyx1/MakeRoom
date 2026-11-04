@@ -55,32 +55,42 @@ function MiniMonth({ now, zone }: { now: string; zone: string }) {
   );
 }
 
-/** Who comes to the counter today: the pickups and returns of the shop's day. */
+/** Who comes to the counter: the pickups and returns of today and tomorrow, in the shop's time. */
 function AtTheCounter({ owner }: { owner: OwnerView }) {
   const zone = owner.shop.timezone;
-  const today = DateTime.fromISO(owner.shop.now, { zone }).toISODate();
+  const now = DateTime.fromISO(owner.shop.now, { zone });
+  const today = now.toISODate();
+  const tomorrow = now.plus({ days: 1 }).toISODate();
   const nameOf = (id: string) => owner.customers.find((c) => c.id === id)?.name ?? 'A customer';
   const unitOf = (id: string | null) => owner.units.find((u) => u.id === id)?.label ?? 'no unit yet';
-  const on = (iso: string) => DateTime.fromISO(iso, { zone }).toISODate() === today;
   const rows = owner.bookings
     .flatMap((b) => [
-      ...(on(b.startsAt) ? [{ key: `${b.id}-out`, at: b.startsAt, text: `${nameOf(b.customerId)} picks up ${unitOf(b.unitId)}` }] : []),
-      ...(on(b.endsAt) ? [{ key: `${b.id}-in`, at: b.endsAt, text: `${nameOf(b.customerId)} returns ${unitOf(b.unitId)}` }] : []),
+      { key: `${b.id}-out`, at: b.startsAt, text: `${nameOf(b.customerId)} picks up ${unitOf(b.unitId)}` },
+      { key: `${b.id}-in`, at: b.endsAt, text: `${nameOf(b.customerId)} returns ${unitOf(b.unitId)}` },
     ])
     .sort((a, b) => a.at.localeCompare(b.at));
+  const day = (date: string | null, title: string, none: string) => {
+    const those = rows.filter((r) => DateTime.fromISO(r.at, { zone }).toISODate() === date);
+    return (
+      <section className="side-sec ref">
+        <h2 className="side-title">{title}</h2>
+        {those.length === 0 && <div className="small muted">{none}</div>}
+        <ul className="counter">
+          {those.slice(0, 4).map((r) => (
+            <li key={r.key}>
+              <span className="when">{shopTime(r.at, zone, 'h:mma').toLowerCase()}</span>
+              <span>{r.text}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+    );
+  };
   return (
-    <section className="side-sec ref">
-      <h2 className="side-title">At the counter today</h2>
-      {rows.length === 0 && <div className="small muted">No pickups or returns today.</div>}
-      <ul className="counter">
-        {rows.slice(0, 5).map((r) => (
-          <li key={r.key}>
-            <span className="when">{shopTime(r.at, zone, 'h:mma').toLowerCase()}</span>
-            <span>{r.text}</span>
-          </li>
-        ))}
-      </ul>
-    </section>
+    <>
+      {day(today, 'At the counter today', 'No pickups or returns.')}
+      {day(tomorrow, 'Tomorrow', 'No pickups or returns.')}
+    </>
   );
 }
 
@@ -93,7 +103,6 @@ type SidebarProps = {
 };
 
 export function Sidebar({ owner, onAutoReply, onReset, onEquipment, onHelp }: SidebarProps) {
-  const now = new Date(owner.shop.now);
   return (
     <aside className="side">
       <div className="brand">
@@ -110,7 +119,6 @@ export function Sidebar({ owner, onAutoReply, onReset, onEquipment, onHelp }: Si
           <li><span className="swatch proposal" /> Proposed by the assistant</li>
           {owner.drafts.length > 0 && <li><span className="swatch draft" /> Your draft, in conflict</li>}
           {owner.bookings.some((b) => b.status === 'picked_up' && b.overdueMarkedAt) && <li><span className="swatch overdue" /> Overdue</li>}
-          {owner.bookings.some((b) => b.status === 'picked_up' && new Date(b.endsAt) <= now && !b.overdueMarkedAt) && <li className="muted small">Due back: see Needs you</li>}
         </ul>
       </section>
       <div className="side-foot">
