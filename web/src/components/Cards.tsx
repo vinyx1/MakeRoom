@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { type Config, type CustomerCard, type Outcome, type RequestStatus, api } from '../api';
 import { usd } from '../live';
 
-type CardProps = { card: CustomerCard; customerId: string; customerName: string; config: Config; zone: string; onOutcome: (o: Outcome) => void };
+type CardProps = { card: CustomerCard; customerId: string; customerName: string; agentWriting: boolean; config: Config; zone: string; onOutcome: (o: Outcome) => void };
 
 export function Card(props: CardProps) {
   if (props.card.role === 'counter') return <CounterCard {...props} />;
@@ -124,7 +124,7 @@ function PayPalCheckout({ card, customerId, onOutcome, disabled }: { card: Custo
   );
 }
 
-function AffectedCard({ card, customerId, customerName, onOutcome }: CardProps) {
+function AffectedCard({ card, customerId, customerName, agentWriting, onOutcome }: CardProps) {
   const [busy, setBusy] = useState(false);
   const run = async (fn: () => Promise<Outcome>) => {
     setBusy(true);
@@ -155,8 +155,9 @@ function AffectedCard({ card, customerId, customerName, onOutcome }: CardProps) 
         <div className="muted small">Nothing about your booking changes.</div>
       </div>
       <div className="option">
-        <button disabled={busy} onClick={() => run(() => api.scriptedAnswer(card.proposalId, customerId))}>
-          Let {customerName} answer
+        {/* A person reads the assistant's message before answering, so the scripted customer waits for it too. */}
+        <button disabled={busy || agentWriting} onClick={() => run(() => api.scriptedAnswer(card.proposalId, customerId))}>
+          {agentWriting ? 'Waiting for the assistant…' : `Let ${customerName} answer`}
         </button>
       </div>
     </div>

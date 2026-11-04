@@ -20,6 +20,7 @@ import { renderOption } from '../proposals/cards.ts';
 import { affectedCounter, requestChange } from '../proposals/flow.ts';
 import { ACTIVE_STATES } from '../proposals/state-machine.ts';
 import { LIVE_REVISION_STATUSES } from '../proposals/store.ts';
+import { type OfferRef, offerStillOpen } from './offers.ts';
 import { ShortIds, amountsIn, shopTime, usd } from './scope.ts';
 
 export const MAX_TOOL_CALLS = 12;
@@ -37,6 +38,8 @@ export class TurnState {
   offerEvent = false;
   /** The offer moved on while this turn ran: the outcome gets its own turn, so this one says nothing. */
   offerClosed = false;
+  /** The offer this turn is explaining: a message about it is dropped once it stops being open. */
+  offer: OfferRef | null = null;
   /** Chat writes (cards and messages) in the order the model made the calls, even when it makes them in parallel. */
   writes: Promise<unknown> = Promise.resolve();
   private lastAt = 0;
@@ -503,6 +506,7 @@ export function makeTools(scope: ToolScope) {
           if (!cardIds.length) return refuse('INVALID_STATE', 'Nothing on that request can be offered to this customer yet.', 'Say the shop is reviewing it.');
           await tx.insert(s.messages).values({ shopId, conversationId: scope.conversationId, author: 'agent', body: '', cardRevisionIds: cardIds, at: turn.nextAt(idx.snap.now) });
           turn.cardsPosted++;
+          turn.offer = { proposalId: p!.id, revisionIds: cardIds, role };
           const shows = await Promise.all((role === 'requester' ? cardIds.slice(0, 1) : cardIds).map((id) => terms(tx, idx, id, role)));
           const charge = live[0]!.quote.chargeCents;
           const othersAsked = (await tx.select().from(s.revisionChanges).where(inArray(s.revisionChanges.revisionId, live.map((r) => r.id))))
@@ -579,6 +583,9 @@ export function makeTools(scope: ToolScope) {
       description: 'The only way to reach the customer; plain reply text is never shown. Every dollar amount must come from a tool result, the context or the policy.',
       inputSchema: z.object({ text: z.string().min(1) }),
       run: async ({ text }) => {
+        // The card is on screen while this turn runs. An explanation that lands after they've answered would ask them
+        // to choose again.
+        if (!turn.offerClosed && turn.offer && !(await offerStillOpen(db, me, turn.offer))) turn.offerClosed = true;
         if (turn.offerClosed) return refuse('INVALID_STATE', 'Not sent: this offer already moved on.', OFFER_MOVED_ON);
         const unverified = amountsIn(text).filter((c) => !turn.citable.has(c));
         if (unverified.length) {
