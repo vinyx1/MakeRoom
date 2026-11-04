@@ -93,7 +93,7 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
 
       <div className="messages">
         {!view && <div className="muted small">Loading…</div>}
-        {view?.messages.length === 0 && view.cards.length === 0 && (
+        {view?.messages.length === 0 && view.cards.length === 0 && view.requests.length === 0 && (
           <div className="empty">
             <p>You're writing as {name}. Nothing here yet.</p>
             <button className="try" disabled={sending} onClick={() => void send(TRY[name] ?? TRY_ANYONE, false)}>
@@ -134,6 +134,14 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
           .map((c) => (
             <div className="msg card-msg" key={c.proposalId + c.role} {...pointsAtRequest(c.proposalId)}>
               <Card card={c} customerId={customerId} customerName={name} agentWriting={typing} config={config} zone={zone} onOutcome={onOutcome} />
+            </div>
+          ))}
+        {/* The same for a request whose card never reached the chat (they answered before the assistant posted it). */}
+        {view?.requests
+          .filter((r) => !view.cards.some((c) => c.proposalId === r.proposalId) && !view.messages.some((m) => m.cardRevisionIds.some((id) => r.revisionIds.includes(id))))
+          .map((r) => (
+            <div className="msg card-msg" key={r.proposalId} {...pointsAtRequest(r.proposalId)}>
+              <StatusCard status={r} customerId={customerId} onOutcome={onOutcome} />
             </div>
           ))}
         {typing && <div className="typing">Assistant is replying…</div>}
