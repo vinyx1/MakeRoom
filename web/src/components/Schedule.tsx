@@ -178,6 +178,7 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel }: P
         latest.current.onCancel({ bookingId: record.bookingId, name: record.name, version: record.version, status: record.status });
       },
       eventDragCreateFeature: false,
+      scheduleTooltipFeature: false,
       // Delete and Backspace ask to cancel the booking. Bryntum never removes a bar by itself: the server decides, and the
       // bar goes when the refreshed schedule no longer has it.
       onBeforeEventDelete({ eventRecords }: any) {
