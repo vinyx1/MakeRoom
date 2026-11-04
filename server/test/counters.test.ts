@@ -6,7 +6,8 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 import { afterAll, describe, expect, it } from 'vitest';
 import { TurnState, makeTools } from '../src/agent/tools.ts';
-import { conversationOf } from '../src/agent/turn.ts';
+import { type AgentConfig, conversationOf, runTurn } from '../src/agent/turn.ts';
+import { createAutoReply } from '../src/demo/auto-reply.ts';
 import { createDb } from '../src/db/client.ts';
 import * as s from '../src/db/schema.ts';
 import { seedShop } from '../src/db/seed.ts';
@@ -304,5 +305,46 @@ describe('a customer who answers before the agent has finished writing to them',
     expect(result).toMatchObject({ ok: false, code: 'INVALID_STATE' });
     expect(result.hint).toContain('already');
     expect(turn.cardsPosted).toBe(0);
+  });
+
+  it('an offer turn that loses the race ends silently, so it can\'t tell them the request expired', async () => {
+    const { d, gateway, bob, proposalId, optionA, optionB } = await bobAsked();
+    const conversation = await conversationOf(db, d.shop.id, bob, d.now);
+    const turn = new TurnState();
+    turn.offerEvent = true;
+    const tools = makeTools({ db, shopId: d.shop.id, customerId: bob, conversationId: conversation.id, turn, now: () => d.now, onStep: () => {} });
+    const call = async (name: string, input: unknown) => JSON.parse(await (tools.find((t) => t.name === name)!.run as (i: unknown) => Promise<string>)(input));
+    await affectedAccept(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: optionB.id });
+
+    expect(await call('present_offer', { revision_ids: [turn.ids.of('rv', optionA.id)] })).toMatchObject({ ok: false, code: 'INVALID_STATE' });
+    expect(turn.offerClosed).toBe(true);
+    expect(await call('send_message', { text: 'That request has expired.' })).toMatchObject({ ok: false, code: 'INVALID_STATE' });
+    expect(turn.messagesSent).toBe(0);
+  });
+
+  it('skips the offer turn when they answered before it started', async () => {
+    const { d, gateway, bob, proposalId, optionA, optionB } = await bobAsked();
+    await affectedAccept(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: optionB.id });
+    const templates: AgentConfig = { client: null, model: 'none', turnCap: 60 } as unknown as AgentConfig;
+    const report = await runTurn(db, templates, { shopId: d.shop.id, customerId: bob, event: { kind: 'offer_ready', proposalId, revisionIds: [optionA.id, optionB.id], role: 'affected' } });
+    expect(report.fallback).toBe('skipped: offer no longer open');
+    const conversation = await conversationOf(db, d.shop.id, bob, d.now);
+    expect(await db.select().from(s.messages).where(eq(s.messages.conversationId, conversation.id))).toEqual([]);
+  });
+
+  it("the scripted reply doesn't override a choice the customer already made", async () => {
+    const { d, gateway, bob, proposalId, optionA, optionB } = await bobAsked();
+    await db.update(s.shops).set({ autoReplyCustomers: true }).where(eq(s.shops.id, d.shop.id));
+    await affectedAccept(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: optionB.id });
+    const reply = await createAutoReply(db, gateway, { delayMs: 0 })({ shopId: d.shop.id, customerId: bob, proposalId, revisionIds: [optionA.id, optionB.id] });
+    expect(reply).toBeNull();
+    expect((await load.approvals(optionA.id)).find((a) => a.customerId === bob)?.status).toBe('pending');
+  });
+});
+
+describe('a new shop', () => {
+  it('has other customers replying automatically, so one judge can run the demo alone', async () => {
+    const d = await seedShop(db, { sessionKey: randomUUID() });
+    expect(d.shop.autoReplyCustomers).toBe(true);
   });
 });

@@ -33,6 +33,10 @@ export class TurnState {
   citable = new Set<number>();
   cardsPosted = 0;
   messagesSent = 0;
+  /** This turn exists to present an offer. */
+  offerEvent = false;
+  /** The offer moved on while this turn ran: the outcome gets its own turn, so this one says nothing. */
+  offerClosed = false;
   /** Chat writes (cards and messages) in the order the model made the calls, even when it makes them in parallel. */
   writes: Promise<unknown> = Promise.resolve();
   private lastAt = 0;
@@ -575,6 +579,7 @@ export function makeTools(scope: ToolScope) {
       description: 'The only way to reach the customer; plain reply text is never shown. Every dollar amount must come from a tool result, the context or the policy.',
       inputSchema: z.object({ text: z.string().min(1) }),
       run: async ({ text }) => {
+        if (turn.offerClosed) return refuse('INVALID_STATE', 'Not sent: this offer already moved on.', OFFER_MOVED_ON);
         const unverified = amountsIn(text).filter((c) => !turn.citable.has(c));
         if (unverified.length) {
           await logActivity(db, { shopId, at: scope.now(), actor: 'agent', kind: 'agent_message_blocked', payload: { customerId: me, text, amounts: unverified.map(usd) } });

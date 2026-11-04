@@ -19,6 +19,14 @@ export function createAutoReply(db: Db, gateway: PaymentGateway, { delayMs = 400
     if (!shop?.autoReplyCustomers) return null;
     await new Promise((r) => setTimeout(r, delayMs)); // let the agent's message land first, as a person would read it
 
+    // A person may have answered for this customer while we waited. A pick leaves its sibling option pending, so
+    // without this the script would pick that one too.
+    const answered = await db
+      .select({ id: s.approvals.id })
+      .from(s.approvals)
+      .where(and(eq(s.approvals.customerId, offer.customerId), eq(s.approvals.status, 'approved'), inArray(s.approvals.revisionId, offer.revisionIds)));
+    if (answered.length) return null;
+
     // Only options this customer can still pick (the offer may have moved on while we waited).
     const pending = await db
       .select({ revision: s.revisions })
