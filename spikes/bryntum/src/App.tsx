@@ -134,12 +134,12 @@ export default function App() {
   }), [say]);
 
   // Q5: ghost events for Scenario 1 Plan B, then commit or roll back.
-  const ghostIds = ['ghost-alice', 'ghost-bob'];
+  const ghostIds = ['ghost-vincent', 'ghost-bob'];
   const showGhosts = () => {
     const s = scheduler();
     clearGhosts(false);
     const ghosts = s.eventStore.add([
-      { id: 'ghost-alice', name: 'Alice keeps it (proposed)', kind: 'ghost', sourceId: 'alice', startDate: d(28, 18), endDate: d(29, 10), manuallyScheduled: true, draggable: false, resizable: false },
+      { id: 'ghost-vincent', name: 'Vincent keeps it (proposed)', kind: 'ghost', sourceId: 'vincent', startDate: d(28, 18), endDate: d(29, 10), manuallyScheduled: true, draggable: false, resizable: false },
       { id: 'ghost-bob', name: 'Bob 2pm pickup (proposed)', kind: 'ghost', sourceId: 'bob', startDate: d(29, 14), endDate: d(30, 18), manuallyScheduled: true, postamble: '4h', draggable: false, resizable: false },
     ]);
     s.assignmentStore.add([
@@ -156,9 +156,9 @@ export default function App() {
   const commitGhosts = () => {
     const s = scheduler();
     clearGhosts(false);
-    s.eventStore.getById('alice').endDate = d(29, 10);
+    s.eventStore.getById('vincent').endDate = d(29, 10);
     s.eventStore.getById('bob').startDate = d(29, 14);
-    say('Committed: Alice to Thu 10am, Bob from Thu 2pm');
+    say('Committed: Vincent to Thu 10am, Bob from Thu 2pm');
   };
 
   // Q5b: state tracking manager, apply then reject.

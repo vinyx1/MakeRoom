@@ -82,34 +82,34 @@ describe('sessions', () => {
     const [a, b] = [visitor(), visitor()];
     const shopA = await owner(a);
     const shopB = await owner(b);
-    expect(shopA.booking('Alice').id).not.toBe(shopB.booking('Alice').id);
-    const offered = await a.post('/api/requests', { customerId: shopA.customer('Alice'), request: { kind: 'extend', bookingId: shopA.booking('Alice').id, newEndsAt: shopA.at('Thu', 10) } });
-    const intrusion = await b.post(`/api/proposals/${offered.body.proposal.id}/accept`, { customerId: shopA.customer('Alice') });
+    expect(shopA.booking('Vincent').id).not.toBe(shopB.booking('Vincent').id);
+    const offered = await a.post('/api/requests', { customerId: shopA.customer('Vincent'), request: { kind: 'extend', bookingId: shopA.booking('Vincent').id, newEndsAt: shopA.at('Thu', 10) } });
+    const intrusion = await b.post(`/api/proposals/${offered.body.proposal.id}/accept`, { customerId: shopA.customer('Vincent') });
     expect(intrusion.body).toEqual({ status: 'refused', reason: 'request not found' });
   });
 
   it('rejects malformed input with 400', async () => {
     const v = visitor();
     const { customer, booking } = await owner(v);
-    const res = await v.post('/api/requests', { customerId: customer('Alice'), request: { kind: 'extend', bookingId: booking('Alice').id, newEndsAt: 'thursday-ish' } });
+    const res = await v.post('/api/requests', { customerId: customer('Vincent'), request: { kind: 'extend', bookingId: booking('Vincent').id, newEndsAt: 'thursday-ish' } });
     expect(res.status).toBe(400);
     expect((await v.post('/api/proposals/not-a-uuid/accept', {})).status).toBe(400);
   });
 });
 
 describe('Scenario 1 over HTTP', () => {
-  it('runs from Alice’s request to commit, with cards rendered by the backend', async () => {
+  it('runs from Vincent’s request to commit, with cards rendered by the backend', async () => {
     const v = visitor();
     const { customer, booking, at } = await owner(v);
-    const [alice, bob] = [customer('Alice'), customer('Bob')];
+    const [vincent, bob] = [customer('Vincent'), customer('Bob')];
 
-    const offered = await v.post('/api/requests', { customerId: alice, request: { kind: 'extend', bookingId: booking('Alice').id, newEndsAt: at('Thu', 10) } });
+    const offered = await v.post('/api/requests', { customerId: vincent, request: { kind: 'extend', bookingId: booking('Vincent').id, newEndsAt: at('Thu', 10) } });
     expect(offered.body.status).toBe('offered');
     const proposalId: string = offered.body.proposal.id;
 
-    // Alice's card: one offer, $45 held.
-    const aliceView = await v.get(`/api/customers/${alice}`);
-    expect(aliceView.body.cards).toEqual([
+    // Vincent's card: one offer, $45 held.
+    const vincentView = await v.get(`/api/customers/${vincent}`);
+    expect(vincentView.body.cards).toEqual([
       {
         proposalId, role: 'requester', chargeCents: 4500, heldCents: 0, expiresAt: expect.any(String),
         options: [{
@@ -118,10 +118,10 @@ describe('Scenario 1 over HTTP', () => {
         }],
       },
     ]);
-    expect((await v.get(`/api/customers/${bob}`)).body.cards).toEqual([]); // nothing reaches Bob before Alice pays
+    expect((await v.get(`/api/customers/${bob}`)).body.cards).toEqual([]); // nothing reaches Bob before Vincent pays
 
-    expect((await v.post(`/api/proposals/${proposalId}/order`, { customerId: alice })).body.status).toBe('ok');
-    expect((await v.post(`/api/proposals/${proposalId}/accept`, { customerId: alice })).body.status).toBe('awaiting_approvals');
+    expect((await v.post(`/api/proposals/${proposalId}/order`, { customerId: vincent })).body.status).toBe('ok');
+    expect((await v.post(`/api/proposals/${proposalId}/accept`, { customerId: vincent })).body.status).toBe('awaiting_approvals');
 
     // Bob's card: two options; B needs the shop.
     const bobCard = (await v.get(`/api/customers/${bob}`)).body.cards[0];
@@ -146,18 +146,18 @@ describe('Scenario 1 over HTTP', () => {
 });
 
 describe('Scenario 6 over HTTP', () => {
-  it('warns on a claimed booking, and the override cancels Alice’s request', async () => {
+  it('warns on a claimed booking, and the override cancels Vincent’s request', async () => {
     const v = visitor();
     const { customer, booking, at } = await owner(v);
-    const offered = await v.post('/api/requests', { customerId: customer('Alice'), request: { kind: 'extend', bookingId: booking('Alice').id, newEndsAt: at('Thu', 10) } });
+    const offered = await v.post('/api/requests', { customerId: customer('Vincent'), request: { kind: 'extend', bookingId: booking('Vincent').id, newEndsAt: at('Thu', 10) } });
     const proposalId = offered.body.proposal.id;
-    await v.post(`/api/proposals/${proposalId}/order`, { customerId: customer('Alice') });
-    await v.post(`/api/proposals/${proposalId}/accept`, { customerId: customer('Alice') });
+    await v.post(`/api/proposals/${proposalId}/order`, { customerId: customer('Vincent') });
+    await v.post(`/api/proposals/${proposalId}/accept`, { customerId: customer('Vincent') });
 
     const bob = booking('Bob');
     const edit = { unitId: bob.unitId, startsAt: at('Thu', 14), endsAt: bob.endsAt, basedOnVersion: bob.version, attestedCustomerIds: [customer('Bob')] };
     const warned = await v.post(`/api/bookings/${bob.id}/edit`, edit);
-    expect(warned.body).toMatchObject({ status: 'claimed', proposals: [{ id: proposalId, requesterName: 'Alice' }] });
+    expect(warned.body).toMatchObject({ status: 'claimed', proposals: [{ id: proposalId, requesterName: 'Vincent' }] });
     const overridden = await v.post(`/api/bookings/${bob.id}/edit`, { ...edit, override: true });
     expect(overridden.body.status).toBe('applied');
     expect(overridden.body.cancelled[0].replan.status).toBe('offered');
@@ -168,9 +168,9 @@ describe('judge-mode controls', () => {
   it('fast-forward expires a waiting request and voids its hold', async () => {
     const v = visitor();
     const { customer, booking, at } = await owner(v);
-    const offered = await v.post('/api/requests', { customerId: customer('Alice'), request: { kind: 'extend', bookingId: booking('Alice').id, newEndsAt: at('Thu', 10) } });
-    await v.post(`/api/proposals/${offered.body.proposal.id}/order`, { customerId: customer('Alice') });
-    await v.post(`/api/proposals/${offered.body.proposal.id}/accept`, { customerId: customer('Alice') });
+    const offered = await v.post('/api/requests', { customerId: customer('Vincent'), request: { kind: 'extend', bookingId: booking('Vincent').id, newEndsAt: at('Thu', 10) } });
+    await v.post(`/api/proposals/${offered.body.proposal.id}/order`, { customerId: customer('Vincent') });
+    await v.post(`/api/proposals/${offered.body.proposal.id}/accept`, { customerId: customer('Vincent') });
 
     const ff = await v.post('/api/demo/fast-forward', { minutes: 31 });
     expect(ff.body.expired).toEqual([offered.body.proposal.id]);
@@ -182,9 +182,9 @@ describe('judge-mode controls', () => {
   it('reset voids open holds and reseeds the same session', async () => {
     const v = visitor();
     const before = await owner(v);
-    const offered = await v.post('/api/requests', { customerId: before.customer('Alice'), request: { kind: 'extend', bookingId: before.booking('Alice').id, newEndsAt: before.at('Thu', 10) } });
-    await v.post(`/api/proposals/${offered.body.proposal.id}/order`, { customerId: before.customer('Alice') });
-    await v.post(`/api/proposals/${offered.body.proposal.id}/accept`, { customerId: before.customer('Alice') });
+    const offered = await v.post('/api/requests', { customerId: before.customer('Vincent'), request: { kind: 'extend', bookingId: before.booking('Vincent').id, newEndsAt: before.at('Thu', 10) } });
+    await v.post(`/api/proposals/${offered.body.proposal.id}/order`, { customerId: before.customer('Vincent') });
+    await v.post(`/api/proposals/${offered.body.proposal.id}/accept`, { customerId: before.customer('Vincent') });
     const voidsBefore = gateway.calls.filter((c) => c.method === 'voidAuthorization').length;
 
     const tokenBefore = v.token;
@@ -195,7 +195,7 @@ describe('judge-mode controls', () => {
 
     const after = await owner(v);
     expect(after.view.bookings).toHaveLength(7);
-    expect(after.booking('Alice').id).not.toBe(before.booking('Alice').id);
+    expect(after.booking('Vincent').id).not.toBe(before.booking('Vincent').id);
     expect(after.view.proposals).toEqual([]);
   });
 });
@@ -217,7 +217,7 @@ describe('live activity feed (SSE)', () => {
     };
     await readUntil('prepayments_seeded'); // history from seq 0
 
-    await v.post('/api/requests', { customerId: customer('Alice'), request: { kind: 'extend', bookingId: booking('Alice').id, newEndsAt: at('Thu', 10) } });
+    await v.post('/api/requests', { customerId: customer('Vincent'), request: { kind: 'extend', bookingId: booking('Vincent').id, newEndsAt: at('Thu', 10) } });
     await readUntil('proposal_created'); // and live events
     expect(text).toMatch(/id: \d+\nevent: activity\ndata: \{/);
     controller.abort();
@@ -287,8 +287,8 @@ describe('protecting the public URL', () => {
     const limited = buildApp({ db, gateway, rateLimit: true });
     const first = await limited.inject({ method: 'GET', url: '/api/owner' });
     const cookies = { [SESSION_COOKIE]: cookieOf(first)! };
-    const alice = (first.json() as { customers: { id: string; name: string }[] }).customers.find((c) => c.name === 'Alice')!.id;
-    const chat = () => limited.inject({ method: 'POST', url: `/api/customers/${alice}/messages`, cookies, payload: { text: 'hi' } });
+    const vincent = (first.json() as { customers: { id: string; name: string }[] }).customers.find((c) => c.name === 'Vincent')!.id;
+    const chat = () => limited.inject({ method: 'POST', url: `/api/customers/${vincent}/messages`, cookies, payload: { text: 'hi' } });
     // No agent here, so an accepted message answers 503; the limit answers 429 before that.
     for (let i = 0; i < 20; i++) expect((await chat()).statusCode).toBe(503);
     const over = await chat();
@@ -296,7 +296,7 @@ describe('protecting the public URL', () => {
     expect(over.json().error).toMatch(/Too many messages/);
 
     const second = await limited.inject({ method: 'GET', url: '/api/owner' });
-    const bob = (second.json() as { customers: { id: string; name: string }[] }).customers.find((c) => c.name === 'Alice')!.id;
+    const bob = (second.json() as { customers: { id: string; name: string }[] }).customers.find((c) => c.name === 'Vincent')!.id;
     const other = await limited.inject({ method: 'POST', url: `/api/customers/${bob}/messages`, cookies: { [SESSION_COOKIE]: cookieOf(second)! }, payload: { text: 'hi' } });
     expect(other.statusCode).toBe(503);
     await limited.close();
@@ -305,9 +305,9 @@ describe('protecting the public URL', () => {
   it('cleans up shops unseen for 48 hours, voiding holds first, and keeps recent ones', async () => {
     const v = visitor();
     const { customer, booking, at } = await owner(v);
-    const offered = await v.post('/api/requests', { customerId: customer('Alice'), request: { kind: 'extend', bookingId: booking('Alice').id, newEndsAt: at('Thu', 10) } });
-    await v.post(`/api/proposals/${offered.body.proposal.id}/order`, { customerId: customer('Alice') });
-    await v.post(`/api/proposals/${offered.body.proposal.id}/accept`, { customerId: customer('Alice') });
+    const offered = await v.post('/api/requests', { customerId: customer('Vincent'), request: { kind: 'extend', bookingId: booking('Vincent').id, newEndsAt: at('Thu', 10) } });
+    await v.post(`/api/proposals/${offered.body.proposal.id}/order`, { customerId: customer('Vincent') });
+    await v.post(`/api/proposals/${offered.body.proposal.id}/accept`, { customerId: customer('Vincent') });
     const shopOf = async (x: ReturnType<typeof visitor>) => (await db.select().from(s.shops).where(eq(s.shops.sessionKey, sessionKeyOf(x.token!))))[0];
     const staleId = (await shopOf(v))!.id;
     const other = visitor();

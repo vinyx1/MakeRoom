@@ -59,7 +59,7 @@ Can Claude run MakeRoom's customer turns through typed tools: call the right one
 ```sh
 cd spikes/agent
 npm install          # first time only
-npm run scenario     # Scenario 1 as three agent turns (Alice asks, Bob is offered, Bob counters)
+npm run scenario     # Scenario 1 as three agent turns (Vincent asks, Bob is offered, Bob counters)
 npm run evals        # 16 tricky prompts with automatic pass/fail checks
 ```
 

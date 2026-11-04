@@ -202,13 +202,13 @@ describe('a customer’s fact question', () => {
 });
 
 describe('Scenario 6: everyone hears about the override', () => {
-  it('Bob is told his booking stands; Alice is told, and gets a fresh offer against the new schedule', async () => {
+  it('Bob is told his booking stands; Vincent is told, and gets a fresh offer against the new schedule', async () => {
     const { d, gateway, agent } = await shop();
-    const alice = d.customer('Alice').id;
-    const offered = await requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) } });
+    const vincent = d.customer('Vincent').id;
+    const offered = await requestChange(db, d.shop.id, { customerId: vincent, request: { kind: 'extend', bookingId: d.bookingOf('Vincent').id, newEndsAt: at(d, 'Thu', 10) } });
     if (offered.status !== 'offered') throw new Error(offered.status);
-    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
-    await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent });
+    await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent });
     await agent.poll();
     await agent.drain();
 
@@ -223,9 +223,9 @@ describe('Scenario 6: everyone hears about the override', () => {
 
     await agent.poll();
     await agent.drain();
-    const aliceMsgs = await thread(d, 'Alice');
-    expect(aliceMsgs.map((m) => m.body).join(' ')).toContain('didn’t go through');
-    expect(aliceMsgs.some((m) => replan.status === 'offered' && m.cardRevisionIds.includes(replan.revisions[0]!.id))).toBe(true);
+    const vincentMsgs = await thread(d, 'Vincent');
+    expect(vincentMsgs.map((m) => m.body).join(' ')).toContain('didn’t go through');
+    expect(vincentMsgs.some((m) => replan.status === 'offered' && m.cardRevisionIds.includes(replan.revisions[0]!.id))).toBe(true);
     const bobThread = await thread(d, 'Bob');
     expect(bobThread.at(-1)!.body).toBe("The other customer's request was withdrawn, so it won't change your booking.");
 
@@ -233,11 +233,11 @@ describe('Scenario 6: everyone hears about the override', () => {
 
   it('an offer that ended before its turn ran is skipped, never shown as a stale card', async () => {
     const { d, gateway, agent } = await shop();
-    const alice = d.customer('Alice').id;
-    const offered = await requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) } });
+    const vincent = d.customer('Vincent').id;
+    const offered = await requestChange(db, d.shop.id, { customerId: vincent, request: { kind: 'extend', bookingId: d.bookingOf('Vincent').id, newEndsAt: at(d, 'Thu', 10) } });
     if (offered.status !== 'offered') throw new Error(offered.status);
-    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
-    await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent });
+    await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent });
     // The owner overrides before the dispatcher has run Bob's offer turn.
     const bob = d.bookingOf('Bob');
     await ownerEditBooking(db, gateway, d.shop.id, {
@@ -252,18 +252,18 @@ describe('Scenario 6: everyone hears about the override', () => {
 });
 
 describe('judge mode: auto-reply customers', () => {
-  async function aliceAccepts(autoReply: boolean) {
+  async function vincentAccepts(autoReply: boolean) {
     const gateway = fakeGateway();
     const d = await seedShop(db, { sessionKey: randomUUID() });
     await seedPrepayments(db, gateway, d.shop.id);
     await db.update(s.shops).set({ autoReplyCustomers: autoReply }).where(eq(s.shops.id, d.shop.id));
     const agent = createAgentService(db, templates, undefined, { shopId: d.shop.id }, createAutoReply(db, gateway, { delayMs: 0 }));
     await agent.poll();
-    const alice = d.customer('Alice').id;
-    const offered = await requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) } });
+    const vincent = d.customer('Vincent').id;
+    const offered = await requestChange(db, d.shop.id, { customerId: vincent, request: { kind: 'extend', bookingId: d.bookingOf('Vincent').id, newEndsAt: at(d, 'Thu', 10) } });
     if (offered.status !== 'offered') throw new Error(offered.status);
-    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
-    await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent });
+    await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent });
     await agent.poll();
     await agent.drain();
     const bobApprovals = await db.select().from(s.approvals).where(and(eq(s.approvals.proposalId, offered.proposal.id), eq(s.approvals.customerId, d.customer('Bob').id)));
@@ -271,12 +271,12 @@ describe('judge mode: auto-reply customers', () => {
   }
 
   it('off: Bob waits for a person to choose', async () => {
-    const { bobApprovals } = await aliceAccepts(false);
+    const { bobApprovals } = await vincentAccepts(false);
     expect(bobApprovals.every((a) => a.status === 'pending')).toBe(true);
   });
 
   it('on: Bob takes Plan B by himself after the offer, and the owner card appears', async () => {
-    const { d, offered, bobApprovals } = await aliceAccepts(true);
+    const { d, offered, bobApprovals } = await vincentAccepts(true);
     const planB = offered.revisions.find((r) => r.optionLabel === 'B')!;
     expect(bobApprovals.find((a) => a.revisionId === planB.id)!.status).toBe('approved');
     const bobChat = await thread(d, 'Bob');
@@ -329,11 +329,11 @@ describe('owner undo, discard, and agreement at resolve', () => {
 
   it("an edit that overrode a request can't be undone", async () => {
     const { d, gateway } = await shop();
-    const alice = d.bookingOf('Alice'), bob = d.bookingOf('Bob');
-    const req = await requestChange(db, d.shop.id, { customerId: alice.customerId, request: { kind: 'extend', bookingId: alice.id, newEndsAt: at(d, 'Thu', 10) } });
+    const vincent = d.bookingOf('Vincent'), bob = d.bookingOf('Bob');
+    const req = await requestChange(db, d.shop.id, { customerId: vincent.customerId, request: { kind: 'extend', bookingId: vincent.id, newEndsAt: at(d, 'Thu', 10) } });
     if (req.status !== 'offered') throw new Error(req.status);
-    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: req.proposal.id, customerId: alice.customerId });
-    await requesterAccept(db, gateway, d.shop.id, { proposalId: req.proposal.id, customerId: alice.customerId });
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: req.proposal.id, customerId: vincent.customerId });
+    await requesterAccept(db, gateway, d.shop.id, { proposalId: req.proposal.id, customerId: vincent.customerId });
     const moved = await ownerEditBooking(db, gateway, d.shop.id, {
       bookingId: bob.id, unitId: bob.unitId!, startsAt: at(d, 'Thu', 15), endsAt: bob.endsAt, basedOnVersion: bob.version, attestedCustomerIds: [bob.customerId], override: true,
     });

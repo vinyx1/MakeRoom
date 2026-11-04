@@ -20,7 +20,7 @@ Postgres extension needed: `btree_gist` (exclusion constraints mixing `=` / `<>`
 |---|---|
 | `name`, `timezone` | e.g. `America/Los_Angeles` |
 | `opens_at`, `closes_at` | `time`, shop hours (9:00, 21:00) |
-| `clock_offset_ms` | Injectable clock: shop "now" = server now + offset. Fast-forward adds to it; seeding sets it so now = Wed 5:30pm, 30 minutes before Alice is due back. |
+| `clock_offset_ms` | Injectable clock: shop "now" = server now + offset. Fast-forward adds to it; seeding sets it so now = Wed 5:30pm, 30 minutes before Vincent is due back. |
 | `policy jsonb` | All tunable limits, validated by a Zod schema: `default_buffer_minutes` (240), `approval_timeout_minutes` (30), `discount_band_pct` (10), `compensation_cap_cents` (5000), `shift_compensation_cents_per_hour` (300), `downgrade_goodwill_cents` (500), `max_shift_hours` (6), `max_bookings_touched` (3), `search_window_hours` (24), `model_change_penalty_hours` (6), `max_revisions` (3), `max_fallback_plans` (2), `grace_minutes` (60), `cancel_full_refund_hours` (24), `cancel_late_refund_pct` (50), `payment_retry_limit` (3) |
 | `agent_turns_used` | Judge-mode usage cap counter |
 | `session_key` | Hash of the visitor's session cookie; the shop is looked up by this, never by URL |
@@ -114,7 +114,7 @@ EXCLUDE USING gist (unit_id WITH =, tstzrange(starts_at, buffer_ends_at) WITH &&
   DEFERRABLE INITIALLY DEFERRED
 ```
 
-Gotcha: the constraint must be **deferred** to commit time. A plan applies several booking updates in one transaction, and in between them the schedule can overlap. In Scenario 1, Alice's extension lands before Bob's later start, and a swap of two bookings always overlaps midway. Ranges are half-open `[start, end)`, so a booking may start exactly when the previous buffer ends.
+Gotcha: the constraint must be **deferred** to commit time. A plan applies several booking updates in one transaction, and in between them the schedule can overlap. In Scenario 1, Vincent's extension lands before Bob's later start, and a swap of two bookings always overlaps midway. Ranges are half-open `[start, end)`, so a booking may start exactly when the previous buffer ends.
 
 Gotcha: `buffer_ends_at` is stored, not generated, because `timestamptz + interval` is not immutable in Postgres and can't be used in a generated column or constraint expression.
 
@@ -128,7 +128,7 @@ Gotcha: `buffer_ends_at` is stored, not generated, because `timestamptz + interv
 |---|---|
 | `source` | `customer_request`, `owner_edit`, `owner_resolve`, `unit_down`, `overdue`, `customer_cancel` |
 | `requester_customer_id` | Null when the owner or system initiates with no paying requester |
-| `subject_booking_id` | The booking the request is about (Alice's), if any |
+| `subject_booking_id` | The booking the request is about (Vincent's), if any |
 | `request jsonb` | What was asked, as structured data ("extend booking X to Thu 10:00") |
 | `state` | `DRAFT`, `AWAITING_APPROVALS`, `CAPTURING`, `COMMITTED`, `REJECTED`, `EXPIRED`, `CANCELLED`, `FAILED` |
 | `revision_seq int` | Last revision number used; capped by `policy.max_revisions` |
@@ -328,15 +328,15 @@ Append-only: `seq` (insertion order, for stable feed order and SSE resume), `at`
 
 | Step | Rows written |
 |---|---|
-| Alice asks to extend | `messages` (customer). `proposals` (customer_request, requester Alice, subject = Alice's booking, DRAFT). |
-| Optimizer runs | `activity_log` (pruned alternatives with reasons). `revisions` seq 1 option A (Bob → A7R V) and option B (Bob 2pm, $15), each with `revision_changes` (Alice extension + Bob's change), `quote`; option B has `owner_triggers = {booking_shortened}`. |
-| Quote to Alice | `approvals` (rev 1 A and B, requester Alice, pending) — her terms are identical in both. `messages` card → both revision ids. |
-| Alice approves + authorizes | `approvals` → approved (card_click). `paypal_orders` (AUTHORIZE, $45) + `payment_ops` (authorize, succeeded). `claims`: Alice's and Bob's bookings; A7IV-1 Wed 10pm–Thu 2pm (the extension past Alice's current buffer); A7RV-1 Thu 9am–Fri 10pm. State → AWAITING_APPROVALS. |
+| Vincent asks to extend | `messages` (customer). `proposals` (customer_request, requester Vincent, subject = Vincent's booking, DRAFT). |
+| Optimizer runs | `activity_log` (pruned alternatives with reasons). `revisions` seq 1 option A (Bob → A7R V) and option B (Bob 2pm, $15), each with `revision_changes` (Vincent extension + Bob's change), `quote`; option B has `owner_triggers = {booking_shortened}`. |
+| Quote to Vincent | `approvals` (rev 1 A and B, requester Vincent, pending) — her terms are identical in both. `messages` card → both revision ids. |
+| Vincent approves + authorizes | `approvals` → approved (card_click). `paypal_orders` (AUTHORIZE, $45) + `payment_ops` (authorize, succeeded). `claims`: Vincent's and Bob's bookings; A7IV-1 Wed 10pm–Thu 2pm (the extension past Vincent's current buffer); A7RV-1 Thu 9am–Fri 10pm. State → AWAITING_APPROVALS. |
 | Offer to Bob | `approvals` (affected Bob, pending, rev 1 A and B). `messages` card → both revisions. |
 | Bob taps B | Bob's approval on B → approved; rev 1 B → selected, rev 1 A → superseded; option A's claims (A7RV-1) released. Owner `approvals` row (pending) + `escalations` (approval). |
 | Owner approves | Owner approval → approved; escalation resolved. All approvals on rev 1 B approved → state CAPTURING. |
 | Capture | Outside the lock: `payment_ops` (capture, $45) → succeeded; `paypal_orders.captured_cents`. |
-| Commit | In the lock: validator passes. `bookings` update Alice (`ends_at` Thu 10am, `buffer_ends_at` Thu 2pm) and Bob (`starts_at` Thu 2pm), versions bumped. Claims released. State COMMITTED. `payment_ops` (refund $15 on Bob's prepaid order) → succeeded. `activity_log` for each step; SSE pushes to Bryntum. |
+| Commit | In the lock: validator passes. `bookings` update Vincent (`ends_at` Thu 10am, `buffer_ends_at` Thu 2pm) and Bob (`starts_at` Thu 2pm), versions bumped. Claims released. State COMMITTED. `payment_ops` (refund $15 on Bob's prepaid order) → succeeded. `activity_log` for each step; SSE pushes to Bryntum. |
 
 ## 10. Bryntum mapping
 

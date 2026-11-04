@@ -50,7 +50,7 @@ const messagesOf = async (conversationId: string) =>
 describe('tools', () => {
   it('check_availability never reports a bad time as equipment being unavailable', async () => {
     const { d } = await shop();
-    const { call } = await toolsFor(d, 'Alice');
+    const { call } = await toolsFor(d, 'Vincent');
     const local = (hours: number) => DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).plus({ hours }).toFormat("yyyy-MM-dd'T'HH:mm");
     const { models } = await call('search_inventory', { query: 'A7R' });
     const model = models.find((m: { name: string }) => m.name === 'Sony A7R V').model_id;
@@ -70,21 +70,21 @@ describe('tools', () => {
     const r = await call('get_my_bookings', {});
     expect(r.bookings).toHaveLength(1);
     expect(r.bookings[0]).toMatchObject({ booking_id: expect.stringMatching(/^bk_[0-9a-f]{6}$/), model: 'Sony A7 IV', status: 'confirmed', price_paid: '$90.00' });
-    expect(JSON.stringify(r)).not.toContain('Alice');
+    expect(JSON.stringify(r)).not.toContain('Vincent');
   });
 
   it('an id from outside the scope is NOT_FOUND, like one that doesn’t exist', async () => {
     const { d } = await shop();
-    const alice = await toolsFor(d, 'Alice');
-    const aliceBooking = (await alice.call('get_my_bookings', {})).bookings[0].booking_id;
+    const vincent = await toolsFor(d, 'Vincent');
+    const vincentBooking = (await vincent.call('get_my_bookings', {})).bookings[0].booking_id;
     const bob = await toolsFor(d, 'Bob');
-    const r = await bob.call('request_change', { booking_id: aliceBooking, change: { type: 'extend', new_end: '2026-12-01T10:00' } });
+    const r = await bob.call('request_change', { booking_id: vincentBooking, change: { type: 'extend', new_end: '2026-12-01T10:00' } });
     expect(r).toMatchObject({ ok: false, code: 'NOT_FOUND' });
   });
 
-  it('request_change gives Alice one offer at $45 and tells her to present it', async () => {
+  it('request_change gives Vincent one offer at $45 and tells her to present it', async () => {
     const { d } = await shop();
-    const { call } = await toolsFor(d, 'Alice');
+    const { call } = await toolsFor(d, 'Vincent');
     const bk = (await call('get_my_bookings', {})).bookings[0].booking_id;
     const thu10 = DateTime.fromJSDate(at(d, 'Thu', 10), { zone: d.shop.timezone }).toFormat("yyyy-LL-dd'T'HH:mm");
     const r = await call('request_change', { booking_id: bk, change: { type: 'extend', new_end: thu10 } });
@@ -100,7 +100,7 @@ describe('tools', () => {
 
   it('a request outside shop hours is refused with the nearest valid times', async () => {
     const { d } = await shop();
-    const { call } = await toolsFor(d, 'Alice');
+    const { call } = await toolsFor(d, 'Vincent');
     const bk = (await call('get_my_bookings', {})).bookings[0].booking_id;
     const thu3am = DateTime.fromJSDate(at(d, 'Thu', 3), { zone: d.shop.timezone }).toFormat("yyyy-LL-dd'T'HH:mm");
     const r = await call('request_change', { booking_id: bk, change: { type: 'extend', new_end: thu3am } });
@@ -120,7 +120,7 @@ describe('tools', () => {
 
   it('a search miss names the closest gear of the same kind', async () => {
     const { d } = await shop();
-    const { call } = await toolsFor(d, 'Alice');
+    const { call } = await toolsFor(d, 'Vincent');
     const r = await call('search_inventory', { query: 'RED Komodo' });
     expect(r.models).toEqual([]);
     expect(r.closest.map((m: { name: string }) => m.name)).toEqual(['Sony A7 IV', 'Sony A7R V']);
@@ -169,21 +169,21 @@ describe('tools', () => {
 describe('fallbacks (no model)', () => {
   it('a customer message gets a template reply', async () => {
     const { d } = await shop();
-    const conversation = await conversationOf(db, d.shop.id, d.customer('Alice').id, d.now);
-    const report = await runTurn(db, templates, { shopId: d.shop.id, customerId: d.customer('Alice').id, event: { kind: 'customer_message', text: 'hi' } });
+    const conversation = await conversationOf(db, d.shop.id, d.customer('Vincent').id, d.now);
+    const report = await runTurn(db, templates, { shopId: d.shop.id, customerId: d.customer('Vincent').id, event: { kind: 'customer_message', text: 'hi' } });
     expect(report.fallback).toBe('template message');
     expect((await messagesOf(conversation.id)).map((m) => [m.author, m.body])).toEqual([['system', 'Thanks for your message! The shop will get back to you shortly.']]);
   });
 
-  it('the dispatcher reaches Bob when Alice pays, and the backend posts his card itself', async () => {
+  it('the dispatcher reaches Bob when Vincent pays, and the backend posts his card itself', async () => {
     const { d, gateway } = await shop();
     const agent = createAgentService(db, templates, undefined, { shopId: d.shop.id });
     await agent.poll(); // sets the cursor to now
-    const alice = d.customer('Alice').id;
-    const offered = await requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) } });
+    const vincent = d.customer('Vincent').id;
+    const offered = await requestChange(db, d.shop.id, { customerId: vincent, request: { kind: 'extend', bookingId: d.bookingOf('Vincent').id, newEndsAt: at(d, 'Thu', 10) } });
     if (offered.status !== 'offered') throw new Error(offered.status);
-    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
-    await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent });
+    await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent });
     await agent.poll();
     await agent.drain();
 
@@ -197,11 +197,11 @@ describe('fallbacks (no model)', () => {
     const { d, gateway } = await shop();
     const agent = createAgentService(db, templates, undefined, { shopId: d.shop.id });
     await agent.poll();
-    const alice = d.customer('Alice').id, bob = d.customer('Bob').id;
-    const offered = await requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) } });
+    const vincent = d.customer('Vincent').id, bob = d.customer('Bob').id;
+    const offered = await requestChange(db, d.shop.id, { customerId: vincent, request: { kind: 'extend', bookingId: d.bookingOf('Vincent').id, newEndsAt: at(d, 'Thu', 10) } });
     if (offered.status !== 'offered') throw new Error(offered.status);
-    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
-    await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent });
+    await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent });
     const planB = offered.revisions.find((r) => r.optionLabel === 'B')!;
     await affectedAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: bob, revisionId: planB.id });
     await ownerDecision(db, gateway, d.shop.id, { proposalId: offered.proposal.id, revisionId: planB.id, decision: 'approve' });
@@ -210,25 +210,25 @@ describe('fallbacks (no model)', () => {
 
     const bobLast = (await messagesOf((await conversationOf(db, d.shop.id, bob, d.now)).id)).at(-1)!;
     expect(bobLast.body).toContain('Refunded to their original payment: $15.00');
-    const aliceLast = (await messagesOf((await conversationOf(db, d.shop.id, alice, d.now)).id)).at(-1)!;
-    expect(aliceLast.body).toContain('Charged: $45.00');
+    const vincentLast = (await messagesOf((await conversationOf(db, d.shop.id, vincent, d.now)).id)).at(-1)!;
+    expect(vincentLast.body).toContain('Charged: $45.00');
   });
 
   it('past the daily spend cap, chat gets a limit message and offers still go out on templates', async () => {
     const { d } = await shop();
     const day = new Date().toISOString().slice(0, 10);
     const overCap = { ...templates, client: new Anthropic({ apiKey: 'unused' }), dailySpendCapUsd: 0 };
-    const alice = d.customer('Alice').id;
-    const report = await runTurn(db, overCap, { shopId: d.shop.id, customerId: alice, event: { kind: 'customer_message', text: 'hi' } });
+    const vincent = d.customer('Vincent').id;
+    const report = await runTurn(db, overCap, { shopId: d.shop.id, customerId: vincent, event: { kind: 'customer_message', text: 'hi' } });
     expect(report).toMatchObject({ fallback: 'daily spend cap', model: null, requests: 0 });
-    const { conversationId } = await toolsFor(d, 'Alice');
+    const { conversationId } = await toolsFor(d, 'Vincent');
     expect((await messagesOf(conversationId)).at(-1)!.body).toMatch(/usage limit for today/);
 
     // Spend adds up across shops and days are separate rows, and the demo never stalls on the cap.
     await db.insert(s.agentDailySpend).values({ day, microUsd: 1 }).onConflictDoNothing();
-    const offered = await requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) } });
+    const offered = await requestChange(db, d.shop.id, { customerId: vincent, request: { kind: 'extend', bookingId: d.bookingOf('Vincent').id, newEndsAt: at(d, 'Thu', 10) } });
     if (offered.status !== 'offered') throw new Error(offered.status);
-    const offer = await runTurn(db, overCap, { shopId: d.shop.id, customerId: alice, event: { kind: 'offer_ready', proposalId: offered.proposal.id, revisionIds: offered.revisions.map((r) => r.id), role: 'requester' } });
+    const offer = await runTurn(db, overCap, { shopId: d.shop.id, customerId: vincent, event: { kind: 'offer_ready', proposalId: offered.proposal.id, revisionIds: offered.revisions.map((r) => r.id), role: 'requester' } });
     expect(offer.fallback).toBe('card, daily spend cap');
     expect((await messagesOf(conversationId)).at(-1)!.body).toMatch(/review it on the card/);
   });
@@ -237,7 +237,7 @@ describe('fallbacks (no model)', () => {
     const { d } = await shop();
     await db.update(s.shops).set({ agentTurnsUsed: 60 }).where(eq(s.shops.id, d.shop.id));
     const capped = { ...templates, client: new Anthropic({ apiKey: 'unused' }) };
-    const report = await runTurn(db, capped, { shopId: d.shop.id, customerId: d.customer('Alice').id, event: { kind: 'customer_message', text: 'hi' } });
+    const report = await runTurn(db, capped, { shopId: d.shop.id, customerId: d.customer('Vincent').id, event: { kind: 'customer_message', text: 'hi' } });
     expect(report).toMatchObject({ fallback: 'usage cap', model: null, requests: 0 });
   });
 });
@@ -245,29 +245,29 @@ describe('fallbacks (no model)', () => {
 describe.skipIf(!process.env.ANTHROPIC_API_KEY)('live agent: Scenario 1 through chat', () => {
   const config: AgentConfig = { client: new Anthropic(), model: process.env.AGENT_TEST_MODEL ?? 'claude-haiku-5-5', effort: 'medium', turnCap: 60 };
   // Other customers' names; greeting a customer by their own name is fine.
-  const othersThan = (name: string) => new RegExp(`\\b(${['Alice', 'Bob', 'Charlie', 'Dana', 'Eve', 'Gina', 'Hank'].filter((n) => n !== name).join('|')})\\b`);
+  const othersThan = (name: string) => new RegExp(`\\b(${['Vincent', 'Bob', 'Charlie', 'Dana', 'Eve', 'Gina', 'Hank'].filter((n) => n !== name).join('|')})\\b`);
 
-  it('Alice asks, Bob is offered both plans, both hear the outcome', async () => {
+  it('Vincent asks, Bob is offered both plans, both hear the outcome', async () => {
     const { d, gateway } = await shop();
     const agent = createAgentService(db, config, undefined, { shopId: d.shop.id });
     await agent.poll();
-    const alice = d.customer('Alice').id, bob = d.customer('Bob').id;
+    const vincent = d.customer('Vincent').id, bob = d.customer('Bob').id;
 
-    // Step 1: Alice types; the agent files the request, posts her card and quotes $45.
-    const { turn } = await agent.customerMessage(d.shop.id, alice, 'Shoot ran over. Can I keep the camera until Thursday at 10am?');
+    // Step 1: Vincent types; the agent files the request, posts her card and quotes $45.
+    const { turn } = await agent.customerMessage(d.shop.id, vincent, 'Shoot ran over. Can I keep the camera until Thursday at 10am?');
     const r1 = (await turn)!;
     expect(r1.error).toBeNull();
     expect(r1.toolCalls.map((c) => c.name)).toEqual(expect.arrayContaining(['request_change', 'present_offer', 'send_message']));
     expect(r1.fallback).toBeNull();
-    const aliceThread = (await conversationOf(db, d.shop.id, alice, d.now)).id;
-    const aliceSaid = (await messagesOf(aliceThread)).filter((m) => m.author === 'agent' && m.body).map((m) => m.body).join(' ');
-    expect(aliceSaid).toContain('$45');
-    expect(aliceSaid).not.toMatch(/\b(bk|rq|rv)_/);
+    const vincentThread = (await conversationOf(db, d.shop.id, vincent, d.now)).id;
+    const vincentSaid = (await messagesOf(vincentThread)).filter((m) => m.author === 'agent' && m.body).map((m) => m.body).join(' ');
+    expect(vincentSaid).toContain('$45');
+    expect(vincentSaid).not.toMatch(/\b(bk|rq|rv)_/);
 
     // Step 4: she pays through the card; the backend asks Bob.
     const [proposal] = await db.select().from(s.proposals).where(eq(s.proposals.shopId, d.shop.id));
-    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: proposal!.id, customerId: alice });
-    expect((await requesterAccept(db, gateway, d.shop.id, { proposalId: proposal!.id, customerId: alice })).status).toBe('awaiting_approvals');
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: proposal!.id, customerId: vincent });
+    expect((await requesterAccept(db, gateway, d.shop.id, { proposalId: proposal!.id, customerId: vincent })).status).toBe('awaiting_approvals');
     await agent.poll();
     await agent.drain();
     const bobThread = (await conversationOf(db, d.shop.id, bob, d.now)).id;
@@ -308,11 +308,11 @@ describe('chat order', () => {
 describe('revise_terms', () => {
   async function bobAsked() {
     const { d, gateway } = await shop();
-    const alice = d.customer('Alice').id;
-    const offered = await requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) } });
+    const vincent = d.customer('Vincent').id;
+    const offered = await requestChange(db, d.shop.id, { customerId: vincent, request: { kind: 'extend', bookingId: d.bookingOf('Vincent').id, newEndsAt: at(d, 'Thu', 10) } });
     if (offered.status !== 'offered') throw new Error(offered.status);
-    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
-    await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent });
+    await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent });
     const bob = await toolsFor(d, 'Bob');
     const { requests } = await bob.call('get_my_proposals', {});
     return { d, bob, requestId: requests[0].request_id as string };

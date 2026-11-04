@@ -48,27 +48,27 @@ results.q7_unassigned = await page.evaluate(() => {
 });
 results.dataEventIds = await page.evaluate(() => [...document.querySelectorAll('[data-event-id]')].map(e => e.dataset.eventId));
 
-// Q8: Alice is picked up: drag should not move her.
-const aliceBefore = await page.evaluate(() => window.sched.eventStore.getById('alice').startDate.toISOString());
-results.q8_dragAlice = await dragBy(eventSel('alice'), 0, 120);
-results.q8_aliceAfter = await page.evaluate(() => ({
-  start: window.sched.eventStore.getById('alice').startDate.toISOString(),
-  resource: window.sched.eventStore.getById('alice').resource.id,
+// Q8: Vincent is picked up: drag should not move her.
+const vincentBefore = await page.evaluate(() => window.sched.eventStore.getById('vincent').startDate.toISOString());
+results.q8_dragVincent = await dragBy(eventSel('vincent'), 0, 120);
+results.q8_vincentAfter = await page.evaluate(() => ({
+  start: window.sched.eventStore.getById('vincent').startDate.toISOString(),
+  resource: window.sched.eventStore.getById('vincent').resource.id,
 }));
-results.q8_aliceStartUnchanged = results.q8_aliceAfter.start === aliceBefore;
+results.q8_vincentStartUnchanged = results.q8_vincentAfter.start === vincentBefore;
 
-// Q8 + Q4: resize Alice's end into Bob's slot (Thu 10am) → backend → draft.
-const aliceBox = await box(`${eventSel('alice')} .b-sch-event`);
+// Q8 + Q4: resize Vincent's end into Bob's slot (Thu 10am) → backend → draft.
+const vincentBox = await box(`${eventSel('vincent')} .b-sch-event`);
 const tick = 150; // px per day
-if (aliceBox) {
-  const x = aliceBox.x + aliceBox.width - 2, y = aliceBox.y + aliceBox.height / 2;
+if (vincentBox) {
+  const x = vincentBox.x + vincentBox.width - 2, y = vincentBox.y + vincentBox.height / 2;
   await page.mouse.move(x, y); await page.mouse.down();
   const dx = tick * (16 / 24);
   for (let i = 1; i <= 10; i++) await page.mouse.move(x + (dx * i) / 10, y);
   await page.mouse.up(); await wait(900);
 }
 results.q4_resizeLog = (await log()).split('\n').slice(0, 3);
-await shot('02-alice-resize');
+await shot('02-vincent-resize');
 
 // Q4: drag Gina (A7IV-2, Sat) to A7RV-1 same time → accept.
 const yA7RV = await rowY('A7RV-1'), ginaBox = await box(eventSel('gina'));
@@ -102,7 +102,7 @@ await wait(800); results.q5_ghostsAfterRollback = { dom: await page.locator('.b-
 await page.getByRole('button', { name: 'Show Plan B ghosts' }).click(); await wait(300);
 await page.getByRole('button', { name: 'Commit Plan B' }).click(); await wait(500);
 results.q5_afterCommit = await page.evaluate(() => ({
-  aliceEnd: window.sched.eventStore.getById('alice').endDate.toString(),
+  vincentEnd: window.sched.eventStore.getById('vincent').endDate.toString(),
   bobStart: window.sched.eventStore.getById('bob').startDate.toString(),
   ghosts: document.querySelectorAll('.b-sch-event.ghost').length,
 }));

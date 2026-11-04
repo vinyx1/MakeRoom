@@ -23,7 +23,7 @@ type Props = {
 };
 
 /** One click to start, in the customer's own words. */
-const TRY: Record<string, string> = { Alice: 'Shoot ran over. Can I keep the camera until Thursday at 10am?' };
+const TRY: Record<string, string> = { Vincent: 'Shoot ran over. Can I keep the camera until Thursday at 10am?' };
 const TRY_ANYONE = 'When is my booking?';
 
 export function ChatPane({ customerId, customers, onCustomer, config, zone, tick, typing, role, waitingOn, onOutcome }: Props) {

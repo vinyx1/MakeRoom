@@ -1,6 +1,6 @@
 // The shared seed from `demo script.md`. Every visitor's shop starts here.
 // Days are relative to the demo week (the current Mon–Sun in the shop's time zone), and the shop clock
-// is offset so that "now" is Wednesday 5:30pm, 30 minutes before Alice's rental is due back.
+// is offset so that "now" is Wednesday 5:30pm, 30 minutes before Vincent's rental is due back.
 //
 // `demoShopData` builds the rows as plain data (the optimizer tests use it without a database);
 // `seedShop` inserts them.
@@ -30,7 +30,7 @@ export function demoShopData({ sessionKey, realNow = new Date(), creatorIpHash =
   const monday = demoWeekStart(realNow);
   const t = ({ week = 0, day, hour }: DemoTime) =>
     monday.plus({ weeks: week, days: WEEKDAY[day] - 1 }).set({ hour }).toJSDate();
-  // 30 minutes before Alice's return (her booking below ends Wed 6pm).
+  // 30 minutes before Vincent's return (her booking below ends Wed 6pm).
   const now = new Date(t({ day: 'Wed', hour: 18 }).getTime() - 30 * 60_000);
   const policy = defaultPolicy();
   const bufferMs = policy.default_buffer_minutes * 60_000;
@@ -107,7 +107,7 @@ export function demoShopData({ sessionKey, realNow = new Date(), creatorIpHash =
     },
   ];
 
-  const customers: (typeof s.customers.$inferSelect)[] = ['Alice', 'Bob', 'Charlie', 'Dana', 'Eve', 'Gina', 'Hank'].map(
+  const customers: (typeof s.customers.$inferSelect)[] = ['Vincent', 'Bob', 'Charlie', 'Dana', 'Eve', 'Gina', 'Hank'].map(
     (name) => ({ id: randomUUID(), shopId, name, email: `${name.toLowerCase()}@example.com`, flagged: false }),
   );
   const customer = (name: string) => customers.find((c) => c.name === name)!;
@@ -143,7 +143,7 @@ export function demoShopData({ sessionKey, realNow = new Date(), creatorIpHash =
     };
   };
   const bookings = [
-    booking('Alice', 'A7IV-1', { day: 'Mon', hour: 9 }, { day: 'Wed', hour: 18 }, 'picked_up'),
+    booking('Vincent', 'A7IV-1', { day: 'Mon', hour: 9 }, { day: 'Wed', hour: 18 }, 'picked_up'),
     booking('Bob', 'A7IV-1', { day: 'Thu', hour: 9 }, { day: 'Fri', hour: 18 }, 'confirmed'),
     booking('Charlie', 'A7IV-2', { day: 'Thu', hour: 9 }, { day: 'Fri', hour: 18 }, 'confirmed'),
     booking('Gina', 'A7IV-2', { day: 'Sat', hour: 9 }, { day: 'Sun', hour: 18 }, 'confirmed'),

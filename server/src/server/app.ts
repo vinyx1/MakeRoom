@@ -1,6 +1,6 @@
 // The HTTP API. Thin: parse and check input, find the visitor's shop, call the domain function, return its
 // result. Domain outcomes (refused, stale, expired…) come back as 200 with a `status`; bad input is 400.
-// Routes act for whoever the role switcher says (owner, Alice, Bob…): judge mode has no auth beyond the session,
+// Routes act for whoever the role switcher says (owner, Vincent, Bob…): judge mode has no auth beyond the session,
 // and every id is checked against the session's shop.
 
 import cookie from '@fastify/cookie';

@@ -31,17 +31,17 @@ const plans = (r: OptimizeResult): Plan[] => (r.status === 'fits' || r.status ==
 
 function scenario1(policy = {}) {
   const { d, snap } = demo(policy);
-  const result = plans(optimize(snap, { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) }));
+  const result = plans(optimize(snap, { kind: 'extend', bookingId: d.bookingOf('Vincent').id, newEndsAt: at(d, 'Thu', 10) }));
   const planB = result.find((p) => p.changes[1]?.kind === 'time_shift')!;
   const planA = result.find((p) => p.changes[1]?.kind === 'model_change')!;
   return { d, snap, planA, planB };
 }
 
 describe('Scenario 1 quotes', () => {
-  it('Alice pays $45 for the extra day', () => {
+  it('Vincent pays $45 for the extra day', () => {
     const { d, planA, planB } = scenario1();
     for (const plan of [planA, planB]) {
-      expect(plan.quote.lines).toEqual([{ customerId: d.customer('Alice').id, label: 'Extension to Thu 10:00am', amountCents: 4500 }]);
+      expect(plan.quote.lines).toEqual([{ customerId: d.customer('Vincent').id, label: 'Extension to Thu 10:00am', amountCents: 4500 }]);
       expect(plan.quote.chargeCents).toBe(4500);
     }
   });
@@ -67,7 +67,7 @@ describe('Scenario 1 quotes', () => {
 
   it('ranking is unchanged by the quotes: Plan B (5h) before Plan A (6h model-change penalty)', () => {
     const { d, snap } = scenario1();
-    const result = plans(optimize(snap, { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) }));
+    const result = plans(optimize(snap, { kind: 'extend', bookingId: d.bookingOf('Vincent').id, newEndsAt: at(d, 'Thu', 10) }));
     expect(result.map((p) => p.changes[1]!.kind)).toEqual(['time_shift', 'model_change']);
   });
 });
@@ -125,7 +125,7 @@ describe('money checks', () => {
     const r = plans(
       optimize(
         { ...snap, excludedCustomerIds: [d.customer('Bob').id] },
-        { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) },
+        { kind: 'extend', bookingId: d.bookingOf('Vincent').id, newEndsAt: at(d, 'Thu', 10) },
       ),
     );
     const plan = r[0]!; // Bob swaps to A7IV-2 (notice), Charlie upgrades

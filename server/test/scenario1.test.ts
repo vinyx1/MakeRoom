@@ -44,14 +44,14 @@ const load = {
   feed: async (shopId: string) => (await db.select().from(s.activityLog).where(eq(s.activityLog.shopId, shopId)).orderBy(s.activityLog.seq)).map((e) => e.kind),
 };
 
-/** Scenario 1 steps 1–4: Alice asks, gets the offer, accepts and authorizes $45. */
-async function aliceAuthorized(gateway: ReturnType<typeof fakeGateway>, d: Seeded) {
-  const alice = d.customer('Alice').id;
-  const offered = await requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) } });
+/** Scenario 1 steps 1–4: Vincent asks, gets the offer, accepts and authorizes $45. */
+async function vincentAuthorized(gateway: ReturnType<typeof fakeGateway>, d: Seeded) {
+  const vincent = d.customer('Vincent').id;
+  const offered = await requestChange(db, d.shop.id, { customerId: vincent, request: { kind: 'extend', bookingId: d.bookingOf('Vincent').id, newEndsAt: at(d, 'Thu', 10) } });
   if (offered.status !== 'offered') throw new Error(JSON.stringify(offered));
-  const order = await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
+  const order = await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent });
   expect(order.status).toBe('ok');
-  const accepted = await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
+  const accepted = await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent });
   expect(accepted.status).toBe('awaiting_approvals');
   const [optionA, optionB] = offered.revisions;
   return { proposalId: offered.proposal.id, optionA: optionA!, optionB: optionB!, accepted };
@@ -61,10 +61,10 @@ describe('Scenario 1: the extension, Plan B (the demo path)', () => {
   it('runs request → authorize → Bob picks B → owner approves → capture → commit → refund', async () => {
     const gateway = fakeGateway();
     const d = await shop(gateway);
-    const alice = d.bookingOf('Alice'), bob = d.bookingOf('Bob');
+    const vincent = d.bookingOf('Vincent'), bob = d.bookingOf('Bob');
 
-    // Step 1–3: one offer to Alice for $45, two options for Bob behind it.
-    const offered = await requestChange(db, d.shop.id, { customerId: alice.customerId, request: { kind: 'extend', bookingId: alice.id, newEndsAt: at(d, 'Thu', 10) } });
+    // Step 1–3: one offer to Vincent for $45, two options for Bob behind it.
+    const offered = await requestChange(db, d.shop.id, { customerId: vincent.customerId, request: { kind: 'extend', bookingId: vincent.id, newEndsAt: at(d, 'Thu', 10) } });
     if (offered.status !== 'offered') throw new Error(JSON.stringify(offered));
     expect(offered.chargeCents).toBe(4500);
     expect(offered.proposal.state).toBe('DRAFT');
@@ -73,9 +73,9 @@ describe('Scenario 1: the extension, Plan B (the demo path)', () => {
     expect([optionB!.optionLabel, optionB!.needsOwner, optionB!.quote.compensation[0]!.cents]).toEqual(['B', true, 1500]);
     expect(await load.activeClaims(offered.proposal.id)).toEqual([]); // nothing held before she pays
 
-    // Step 4: Alice accepts and authorizes. Claims are taken; Bob gets both options.
-    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice.customerId });
-    const accepted = await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice.customerId });
+    // Step 4: Vincent accepts and authorizes. Claims are taken; Bob gets both options.
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent.customerId });
+    const accepted = await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent.customerId });
     expect(accepted).toEqual({
       status: 'awaiting_approvals', proposalId: offered.proposal.id,
       offers: [{ customerId: bob.customerId, revisionIds: [optionA!.id, optionB!.id] }],
@@ -95,8 +95,8 @@ describe('Scenario 1: the extension, Plan B (the demo path)', () => {
     const done = await ownerDecision(db, gateway, d.shop.id, { proposalId: offered.proposal.id, revisionId: optionB!.id, decision: 'approve' });
     expect(done.status).toBe('committed');
 
-    const [aliceAfter, bobAfter] = [await load.booking(alice.id), await load.booking(bob.id)];
-    expect([aliceAfter.endsAt, aliceAfter.bufferEndsAt, aliceAfter.version, aliceAfter.priceCents]).toEqual([at(d, 'Thu', 10), at(d, 'Thu', 14), 2, 18000]);
+    const [vincentAfter, bobAfter] = [await load.booking(vincent.id), await load.booking(bob.id)];
+    expect([vincentAfter.endsAt, vincentAfter.bufferEndsAt, vincentAfter.version, vincentAfter.priceCents]).toEqual([at(d, 'Thu', 10), at(d, 'Thu', 14), 2, 18000]);
     expect([bobAfter.startsAt, bobAfter.endsAt, bobAfter.unitId, bobAfter.version, bobAfter.priceCents]).toEqual([at(d, 'Thu', 14), bob.endsAt, bob.unitId, 2, 7500]);
 
     const p = await load.proposal(offered.proposal.id);
@@ -104,9 +104,9 @@ describe('Scenario 1: the extension, Plan B (the demo path)', () => {
     expect(await load.activeClaims(p.id)).toEqual([]);
     expect((await load.revisions(p.id)).map((r) => [r.optionLabel, r.status])).toEqual([['A', 'superseded'], ['B', 'selected']]);
 
-    // Money: $45 captured from Alice's hold, $15 refunded on Bob's original $90 capture.
-    const aliceOrder = await load.proposalOrder(p.id);
-    expect([aliceOrder.status, aliceOrder.capturedCents]).toEqual(['captured', 4500]);
+    // Money: $45 captured from Vincent's hold, $15 refunded on Bob's original $90 capture.
+    const vincentOrder = await load.proposalOrder(p.id);
+    expect([vincentOrder.status, vincentOrder.capturedCents]).toEqual(['captured', 4500]);
     const bobOrder = await load.orderOf(bob.id);
     expect([bobOrder.capturedCents, bobOrder.refundedCents]).toEqual([9000, 1500]);
     expect(gateway.calls.filter((c) => c.method !== 'createOrder').map((c) => [c.method, c.amountCents ?? null])).toEqual([
@@ -131,7 +131,7 @@ describe('Scenario 1, Plan A', () => {
     const gateway = fakeGateway();
     const d = await shop(gateway);
     const bob = d.bookingOf('Bob');
-    const { proposalId, optionA } = await aliceAuthorized(gateway, d);
+    const { proposalId, optionA } = await vincentAuthorized(gateway, d);
     const done = await affectedAccept(db, gateway, d.shop.id, { proposalId, customerId: bob.customerId, revisionId: optionA.id });
     expect(done.status).toBe('committed');
     const bobAfter = await load.booking(bob.id);
@@ -144,8 +144,8 @@ describe('clicks are idempotent', () => {
   it('a double click on Accept records once', async () => {
     const gateway = fakeGateway();
     const d = await shop(gateway);
-    const { proposalId, optionB } = await aliceAuthorized(gateway, d);
-    expect((await requesterAccept(db, gateway, d.shop.id, { proposalId, customerId: d.customer('Alice').id })).status).toBe('already_accepted');
+    const { proposalId, optionB } = await vincentAuthorized(gateway, d);
+    expect((await requesterAccept(db, gateway, d.shop.id, { proposalId, customerId: d.customer('Vincent').id })).status).toBe('already_accepted');
     const bob = d.customer('Bob').id;
     await affectedAccept(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: optionB.id });
     expect(await affectedAccept(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: optionB.id })).toEqual({ status: 'already_decided' });
@@ -154,7 +154,7 @@ describe('clicks are idempotent', () => {
   it('only the parties on a card can click it', async () => {
     const gateway = fakeGateway();
     const d = await shop(gateway);
-    const { proposalId, optionB } = await aliceAuthorized(gateway, d);
+    const { proposalId, optionB } = await vincentAuthorized(gateway, d);
     const result = await affectedAccept(db, gateway, d.shop.id, { proposalId, customerId: d.customer('Charlie').id, revisionId: optionB.id });
     expect(result.status).toBe('refused');
   });
@@ -165,7 +165,7 @@ describe('the owner declines (judge B8, B9)', () => {
     const gateway = fakeGateway();
     const d = await shop(gateway);
     const bob = d.customer('Bob').id;
-    const { proposalId, optionA, optionB } = await aliceAuthorized(gateway, d);
+    const { proposalId, optionA, optionB } = await vincentAuthorized(gateway, d);
     await affectedAccept(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: optionB.id });
 
     const declined = await ownerDecision(db, gateway, d.shop.id, { proposalId, revisionId: optionB.id, decision: 'decline' });
@@ -182,7 +182,7 @@ describe('the owner declines (judge B8, B9)', () => {
     // A $30 cap puts Plan A ($40 upgrade) over it too, so both options need the owner.
     await db.update(s.shops).set({ policy: { ...d.shop.policy, compensation_cap_cents: 3000 } }).where(eq(s.shops.id, d.shop.id));
     const bob = d.bookingOf('Bob');
-    const { proposalId, optionA, optionB } = await aliceAuthorized(gateway, d);
+    const { proposalId, optionA, optionB } = await vincentAuthorized(gateway, d);
 
     await affectedAccept(db, gateway, d.shop.id, { proposalId, customerId: bob.customerId, revisionId: optionA.id });
     await ownerDecision(db, gateway, d.shop.id, { proposalId, revisionId: optionA.id, decision: 'decline' });
@@ -194,7 +194,7 @@ describe('the owner declines (judge B8, B9)', () => {
     expect((await load.proposalOrder(proposalId)).status).toBe('voided');
     expect(await load.activeClaims(proposalId)).toEqual([]);
     expect((await load.booking(bob.id)).version).toBe(1);
-    expect((await load.booking(d.bookingOf('Alice').id)).version).toBe(1);
+    expect((await load.booking(d.bookingOf('Vincent').id)).version).toBe(1);
   });
 });
 
@@ -202,7 +202,7 @@ describe('ending without a change', () => {
   it('no answer in time: EXPIRED, hold voided, claims released (fast-forward)', async () => {
     const gateway = fakeGateway();
     const d = await shop(gateway);
-    const { proposalId } = await aliceAuthorized(gateway, d);
+    const { proposalId } = await vincentAuthorized(gateway, d);
     await db.update(s.shops).set({ clockOffsetMs: d.shop.clockOffsetMs + 31 * 60_000 }).where(eq(s.shops.id, d.shop.id));
 
     expect(await expireDue(db, gateway, d.shop.id)).toEqual([proposalId]);
@@ -215,7 +215,7 @@ describe('ending without a change', () => {
   it('a late click after expiry changes nothing', async () => {
     const gateway = fakeGateway();
     const d = await shop(gateway);
-    const { proposalId, optionA } = await aliceAuthorized(gateway, d);
+    const { proposalId, optionA } = await vincentAuthorized(gateway, d);
     await db.update(s.shops).set({ clockOffsetMs: d.shop.clockOffsetMs + 31 * 60_000 }).where(eq(s.shops.id, d.shop.id));
     const late = await affectedAccept(db, gateway, d.shop.id, { proposalId, customerId: d.customer('Bob').id, revisionId: optionA.id });
     expect(late).toEqual({ status: 'stale', reason: 'the offer expired' });
@@ -226,7 +226,7 @@ describe('ending without a change', () => {
   it('capture fails: FAILED, the hold is voided, nothing changes', async () => {
     const gateway = fakeGateway();
     const d = await shop(gateway);
-    const { proposalId, optionA } = await aliceAuthorized(gateway, d);
+    const { proposalId, optionA } = await vincentAuthorized(gateway, d);
     gateway.failNext('captureAuthorization', { ok: false, error: '422 INSTRUMENT_DECLINED', retryable: false });
     const result = await affectedAccept(db, gateway, d.shop.id, { proposalId, customerId: d.customer('Bob').id, revisionId: optionA.id });
     expect(result.status).toBe('failed');
@@ -238,7 +238,7 @@ describe('ending without a change', () => {
   it('the schedule changes during capture: revalidation fails, the capture is refunded, nothing changes', async () => {
     const fake = fakeGateway();
     const d = await shop(fake);
-    const { proposalId, optionA } = await aliceAuthorized(fake, d);
+    const { proposalId, optionA } = await vincentAuthorized(fake, d);
     // While the capture is in flight (outside the lock), the owner puts A7IV-1 into maintenance Thu morning.
     const racing: PaymentGateway = {
       ...fake,
@@ -252,19 +252,19 @@ describe('ending without a change', () => {
     expect((await load.proposal(proposalId)).state).toBe('FAILED');
     const order = await load.proposalOrder(proposalId);
     expect([order.capturedCents, order.refundedCents]).toEqual([4500, 4500]);
-    expect((await load.booking(d.bookingOf('Alice').id)).endsAt).toEqual(d.bookingOf('Alice').endsAt);
+    expect((await load.booking(d.bookingOf('Vincent').id)).endsAt).toEqual(d.bookingOf('Vincent').endsAt);
   });
 
   it('two requests race for the same camera: the second finds it held and its hold is voided', async () => {
     const gateway = fakeGateway();
     const d = await shop(gateway);
     const gina = d.customer('Gina').id;
-    // Gina asks for the A7R V on Thu–Fri before Alice pays; both see it free.
+    // Gina asks for the A7R V on Thu–Fri before Vincent pays; both see it free.
     const ginas = await requestChange(db, d.shop.id, {
       customerId: gina, request: { kind: 'new_booking', customerId: gina, modelId: d.modelsByName.a7rv.id, startsAt: at(d, 'Thu', 10), endsAt: at(d, 'Fri', 10) },
     });
     if (ginas.status !== 'offered') throw new Error(JSON.stringify(ginas));
-    await aliceAuthorized(gateway, d); // Alice's option A claims the A7R V Thu–Fri
+    await vincentAuthorized(gateway, d); // Vincent's option A claims the A7R V Thu–Fri
 
     await createRequesterOrder(db, gateway, d.shop.id, { proposalId: ginas.proposal.id, customerId: gina });
     const result = await requesterAccept(db, gateway, d.shop.id, { proposalId: ginas.proposal.id, customerId: gina });
@@ -278,13 +278,13 @@ describe('requests that fit as is', () => {
   it('a free extension needs no payment and commits on accept', async () => {
     const gateway = fakeGateway();
     const d = await shop(gateway);
-    const alice = d.bookingOf('Alice');
-    const offered = await requestChange(db, d.shop.id, { customerId: alice.customerId, request: { kind: 'extend', bookingId: alice.id, newEndsAt: at(d, 'Wed', 20) } });
+    const vincent = d.bookingOf('Vincent');
+    const offered = await requestChange(db, d.shop.id, { customerId: vincent.customerId, request: { kind: 'extend', bookingId: vincent.id, newEndsAt: at(d, 'Wed', 20) } });
     if (offered.status !== 'offered') throw new Error(JSON.stringify(offered));
     expect(offered.chargeCents).toBe(0); // still 3 started days
-    const result = await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice.customerId });
+    const result = await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent.customerId });
     expect(result.status).toBe('committed');
-    expect((await load.booking(alice.id)).endsAt).toEqual(at(d, 'Wed', 20));
+    expect((await load.booking(vincent.id)).endsAt).toEqual(at(d, 'Wed', 20));
   });
 
   it('judge E7: a new booking in a free slot is paid and created', async () => {
@@ -305,9 +305,9 @@ describe('requests that fit as is', () => {
   it('a second request on the same booking is refused while one is in progress', async () => {
     const gateway = fakeGateway();
     const d = await shop(gateway);
-    await aliceAuthorized(gateway, d);
+    await vincentAuthorized(gateway, d);
     const again = await requestChange(db, d.shop.id, {
-      customerId: d.customer('Alice').id, request: { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 12) },
+      customerId: d.customer('Vincent').id, request: { kind: 'extend', bookingId: d.bookingOf('Vincent').id, newEndsAt: at(d, 'Thu', 12) },
     });
     expect(again.status).toBe('refused');
   });
@@ -318,14 +318,14 @@ describe.skipIf(!process.env.PAYPAL_CLIENT_ID)('PayPal sandbox: Scenario 1 for r
     const client = createPayPalClient();
     const gateway = payPalGateway(client);
     const d = await shop(gateway);
-    const alice = d.customer('Alice').id, bob = d.bookingOf('Bob');
+    const vincent = d.customer('Vincent').id, bob = d.bookingOf('Bob');
     expect((await load.orderOf(bob.id)).status).toBe('captured');
 
-    const offered = await requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) } });
+    const offered = await requestChange(db, d.shop.id, { customerId: vincent, request: { kind: 'extend', bookingId: d.bookingOf('Vincent').id, newEndsAt: at(d, 'Thu', 10) } });
     if (offered.status !== 'offered') throw new Error(JSON.stringify(offered));
     // The test card authorizes on create, standing in for the buyer's click in the PayPal popup.
-    expect((await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice, testCard: true })).status).toBe('ok');
-    expect((await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice })).status).toBe('awaiting_approvals');
+    expect((await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent, testCard: true })).status).toBe('ok');
+    expect((await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent })).status).toBe('awaiting_approvals');
     const planB = offered.revisions.find((r) => r.optionLabel === 'B')!;
     await affectedAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: bob.customerId, revisionId: planB.id });
     const done = await ownerDecision(db, gateway, d.shop.id, { proposalId: offered.proposal.id, revisionId: planB.id, decision: 'approve' });
@@ -348,19 +348,19 @@ describe('PayPal request ids', () => {
 });
 
 describe('the owner sets the price', () => {
-  async function aliceAsks(d: Seeded) {
-    const offered = await requestChange(db, d.shop.id, { customerId: d.customer('Alice').id, request: { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) } });
+  async function vincentAsks(d: Seeded) {
+    const offered = await requestChange(db, d.shop.id, { customerId: d.customer('Vincent').id, request: { kind: 'extend', bookingId: d.bookingOf('Vincent').id, newEndsAt: at(d, 'Thu', 10) } });
     if (offered.status !== 'offered') throw new Error(offered.status);
     return offered;
   }
 
-  it('$40 instead of $45: a new revision per option, Alice asked again, and $40 is what gets captured', async () => {
+  it('$40 instead of $45: a new revision per option, Vincent asked again, and $40 is what gets captured', async () => {
     const gateway = fakeGateway();
     const d = await shop(gateway);
-    const alice = d.customer('Alice').id;
-    const offered = await aliceAsks(d);
+    const vincent = d.customer('Vincent').id;
+    const offered = await vincentAsks(d);
     // She had opened the PayPal button: an order for $45 exists, unpaid.
-    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent });
 
     const repriced = await ownerSetPrice(db, d.shop.id, { proposalId: offered.proposal.id, priceCents: 4000 });
     if (repriced.status !== 'repriced') throw new Error(JSON.stringify(repriced));
@@ -370,24 +370,24 @@ describe('the owner sets the price', () => {
     const orders = await db.select().from(s.paypalOrders).where(eq(s.paypalOrders.proposalId, offered.proposal.id));
     expect(orders.map((o) => o.status)).toEqual(['voided']); // the $45 order can't be paid any more
     const ready = await db.select().from(s.activityLog).where(and(eq(s.activityLog.proposalId, offered.proposal.id), eq(s.activityLog.kind, 'offer_ready'))).orderBy(s.activityLog.seq);
-    expect(ready.at(-1)!.payload).toMatchObject({ customerId: alice, role: 'requester', repriced: true });
+    expect(ready.at(-1)!.payload).toMatchObject({ customerId: vincent, role: 'requester', repriced: true });
 
-    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent });
     expect(gateway.calls.filter((c) => c.method === 'createOrder' && c.id === 'AUTHORIZE').map((c) => c.amountCents)).toEqual([4500, 4000]);
-    expect((await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice })).status).toBe('awaiting_approvals');
+    expect((await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent })).status).toBe('awaiting_approvals');
     const planA = repriced.revisions.find((r) => r.optionLabel === 'A')!;
     expect((await affectedAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: d.customer('Bob').id, revisionId: planA.id })).status).toBe('committed');
     expect(gateway.calls.find((c) => c.method === 'captureAuthorization')!.amountCents).toBe(4000);
-    expect((await load.booking(d.bookingOf('Alice').id)).priceCents).toBe(13500 + 4000);
+    expect((await load.booking(d.bookingOf('Vincent').id)).priceCents).toBe(13500 + 4000);
   });
 
-  it('refuses raising the price, and changes after Alice has paid', async () => {
+  it('refuses raising the price, and changes after Vincent has paid', async () => {
     const gateway = fakeGateway();
     const d = await shop(gateway);
-    const offered = await aliceAsks(d);
+    const offered = await vincentAsks(d);
     expect(await ownerSetPrice(db, d.shop.id, { proposalId: offered.proposal.id, priceCents: 5000 })).toMatchObject({ status: 'refused', reason: expect.stringContaining('only lowering') });
-    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: d.customer('Alice').id });
-    await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: d.customer('Alice').id });
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: d.customer('Vincent').id });
+    await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: d.customer('Vincent').id });
     expect(await ownerSetPrice(db, d.shop.id, { proposalId: offered.proposal.id, priceCents: 4000 })).toMatchObject({ status: 'refused', reason: expect.stringContaining('already paid') });
   });
 });

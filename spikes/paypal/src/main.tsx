@@ -12,7 +12,7 @@ async function api(method: string, path: string) {
   return body;
 }
 
-// A mock of Alice's approval card from Scenario 1: accept the extension and authorize $45.
+// A mock of Vincent's approval card from Scenario 1: accept the extension and authorize $45.
 function ApprovalCard() {
   const { loadingStatus, error } = usePayPal();
   const [log, setLog] = useState<string[]>([]);

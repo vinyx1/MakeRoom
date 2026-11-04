@@ -15,12 +15,12 @@ async function turn(customer: string, event: Parameters<typeof runTurn>[0]['even
 }
 
 const results = [];
-results.push(await turn('alice', { kind: 'customer_message', text: 'Shoot ran over. Can I keep the camera until Thursday at 10am?' }));
+results.push(await turn('vincent', { kind: 'customer_message', text: 'Shoot ran over. Can I keep the camera until Thursday at 10am?' }));
 
 const proposal = world.proposals[0];
 if (proposal) {
-  world.requesterAuthorizes(proposal.id); // Alice clicks Accept and authorizes $45 with PayPal
-  console.log(`\n(Alice accepts and authorizes; ${proposal.id} → ${proposal.state})`);
+  world.requesterAuthorizes(proposal.id); // Vincent clicks Accept and authorizes $45 with PayPal
+  console.log(`\n(Vincent accepts and authorizes; ${proposal.id} → ${proposal.state})`);
   results.push(await turn('bob', { kind: 'offer_ready', proposalId: proposal.id }));
   results.push(await turn('bob', { kind: 'customer_message', text: 'Hmm, could I pick it up at noon instead?' }));
 }

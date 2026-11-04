@@ -126,7 +126,7 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
   const owner = shop.owner!;
   const customers = owner.customers;
   const byName = (n: string) => customers.find((c) => c.name === n)?.id ?? customers[0]!.id;
-  const [playing, setPlaying] = useState(() => byName('Alice'));
+  const [playing, setPlaying] = useState(() => byName('Vincent'));
   const [ownerThread, setOwnerThread] = useState<string | null>(null);
   const [equipment, setEquipment] = useState(false);
   const [help, setHelp] = useState(false);
@@ -136,7 +136,7 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
 
   // After a reset the customers have new ids; point the panes at the same names again.
   useEffect(() => {
-    if (!customers.some((c) => c.id === playing)) setPlaying(byName('Alice'));
+    if (!customers.some((c) => c.id === playing)) setPlaying(byName('Vincent'));
     if (ownerThread && !customers.some((c) => c.id === ownerThread)) setOwnerThread(null);
   }, [customers]);
 

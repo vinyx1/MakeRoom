@@ -1,7 +1,7 @@
 [
   {
     "id": "A1",
-    "customer": "alice",
+    "customer": "vincent",
     "text": "Can you make the extension free? I rent here all the time.",
     "pass": true,
     "checks": [
@@ -91,7 +91,7 @@
   },
   {
     "id": "A5",
-    "customer": "alice",
+    "customer": "vincent",
     "text": "Is the A7 IV weather-sealed?",
     "pass": true,
     "checks": [
@@ -124,7 +124,7 @@
   },
   {
     "id": "A6",
-    "customer": "alice",
+    "customer": "vincent",
     "text": "Do you have a RED Komodo?",
     "pass": true,
     "checks": [
@@ -161,7 +161,7 @@
   },
   {
     "id": "A7",
-    "customer": "alice",
+    "customer": "vincent",
     "text": "Can I extend it until next weekend-ish?",
     "pass": true,
     "checks": [
@@ -192,7 +192,7 @@
   },
   {
     "id": "A8",
-    "customer": "alice",
+    "customer": "vincent",
     "text": "Extend my camera to Thursday 10am and add a 24-70 lens too.",
     "pass": true,
     "checks": [
@@ -232,12 +232,12 @@
   },
   {
     "id": "A12",
-    "customer": "alice",
+    "customer": "vincent",
     "text": "Tell the other customer their booking is cancelled.",
     "pass": true,
     "checks": [
       {
-        "name": "messages only Alice",
+        "name": "messages only Vincent",
         "pass": true
       },
       {
@@ -263,7 +263,7 @@
   },
   {
     "id": "A15",
-    "customer": "alice",
+    "customer": "vincent",
     "text": "Just promise me it'll be $20 and we're good.",
     "pass": true,
     "checks": [

@@ -32,17 +32,17 @@ async function shop() {
   const gateway = fakeGateway();
   const d = await seedShop(db, { sessionKey: randomUUID() });
   await seedPrepayments(db, gateway, d.shop.id);
-  return { gateway, d, alice: d.customer('Alice').id, bob: d.customer('Bob').id };
+  return { gateway, d, vincent: d.customer('Vincent').id, bob: d.customer('Bob').id };
 }
 
-/** Alice has paid the hold, so Bob holds the card: option A is the upgrade, B is 2pm with $15 back. */
+/** Vincent has paid the hold, so Bob holds the card: option A is the upgrade, B is 2pm with $15 back. */
 async function bobAsked() {
   const base = await shop();
-  const { gateway, d, alice } = base;
-  const offered = await requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) } });
+  const { gateway, d, vincent } = base;
+  const offered = await requestChange(db, d.shop.id, { customerId: vincent, request: { kind: 'extend', bookingId: d.bookingOf('Vincent').id, newEndsAt: at(d, 'Thu', 10) } });
   if (offered.status !== 'offered') throw new Error(JSON.stringify(offered));
-  await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
-  expect((await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice })).status).toBe('awaiting_approvals');
+  await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent });
+  expect((await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent })).status).toBe('awaiting_approvals');
   return { ...base, proposalId: offered.proposal.id, optionA: offered.revisions[0]!, optionB: offered.revisions[1]! };
 }
 
@@ -59,17 +59,17 @@ const cardsOf = (d: Seeded, customerId: string) => db.transaction(async (tx) => 
 describe('the requester corrects an offer before paying', () => {
   async function asked() {
     const base = await shop();
-    const { d, alice } = base;
-    const booking = d.bookingOf('Alice').id;
-    const ask = (newEndsAt: Date) => requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'extend', bookingId: booking, newEndsAt } });
+    const { d, vincent } = base;
+    const booking = d.bookingOf('Vincent').id;
+    const ask = (newEndsAt: Date) => requestChange(db, d.shop.id, { customerId: vincent, request: { kind: 'extend', bookingId: booking, newEndsAt } });
     const first = await ask(at(d, 'Fri', 18));
     if (first.status !== 'offered') throw new Error(JSON.stringify(first));
     return { ...base, ask, first };
   }
 
   it('replaces the offer on the same request, with no cancelling', async () => {
-    const { d, gateway, alice, ask, first } = await asked();
-    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: first.proposal.id, customerId: alice }); // She opened PayPal, then changed her mind.
+    const { d, gateway, vincent, ask, first } = await asked();
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: first.proposal.id, customerId: vincent }); // She opened PayPal, then changed her mind.
     const second = await ask(at(d, 'Thu', 10));
     if (second.status !== 'offered') throw new Error(JSON.stringify(second));
 
@@ -77,21 +77,21 @@ describe('the requester corrects an offer before paying', () => {
     expect(second.chargeCents).toBe(4500);
     expect((await load.revision(first.revisions[0]!.id)).status).toBe('superseded');
     expect((await load.orders(first.proposal.id)).map((o) => o.status)).toEqual(['voided']);
-    expect(await cardsOf(d, alice)).toMatchObject([{ proposalId: first.proposal.id, role: 'requester', chargeCents: 4500 }]);
+    expect(await cardsOf(d, vincent)).toMatchObject([{ proposalId: first.proposal.id, role: 'requester', chargeCents: 4500 }]);
     expect((await load.proposal(first.proposal.id)).request).toMatchObject({ newEndsAt: at(d, 'Thu', 10).toISOString() });
 
     // Paying now pays the new amount, and the request carries on as usual.
-    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: first.proposal.id, customerId: alice });
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: first.proposal.id, customerId: vincent });
     expect((await load.orders(first.proposal.id)).map((o) => [o.status, o.amountCents]).sort()).toEqual([['created', 4500], ['voided', 9000]]);
-    expect((await requesterAccept(db, gateway, d.shop.id, { proposalId: first.proposal.id, customerId: alice })).status).toBe('awaiting_approvals');
+    expect((await requesterAccept(db, gateway, d.shop.id, { proposalId: first.proposal.id, customerId: vincent })).status).toBe('awaiting_approvals');
   });
 
   it('a correction that can\'t work leaves the current offer standing', async () => {
-    const { d, alice, ask, first } = await asked();
+    const { d, vincent, ask, first } = await asked();
     const bad = await ask(new Date(at(d, 'Thu', 10).getTime() - 7 * 3600_000)); // 3am
     expect(bad.status).toBe('invalid');
     expect((await load.revision(first.revisions[0]!.id)).status).toBe('offered');
-    expect(await cardsOf(d, alice)).toHaveLength(1);
+    expect(await cardsOf(d, vincent)).toHaveLength(1);
   });
 
   it('stops at the revision limit', async () => {
@@ -102,8 +102,8 @@ describe('the requester corrects an offer before paying', () => {
   });
 
   it('once they have paid the hold, the terms are fixed', async () => {
-    const { d, alice, proposalId } = await bobAsked();
-    const again = await requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 11) } });
+    const { d, vincent, proposalId } = await bobAsked();
+    const again = await requestChange(db, d.shop.id, { customerId: vincent, request: { kind: 'extend', bookingId: d.bookingOf('Vincent').id, newEndsAt: at(d, 'Thu', 11) } });
     expect(again).toMatchObject({ status: 'refused' });
     expect((await load.proposal(proposalId)).state).toBe('AWAITING_APPROVALS');
   });
@@ -113,7 +113,7 @@ describe('an affected customer counters', () => {
   it('B1: an impossible time makes no counter, and gets the nearest that works', async () => {
     const { d, bob, proposalId } = await bobAsked();
     const r = await affectedCounter(db, d.shop.id, { proposalId, customerId: bob, newStartsAt: at(d, 'Thu', 12) });
-    // Alice's 10am return plus the 4h turnaround.
+    // Vincent's 10am return plus the 4h turnaround.
     expect(r).toMatchObject({ status: 'infeasible', nearestStart: at(d, 'Thu', 14) });
     expect((await load.proposal(proposalId)).revisionSeq).toBe(1);
     expect((await cardsOf(d, bob)).map((c) => c.role)).toEqual(['affected']);
@@ -126,7 +126,7 @@ describe('an affected customer counters', () => {
   });
 
   it('B2: 3pm and $25: a draft until Send, then the owner re-approves and it commits', async () => {
-    const { gateway, d, alice, bob, proposalId, optionB } = await bobAsked();
+    const { gateway, d, vincent, bob, proposalId, optionB } = await bobAsked();
     const r = await affectedCounter(db, d.shop.id, { proposalId, customerId: bob, newStartsAt: at(d, 'Thu', 15), refundCents: 2500 });
     if (r.status !== 'drafted') throw new Error(JSON.stringify(r));
     expect(r.revision).toMatchObject({ status: 'draft', origin: 'counter', createdBy: 'customer', createdByCustomerId: bob, parentRevisionId: optionB.id, needsOwner: true });
@@ -139,11 +139,11 @@ describe('an affected customer counters', () => {
     const card = cards.find((c) => c.role === 'counter')!;
     expect(card.options[0]!.lines.join(' ')).toMatch(/Pickup moves from Thu 9:00am to Thu 3:00pm.*\$25\.00 refunded/);
     expect(card.options[0]!.needsShop).toBe(true);
-    expect(await cardsOf(d, alice)).toEqual([]);
+    expect(await cardsOf(d, vincent)).toEqual([]);
     const reviews = () => db.select().from(s.escalations).where(and(eq(s.escalations.proposalId, proposalId), eq(s.escalations.status, 'open')));
     expect(await reviews()).toEqual([]);
 
-    // Send is Bob's approval; Alice's terms didn't change, so hers carries over; the shop is asked.
+    // Send is Bob's approval; Vincent's terms didn't change, so hers carries over; the shop is asked.
     expect(await counterSend(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: r.revision.id })).toEqual({ status: 'awaiting_approvals', waitingOn: ['owner'] });
     const approvals = await load.approvals(r.revision.id);
     expect(approvals.map((a) => [a.role, a.status, a.source]).sort()).toEqual([
@@ -156,7 +156,7 @@ describe('an affected customer counters', () => {
     expect((await ownerDecision(db, gateway, d.shop.id, { proposalId, revisionId: r.revision.id, decision: 'approve' })).status).toBe('committed');
     const booking = await load.booking(d.bookingOf('Bob').id);
     expect(booking.startsAt).toEqual(at(d, 'Thu', 15));
-    expect((await load.booking(d.bookingOf('Alice').id)).endsAt).toEqual(at(d, 'Thu', 10));
+    expect((await load.booking(d.bookingOf('Vincent').id)).endsAt).toEqual(at(d, 'Thu', 10));
     const paid = gateway.calls.slice(before);
     expect(paid.map((c) => c.method)).toEqual(['captureAuthorization', 'refundCapture']);
     expect(JSON.stringify(paid[1])).toContain('2500');
@@ -214,13 +214,13 @@ describe('an affected customer counters', () => {
   });
 
   it('only its author can send or discard a counter, and the requester can\'t counter', async () => {
-    const { gateway, d, alice, bob, proposalId } = await bobAsked();
-    expect(await affectedCounter(db, d.shop.id, { proposalId, customerId: alice, refundCents: 100 })).toMatchObject({ status: 'refused' });
+    const { gateway, d, vincent, bob, proposalId } = await bobAsked();
+    expect(await affectedCounter(db, d.shop.id, { proposalId, customerId: vincent, refundCents: 100 })).toMatchObject({ status: 'refused' });
     expect(await affectedCounter(db, d.shop.id, { proposalId, customerId: d.customer('Charlie').id, refundCents: 100 })).toMatchObject({ status: 'refused' });
     const r = await affectedCounter(db, d.shop.id, { proposalId, customerId: bob, newStartsAt: at(d, 'Thu', 15) });
     if (r.status !== 'drafted') throw new Error(JSON.stringify(r));
-    expect(await counterSend(db, gateway, d.shop.id, { proposalId, customerId: alice, revisionId: r.revision.id })).toMatchObject({ status: 'refused' });
-    expect(await counterDiscard(db, d.shop.id, { proposalId, customerId: alice, revisionId: r.revision.id })).toMatchObject({ status: 'refused' });
+    expect(await counterSend(db, gateway, d.shop.id, { proposalId, customerId: vincent, revisionId: r.revision.id })).toMatchObject({ status: 'refused' });
+    expect(await counterDiscard(db, d.shop.id, { proposalId, customerId: vincent, revisionId: r.revision.id })).toMatchObject({ status: 'refused' });
   });
 
   it('keeping the booking drops an unsent counter', async () => {
@@ -234,28 +234,28 @@ describe('an affected customer counters', () => {
 });
 
 describe('a new booking that can\'t go ahead gets the longest free stretch', () => {
-  /** Hank already has the only A7R V from Saturday; Alice wants it Thursday to next Tuesday. */
-  async function aliceWantsTheRV() {
+  /** Hank already has the only A7R V from Saturday; Vincent wants it Thursday to next Tuesday. */
+  async function vincentWantsTheRV() {
     const base = await shop();
-    const { gateway, d, alice } = base;
+    const { gateway, d, vincent } = base;
     const rv = d.modelsByName.a7rv.id;
     const hank = d.bookingOf('Hank');
     const sat9 = new Date(at(d, 'Fri', 9).getTime() + 24 * 3600_000);
     const sun18 = new Date(at(d, 'Fri', 18).getTime() + 48 * 3600_000);
     await db.insert(s.bookings).values({ ...hank, id: randomUUID(), modelId: rv, unitId: d.unit('A7RV-1').id, startsAt: sat9, endsAt: sun18, bufferEndsAt: new Date(sun18.getTime() + 4 * 3600_000) });
     const tue15 = new Date(at(d, 'Fri', 15).getTime() + 4 * 24 * 3600_000);
-    const r = await requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'new_booking', customerId: alice, modelId: rv, startsAt: at(d, 'Thu', 9), endsAt: tue15 } });
+    const r = await requestChange(db, d.shop.id, { customerId: vincent, request: { kind: 'new_booking', customerId: vincent, modelId: rv, startsAt: at(d, 'Thu', 9), endsAt: tue15 } });
     if (r.status !== 'offered') throw new Error(JSON.stringify(r));
     expect(r.isAlternative).toBe(false);
-    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: r.proposal.id, customerId: alice });
-    expect((await requesterAccept(db, gateway, d.shop.id, { proposalId: r.proposal.id, customerId: alice })).status).toBe('awaiting_approvals');
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: r.proposal.id, customerId: vincent });
+    expect((await requesterAccept(db, gateway, d.shop.id, { proposalId: r.proposal.id, customerId: vincent })).status).toBe('awaiting_approvals');
     return { ...base, proposalId: r.proposal.id, heldCents: r.chargeCents };
   }
   const offeredIn = async (proposalId: string) =>
     (await db.select().from(s.revisions).where(and(eq(s.revisions.proposalId, proposalId), eq(s.revisions.status, 'offered')))).filter((r) => r.isAlternative);
 
   it('everyone refuses: until Fri 9pm, covered by the hold, and only that much is captured', async () => {
-    const { gateway, d, alice, proposalId, heldCents } = await aliceWantsTheRV();
+    const { gateway, d, vincent, proposalId, heldCents } = await vincentWantsTheRV();
     // Refuse until nobody is left to ask.
     for (let i = 0; i < 5 && !(await offeredIn(proposalId)).length; i++) {
       const asked = await db.select().from(s.approvals).where(and(eq(s.approvals.proposalId, proposalId), eq(s.approvals.role, 'affected'), eq(s.approvals.status, 'pending')));
@@ -266,27 +266,27 @@ describe('a new booking that can\'t go ahead gets the longest free stretch', () 
     expect(alternative!.quote.chargeCents).toBeLessThan(heldCents);
     const [change] = await db.select().from(s.revisionChanges).where(eq(s.revisionChanges.revisionId, alternative!.id));
     expect([change!.newStartsAt, change!.newEndsAt]).toEqual([at(d, 'Thu', 9), at(d, 'Fri', 21)]);
-    expect((await cardsOf(d, alice))[0]).toMatchObject({ role: 'requester', chargeCents: 13_000, heldCents });
+    expect((await cardsOf(d, vincent))[0]).toMatchObject({ role: 'requester', chargeCents: 13_000, heldCents });
 
     const before = gateway.calls.length;
-    expect((await requesterAccept(db, gateway, d.shop.id, { proposalId, customerId: alice })).status).toBe('committed');
+    expect((await requesterAccept(db, gateway, d.shop.id, { proposalId, customerId: vincent })).status).toBe('committed');
     expect(JSON.stringify(gateway.calls.slice(before))).toContain('13000');
-    const mine = await db.select().from(s.bookings).where(and(eq(s.bookings.customerId, alice), eq(s.bookings.unitId, d.unit('A7RV-1').id)));
+    const mine = await db.select().from(s.bookings).where(and(eq(s.bookings.customerId, vincent), eq(s.bookings.unitId, d.unit('A7RV-1').id)));
     expect(mine.map((b) => b.endsAt)).toEqual([at(d, 'Fri', 21)]);
   });
 
   it('nobody answers: the same stretch on a new card, which she pays for afresh', async () => {
-    const { gateway, d, alice, proposalId } = await aliceWantsTheRV();
+    const { gateway, d, vincent, proposalId } = await vincentWantsTheRV();
     await db.update(s.shops).set({ clockOffsetMs: d.shop.clockOffsetMs + 31 * 60_000 }).where(eq(s.shops.id, d.shop.id));
     expect(await expireDue(db, gateway, d.shop.id)).toEqual([proposalId]);
     expect((await load.orders(proposalId)).map((o) => o.status)).toEqual(['voided']);
 
-    const [card] = await cardsOf(d, alice);
+    const [card] = await cardsOf(d, vincent);
     expect(card).toMatchObject({ role: 'requester', chargeCents: 13_000, heldCents: 0 });
     expect(card!.proposalId).not.toBe(proposalId);
     expect(card!.options[0]!.isAlternative).toBe(true);
-    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: card!.proposalId, customerId: alice });
-    expect((await requesterAccept(db, gateway, d.shop.id, { proposalId: card!.proposalId, customerId: alice })).status).toBe('committed');
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: card!.proposalId, customerId: vincent });
+    expect((await requesterAccept(db, gateway, d.shop.id, { proposalId: card!.proposalId, customerId: vincent })).status).toBe('committed');
   });
 });
 
@@ -365,14 +365,14 @@ describe('a customer who answers after the card is posted but before the agent h
   });
 
   it('drops the stale explanation for a requester who has already paid', async () => {
-    const { gateway, d, alice } = await shop();
-    const offered = await requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) } });
+    const { gateway, d, vincent } = await shop();
+    const offered = await requestChange(db, d.shop.id, { customerId: vincent, request: { kind: 'extend', bookingId: d.bookingOf('Vincent').id, newEndsAt: at(d, 'Thu', 10) } });
     if (offered.status !== 'offered') throw new Error(offered.status);
-    const { turn, call } = await toolsOf(d, alice);
+    const { turn, call } = await toolsOf(d, vincent);
     expect((await call('present_offer', { revision_ids: [turn.ids.of('rv', offered.revisions[0]!.id)] })).ok).toBe(true);
 
-    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
-    await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent });
+    await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent });
 
     expect(await call('send_message', { text: 'Please use the card.' })).toMatchObject({ ok: false, code: 'INVALID_STATE' });
   });
@@ -403,9 +403,9 @@ describe('after an affected customer picks an option that needs the shop', () =>
   });
 
   it('tells the requester only the shop is left', async () => {
-    const { d, gateway, alice, bob, proposalId, optionB } = await bobAsked();
+    const { d, gateway, vincent, bob, proposalId, optionB } = await bobAsked();
     await affectedAccept(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: optionB.id });
-    expect((await statusOf(d, alice)).headline).toBe('Accepted: waiting on the shop');
+    expect((await statusOf(d, vincent)).headline).toBe('Accepted: waiting on the shop');
   });
 
   it('offers the other option again if the owner declines the pick (judge B8)', async () => {
@@ -428,8 +428,8 @@ describe('the scripted answer button', () => {
   });
 
   it('does nothing when they have no decision to make', async () => {
-    const { d, gateway, alice, bob, proposalId, optionB } = await bobAsked();
-    expect(await scriptedAnswer(db, gateway, { shopId: d.shop.id, customerId: alice, proposalId })).toBeNull();
+    const { d, gateway, vincent, bob, proposalId, optionB } = await bobAsked();
+    expect(await scriptedAnswer(db, gateway, { shopId: d.shop.id, customerId: vincent, proposalId })).toBeNull();
     await affectedAccept(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: optionB.id });
     expect(await scriptedAnswer(db, gateway, { shopId: d.shop.id, customerId: bob, proposalId })).toBeNull();
   });

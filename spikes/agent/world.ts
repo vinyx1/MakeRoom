@@ -57,7 +57,7 @@ export type Event =
 
 export class World {
   bookings: Booking[] = [
-    { id: 'bk_alice', customer: 'alice', model: 'm_a7iv', unit: 'A7IV-1', start: '2026-10-26T09:00', end: '2026-10-28T18:00', status: 'picked_up', priceCents: 13500 },
+    { id: 'bk_vincent', customer: 'vincent', model: 'm_a7iv', unit: 'A7IV-1', start: '2026-10-26T09:00', end: '2026-10-28T18:00', status: 'picked_up', priceCents: 13500 },
     { id: 'bk_bob', customer: 'bob', model: 'm_a7iv', unit: 'A7IV-1', start: '2026-10-29T09:00', end: '2026-10-30T18:00', status: 'confirmed', priceCents: 9000 },
     { id: 'bk_charlie', customer: 'charlie', model: 'm_a7iv', unit: 'A7IV-2', start: '2026-10-29T09:00', end: '2026-10-30T18:00', status: 'confirmed', priceCents: 9000 },
     { id: 'bk_eve', customer: 'eve', model: 'm_rs3', unit: 'RS3-1', start: '2026-10-29T14:00', end: '2026-10-31T18:00', status: 'confirmed', priceCents: 7500, note: 'for Canon R5 + RF 24-70' },

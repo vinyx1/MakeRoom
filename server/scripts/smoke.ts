@@ -80,7 +80,7 @@ const seeded = await step('new visitor gets a shop at Wed 5:30pm', async () => {
 
 if (seeded && owner) {
   const shop = owner;
-  const alice = shop.customers.find((c) => c.name === 'Alice')!.id;
+  const vincent = shop.customers.find((c) => c.name === 'Vincent')!.id;
 
   await step('live updates connect', async () => {
     const stream = new AbortController();
@@ -92,11 +92,11 @@ if (seeded && owner) {
   });
 
   await step('the agent answers a chat message', async () => {
-    const sent = await api('POST', `/api/customers/${alice}/messages`, { text: 'What are your shop hours?' });
+    const sent = await api('POST', `/api/customers/${vincent}/messages`, { text: 'What are your shop hours?' });
     must(sent.status === 202, `answered ${sent.status}: ${sent.text.slice(0, 200)}`);
     for (let i = 0; i < 40; i++) {
       await new Promise((r) => setTimeout(r, 1500));
-      const { json } = await api('GET', `/api/customers/${alice}`);
+      const { json } = await api('GET', `/api/customers/${vincent}`);
       const reply = (json.messages as { author: string; body: string }[]).findLast((m) => m.author !== 'customer' && m.body);
       if (reply) {
         must(reply.author === 'agent', `a template answered instead of the model: "${reply.body}"`);
@@ -108,10 +108,10 @@ if (seeded && owner) {
 
   await step('a request gets an offer, and PayPal makes an order', async () => {
     const thu10 = DateTime.fromISO(shop.shop.now, { zone: shop.shop.timezone }).plus({ days: 1 }).set({ hour: 10, minute: 0, second: 0, millisecond: 0 });
-    const booking = shop.bookings.find((b) => b.customerId === alice)!;
-    const offered = await api('POST', '/api/requests', { customerId: alice, request: { kind: 'extend', bookingId: booking.id, newEndsAt: thu10.toISO() } });
+    const booking = shop.bookings.find((b) => b.customerId === vincent)!;
+    const offered = await api('POST', '/api/requests', { customerId: vincent, request: { kind: 'extend', bookingId: booking.id, newEndsAt: thu10.toISO() } });
     must(offered.json?.status === 'offered', `request answered ${offered.text.slice(0, 200)}`);
-    const order = await api('POST', `/api/proposals/${offered.json.proposal.id}/order`, { customerId: alice });
+    const order = await api('POST', `/api/proposals/${offered.json.proposal.id}/order`, { customerId: vincent });
     must(order.status === 200 && order.json?.orderId, `order answered ${order.text.slice(0, 200)}`);
     return `$${offered.json.chargeCents / 100}`;
   });

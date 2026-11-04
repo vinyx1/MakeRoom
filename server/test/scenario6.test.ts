@@ -1,5 +1,5 @@
-// Demo Scenario 6, "The race": while Alice's proposal waits on Bob, the owner edits Bob's booking by hand.
-// Also judge scenarios D1–D5. Alice's pending proposal is built directly (the proposal flow comes later),
+// Demo Scenario 6, "The race": while Vincent's proposal waits on Bob, the owner edits Bob's booking by hand.
+// Also judge scenarios D1–D5. Vincent's pending proposal is built directly (the proposal flow comes later),
 // exactly as the data model's Scenario 1 walkthrough leaves it after her authorization.
 
 import { randomUUID } from 'node:crypto';
@@ -28,18 +28,18 @@ function at(d: Seeded, day: 'Wed' | 'Thu' | 'Fri', hour: number) {
   return DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).startOf('week').plus({ days }).set({ hour }).toJSDate();
 }
 
-/** Scenario 1 up to step 5: Alice authorized $45, claims held, both options offered to Bob. */
-async function alicePending(state: 'AWAITING_APPROVALS' | 'CAPTURING' = 'AWAITING_APPROVALS') {
+/** Scenario 1 up to step 5: Vincent authorized $45, claims held, both options offered to Bob. */
+async function vincentPending(state: 'AWAITING_APPROVALS' | 'CAPTURING' = 'AWAITING_APPROVALS') {
   const d = await seedShop(db, { sessionKey: randomUUID() });
   const shopId = d.shop.id;
-  const alice = d.bookingOf('Alice'), bob = d.bookingOf('Bob');
+  const vincent = d.bookingOf('Vincent'), bob = d.bookingOf('Bob');
   const thu10 = at(d, 'Thu', 10);
 
   const [proposal] = await db
     .insert(s.proposals)
     .values({
-      shopId, source: 'customer_request', requesterCustomerId: alice.customerId, subjectBookingId: alice.id,
-      request: storeRequest({ kind: 'extend', bookingId: alice.id, newEndsAt: thu10 }), state, revisionSeq: 1,
+      shopId, source: 'customer_request', requesterCustomerId: vincent.customerId, subjectBookingId: vincent.id,
+      request: storeRequest({ kind: 'extend', bookingId: vincent.id, newEndsAt: thu10 }), state, revisionSeq: 1,
       expiresAt: plus(d.now, 0.5), createdAt: d.now,
     })
     .returning();
@@ -51,9 +51,9 @@ async function alicePending(state: 'AWAITING_APPROVALS' | 'CAPTURING' = 'AWAITIN
 
   await db.insert(s.claims).values([
     ...[revA!, revB!].flatMap((r) => [
-      { shopId, proposalId: proposal!.id, revisionId: r.id, bookingId: alice.id },
+      { shopId, proposalId: proposal!.id, revisionId: r.id, bookingId: vincent.id },
       { shopId, proposalId: proposal!.id, revisionId: r.id, bookingId: bob.id },
-      { shopId, proposalId: proposal!.id, revisionId: r.id, unitId: d.unit('A7IV-1').id, period: { start: alice.bufferEndsAt, end: at(d, 'Thu', 14) } },
+      { shopId, proposalId: proposal!.id, revisionId: r.id, unitId: d.unit('A7IV-1').id, period: { start: vincent.bufferEndsAt, end: at(d, 'Thu', 14) } },
     ]),
     { shopId, proposalId: proposal!.id, revisionId: revA!.id, unitId: d.unit('A7RV-1').id, period: { start: bob.startsAt, end: bob.bufferEndsAt } },
   ]);
@@ -61,7 +61,7 @@ async function alicePending(state: 'AWAITING_APPROVALS' | 'CAPTURING' = 'AWAITIN
   const [order] = await db
     .insert(s.paypalOrders)
     .values({
-      shopId, proposalId: proposal!.id, revisionId: revA!.id, customerId: alice.customerId,
+      shopId, proposalId: proposal!.id, revisionId: revA!.id, customerId: vincent.customerId,
       paypalOrderId: `TEST-${randomUUID()}`, intent: 'AUTHORIZE', amountCents: 4500,
       authorizationId: `AUTH-${randomUUID()}`, status: 'authorized',
     })
@@ -72,7 +72,7 @@ async function alicePending(state: 'AWAITING_APPROVALS' | 'CAPTURING' = 'AWAITIN
     bookingId: bob.id, unitId: bob.unitId!, startsAt: at(d, 'Thu', 14), endsAt: bob.endsAt, basedOnVersion: bob.version,
     attestedCustomerIds: [bob.customerId], ...extra,
   });
-  return { d, shopId, alice, bob, proposal: proposal!, order: order!, dragBob };
+  return { d, shopId, vincent, bob, proposal: proposal!, order: order!, dragBob };
 }
 
 const reload = {
@@ -83,23 +83,23 @@ const reload = {
     (await db.select().from(s.claims).where(eq(s.claims.proposalId, proposalId))).filter((c) => !c.releasedAt),
 };
 
-describe('Scenario 6: the owner drags Bob while Alice waits', () => {
-  it('step 2: warns that Bob is part of Alice’s pending request, and changes nothing', async () => {
-    const { shopId, bob, proposal, dragBob } = await alicePending();
+describe('Scenario 6: the owner drags Bob while Vincent waits', () => {
+  it('step 2: warns that Bob is part of Vincent’s pending request, and changes nothing', async () => {
+    const { shopId, bob, proposal, dragBob } = await vincentPending();
     const gateway = fakeGateway();
     const result = await ownerEditBooking(db, gateway, shopId, dragBob());
 
     expect(result).toEqual({
       status: 'claimed',
-      proposals: [{ id: proposal.id, state: 'AWAITING_APPROVALS', requesterCustomerId: proposal.requesterCustomerId, requesterName: 'Alice' }],
+      proposals: [{ id: proposal.id, state: 'AWAITING_APPROVALS', requesterCustomerId: proposal.requesterCustomerId, requesterName: 'Vincent' }],
     });
     expect((await reload.booking(bob.id)).version).toBe(bob.version);
     expect((await reload.proposal(proposal.id)).state).toBe('AWAITING_APPROVALS');
     expect(gateway.calls).toEqual([]);
   });
 
-  it('step 3: overriding cancels the proposal, voids the authorization, applies the edit and re-plans Alice', async () => {
-    const { d, shopId, bob, proposal, order, dragBob } = await alicePending();
+  it('step 3: overriding cancels the proposal, voids the authorization, applies the edit and re-plans Vincent', async () => {
+    const { d, shopId, bob, proposal, order, dragBob } = await vincentPending();
     const gateway = fakeGateway();
     const result = await ownerEditBooking(db, gateway, shopId, dragBob({ override: true }));
     if (result.status !== 'applied') throw new Error(JSON.stringify(result));
@@ -108,7 +108,7 @@ describe('Scenario 6: the owner drags Bob while Alice waits', () => {
     expect(result.booking.startsAt).toEqual(at(d, 'Thu', 14));
     expect(result.booking.version).toBe(bob.version + 1);
 
-    // Alice's proposal is cancelled and holds nothing.
+    // Vincent's proposal is cancelled and holds nothing.
     const p = await reload.proposal(proposal.id);
     expect(p.state).toBe('CANCELLED');
     expect(await reload.activeClaims(proposal.id)).toEqual([]);
@@ -129,7 +129,7 @@ describe('Scenario 6: the owner drags Bob while Alice waits', () => {
 
   // Waits between retries for real (0.5s, then 1s).
   it('a failed void is retried with the same id, then alerts the owner; the schedule change stands', async () => {
-    const { shopId, bob, proposal, order, dragBob } = await alicePending();
+    const { shopId, bob, proposal, order, dragBob } = await vincentPending();
     const failing: GatewayResult = { ok: false, error: '500 INTERNAL_SERVER_ERROR', retryable: true };
     const gateway = fakeGateway();
     gateway.failNext('voidAuthorization', failing, failing, failing);
@@ -149,7 +149,7 @@ describe('Scenario 6: the owner drags Bob while Alice waits', () => {
 
 describe('owner edits (judge scenarios D1–D5)', () => {
   it('D5: refuses while the claiming proposal is capturing', async () => {
-    const { shopId, bob, proposal, dragBob } = await alicePending('CAPTURING');
+    const { shopId, bob, proposal, dragBob } = await vincentPending('CAPTURING');
     const result = await ownerEditBooking(db, fakeGateway(), shopId, dragBob({ override: true }));
     expect(result.status).toBe('refused');
     expect((await reload.booking(bob.id)).version).toBe(bob.version);
@@ -157,26 +157,26 @@ describe('owner edits (judge scenarios D1–D5)', () => {
   });
 
   it('refuses without the customer’s agreement', async () => {
-    const { shopId, dragBob } = await alicePending();
+    const { shopId, dragBob } = await vincentPending();
     const result = await ownerEditBooking(db, fakeGateway(), shopId, dragBob({ attestedCustomerIds: [], override: true }));
     expect(result).toMatchObject({ status: 'refused', reason: expect.stringContaining('Bob hasn\'t agreed') });
   });
 
   it('refuses a stale view', async () => {
-    const { shopId, bob, dragBob } = await alicePending();
+    const { shopId, bob, dragBob } = await vincentPending();
     const result = await ownerEditBooking(db, fakeGateway(), shopId, dragBob({ basedOnVersion: bob.version - 1 }));
     expect(result).toEqual({ status: 'stale', currentVersion: bob.version });
   });
 
   it('D3: refuses a pickup outside shop hours, before any warning or cancellation', async () => {
-    const { d, shopId, proposal, dragBob } = await alicePending();
+    const { d, shopId, proposal, dragBob } = await vincentPending();
     const result = await ownerEditBooking(db, fakeGateway(), shopId, dragBob({ startsAt: plus(at(d, 'Thu', 14), 9), override: true }));
     expect(result).toMatchObject({ status: 'refused', reason: expect.stringContaining('outside shop hours') });
     expect((await reload.proposal(proposal.id)).state).toBe('AWAITING_APPROVALS');
   });
 
   it('D1: a drag into another booking becomes a red draft that blocks nothing', async () => {
-    const { d, shopId, bob, proposal, dragBob } = await alicePending();
+    const { d, shopId, bob, proposal, dragBob } = await vincentPending();
     const result = await ownerEditBooking(db, fakeGateway(), shopId, dragBob({ unitId: d.unit('A7IV-2').id, startsAt: bob.startsAt, override: true }));
     expect(result).toMatchObject({ status: 'draft', violations: [{ rule: 'overlap', message: "overlaps Charlie's booking on A7IV-2" }] });
     expect((await reload.booking(bob.id)).version).toBe(bob.version);

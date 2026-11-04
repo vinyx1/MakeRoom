@@ -32,7 +32,7 @@ async function pgCode(p: Promise<unknown>) {
   return 'no error';
 }
 
-async function proposalFor(seeded: Seeded, requester = 'Alice', subject = requester) {
+async function proposalFor(seeded: Seeded, requester = 'Vincent', subject = requester) {
   const [proposal] = await db
     .insert(s.proposals)
     .values({
@@ -66,18 +66,18 @@ async function revisionOf(seeded: Seeded, proposalId: string, seq: number, optio
 }
 
 describe('seed', () => {
-  it('builds the demo shop with the clock at Wednesday 5:30pm shop time, 30 minutes before Alice is due', async () => {
+  it('builds the demo shop with the clock at Wednesday 5:30pm shop time, 30 minutes before Vincent is due', async () => {
     const seeded = await seed();
     const shopNow = DateTime.fromMillis(Date.now() + seeded.shop.clockOffsetMs, { zone: seeded.shop.timezone });
     expect(shopNow.weekday).toBe(3);
     expect(shopNow.hour).toBe(17);
     expect(shopNow.minute).toBe(30);
-    expect(seeded.bookingOf('Alice').endsAt.getTime() - (Date.now() + seeded.shop.clockOffsetMs)).toBeGreaterThan(29 * 60_000);
+    expect(seeded.bookingOf('Vincent').endsAt.getTime() - (Date.now() + seeded.shop.clockOffsetMs)).toBeGreaterThan(29 * 60_000);
 
     const bookings = await db.select().from(s.bookings).where(eq(s.bookings.shopId, seeded.shop.id));
     expect(bookings).toHaveLength(7);
-    expect(seeded.bookingOf('Alice').priceCents).toBe(13500); // Mon 9am → Wed 6pm: 3 started days at $45
-    expect(seeded.bookingOf('Alice').bufferEndsAt).toEqual(plus(seeded.bookingOf('Alice').endsAt, 4));
+    expect(seeded.bookingOf('Vincent').priceCents).toBe(13500); // Mon 9am → Wed 6pm: 3 started days at $45
+    expect(seeded.bookingOf('Vincent').bufferEndsAt).toEqual(plus(seeded.bookingOf('Vincent').endsAt, 4));
   });
 
   it('gives every visitor an independent shop', async () => {
@@ -105,14 +105,14 @@ describe('bookings: no double-booking (invariant 7)', () => {
 
   it('allows a booking to start exactly when the previous buffer ends', async () => {
     const seeded = await seed();
-    const alice = seeded.bookingOf('Alice');
+    const vincent = seeded.bookingOf('Vincent');
     await db.insert(s.bookings).values({
-      ...alice,
+      ...vincent,
       id: undefined,
       status: 'confirmed',
-      startsAt: alice.bufferEndsAt,
-      endsAt: plus(alice.bufferEndsAt, 1),
-      bufferEndsAt: plus(alice.bufferEndsAt, 5),
+      startsAt: vincent.bufferEndsAt,
+      endsAt: plus(vincent.bufferEndsAt, 1),
+      bufferEndsAt: plus(vincent.bufferEndsAt, 5),
     });
   });
 
@@ -124,29 +124,29 @@ describe('bookings: no double-booking (invariant 7)', () => {
 
   it('checks at commit, so a plan can overlap midway (Scenario 1 commit)', async () => {
     const seeded = await seed();
-    const alice = seeded.bookingOf('Alice'), bob = seeded.bookingOf('Bob');
+    const vincent = seeded.bookingOf('Vincent'), bob = seeded.bookingOf('Bob');
     const thu10 = plus(bob.startsAt, 1), thu14 = plus(bob.startsAt, 5);
     await db.transaction(async (tx) => {
-      // Alice's extension lands first and overlaps Bob until his start moves.
-      await tx.update(s.bookings).set({ endsAt: thu10, bufferEndsAt: thu14 }).where(eq(s.bookings.id, alice.id));
+      // Vincent's extension lands first and overlaps Bob until his start moves.
+      await tx.update(s.bookings).set({ endsAt: thu10, bufferEndsAt: thu14 }).where(eq(s.bookings.id, vincent.id));
       await tx.update(s.bookings).set({ startsAt: thu14 }).where(eq(s.bookings.id, bob.id));
     });
   });
 
   it('rejects the plan at commit if it still overlaps', async () => {
     const seeded = await seed();
-    const alice = seeded.bookingOf('Alice'), bob = seeded.bookingOf('Bob');
+    const vincent = seeded.bookingOf('Vincent'), bob = seeded.bookingOf('Bob');
     const code = await pgCode(
       db.transaction(async (tx) => {
         await tx
           .update(s.bookings)
           .set({ endsAt: plus(bob.startsAt, 1), bufferEndsAt: plus(bob.startsAt, 5) })
-          .where(eq(s.bookings.id, alice.id));
+          .where(eq(s.bookings.id, vincent.id));
       }),
     );
     expect(code).toBe(EXCLUSION_VIOLATION);
-    const [after] = await db.select().from(s.bookings).where(eq(s.bookings.id, alice.id));
-    expect(after!.endsAt).toEqual(alice.endsAt);
+    const [after] = await db.select().from(s.bookings).where(eq(s.bookings.id, vincent.id));
+    expect(after!.endsAt).toEqual(vincent.endsAt);
   });
 });
 
@@ -154,31 +154,31 @@ describe('bookings: picked-up guard (invariant 3)', () => {
   it('refuses to change the unit of a picked-up rental', async () => {
     const seeded = await seed();
     const code = await pgCode(
-      db.update(s.bookings).set({ unitId: seeded.unit('A7IV-3').id }).where(eq(s.bookings.id, seeded.bookingOf('Alice').id)),
+      db.update(s.bookings).set({ unitId: seeded.unit('A7IV-3').id }).where(eq(s.bookings.id, seeded.bookingOf('Vincent').id)),
     );
     expect(code).toBe(CHECK_VIOLATION);
   });
 
   it('lets only the owner shorten a picked-up rental', async () => {
     const seeded = await seed();
-    const alice = seeded.bookingOf('Alice');
-    const shorter = { endsAt: plus(alice.endsAt, -2), bufferEndsAt: plus(alice.endsAt, 2) };
-    const byAnyone = await pgCode(db.update(s.bookings).set(shorter).where(eq(s.bookings.id, alice.id)));
+    const vincent = seeded.bookingOf('Vincent');
+    const shorter = { endsAt: plus(vincent.endsAt, -2), bufferEndsAt: plus(vincent.endsAt, 2) };
+    const byAnyone = await pgCode(db.update(s.bookings).set(shorter).where(eq(s.bookings.id, vincent.id)));
     expect(byAnyone).toBe(CHECK_VIOLATION);
 
     await db.transaction(async (tx) => {
       await allowOwnerShorten(tx);
-      await tx.update(s.bookings).set(shorter).where(eq(s.bookings.id, alice.id));
+      await tx.update(s.bookings).set(shorter).where(eq(s.bookings.id, vincent.id));
     });
   });
 
   it('allows extending a picked-up rental', async () => {
     const seeded = await seed();
-    const alice = seeded.bookingOf('Alice');
+    const vincent = seeded.bookingOf('Vincent');
     await db
       .update(s.bookings)
-      .set({ endsAt: plus(alice.endsAt, 3), bufferEndsAt: plus(alice.endsAt, 7) })
-      .where(eq(s.bookings.id, alice.id));
+      .set({ endsAt: plus(vincent.endsAt, 3), bufferEndsAt: plus(vincent.endsAt, 7) })
+      .where(eq(s.bookings.id, vincent.id));
   });
 });
 
@@ -186,7 +186,7 @@ describe('claims: one active proposal per booking and slot (invariant 8)', () =>
   it('stops a second proposal claiming a claimed booking, until the claim is released', async () => {
     const seeded = await seed();
     const bob = seeded.bookingOf('Bob');
-    const p1 = await proposalFor(seeded, 'Alice');
+    const p1 = await proposalFor(seeded, 'Vincent');
     const p2 = await proposalFor(seeded, 'Charlie');
     const r1 = await revisionOf(seeded, p1.id, 1);
     const r2 = await revisionOf(seeded, p2.id, 1);
@@ -209,7 +209,7 @@ describe('claims: one active proposal per booking and slot (invariant 8)', () =>
     const a7rv = seeded.unit('A7RV-1').id;
     const bob = seeded.bookingOf('Bob');
     const period = { start: bob.startsAt, end: bob.bufferEndsAt };
-    const p1 = await proposalFor(seeded, 'Alice');
+    const p1 = await proposalFor(seeded, 'Vincent');
     const optionA = await revisionOf(seeded, p1.id, 1, 'A');
     const optionB = await revisionOf(seeded, p1.id, 1, 'B');
     await db.insert(s.claims).values([
@@ -285,7 +285,7 @@ describe('uniqueness rules', () => {
       .insert(s.paypalOrders)
       .values({
         shopId: seeded.shop.id,
-        customerId: seeded.customer('Alice').id,
+        customerId: seeded.customer('Vincent').id,
         paypalOrderId: randomUUID(),
         intent: 'AUTHORIZE',
         amountCents: 4500,
@@ -328,7 +328,7 @@ describe('revisions are immutable', () => {
         newStartsAt: seeded.now,
         kind: 'new_booking',
         requiresApproval: false,
-        partyCustomerId: seeded.customer('Alice').id,
+        partyCustomerId: seeded.customer('Vincent').id,
       })
       .returning();
     const code = await pgCode(

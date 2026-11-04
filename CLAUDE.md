@@ -26,7 +26,7 @@ Planning → spikes. Bryntum spike done: all 9 questions pass; read `spikes/bryn
 
 ## Vocabulary
 
-- **Owner**: the shop running MakeRoom; uses the dashboard. **Customer**: Alice, Bob, Charlie, etc.; talks to the agent by chat.
+- **Owner**: the shop running MakeRoom; uses the dashboard. **Customer**: Vincent, Bob, Charlie, etc.; talks to the agent by chat.
 - **Model** vs **unit**: customers book a model (Sony A7 IV); the system assigns a unit (A7IV-1). Same-model unit swaps need no approval, only a notice. One unit per booking.
 - **Proposal**: any change to the schedule, from any source (customer request, owner edit, agent resolution). Made of immutable **revisions**; a change to terms creates a new revision.
 - **Requester** vs **affected party**: the requester wants the change; affected parties are customers whose bookings the plan changes.
@@ -83,7 +83,7 @@ Optional Bryntum depth, all read-only views over backend data, behind a toggle, 
 Judges may try the live deployment, often several at once and alone. These are build requirements, not polish:
 
 - **One shop per visitor.** Every table carries `shop_id` from the day-4 data model; a new visitor gets a freshly seeded shop from the demo script's seed. The shop comes from the session cookie, never the URL. A **Reset demo** button voids the shop's open authorizations, then reseeds it.
-- **Role switcher.** One judge plays the owner, Alice and Bob: three panes under the schedule (Needs owner approval with the activity feed, Owner's Messages with a thread per customer, and one customer's chat with a switcher and a prompt when someone else has an offer to answer).
+- **Role switcher.** One judge plays the owner, Vincent and Bob: three panes under the schedule (Needs owner approval with the activity feed, Owner's Messages with a thread per customer, and one customer's chat with a switcher and a prompt when someone else has an offer to answer).
 - **Scripted customers.** A **Let Bob answer** button on an affected customer's card has them answer it (`POST /api/proposals/:id/scripted-answer`, Plan B when there are two), so a judge acting as the requester sees the negotiation play out. The `auto_reply_customers` setting still answers by itself for the terminal tester; it's off by default and has no control in the UI.
 - **Fast-forward.** A demo-clock button that jumps ahead, driving the injectable clock, so timeouts and expiry are visible in seconds.
 - **PayPal sandbox credentials** shown beside the PayPal button.

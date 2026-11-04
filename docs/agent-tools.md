@@ -15,7 +15,7 @@ The agent runs in **turns**: one tool-runner loop (Anthropic TS SDK, `betaZodToo
 
 **Scope is not a tool argument.** Tools are built per turn as closures bound to `shop_id`, the conversation and the customer, so the model never passes them and can't change them. Any id the model passes (booking, proposal, revision) is checked against the scope; an id outside it returns `NOT_FOUND`, the same as an id that doesn't exist.
 
-**Customer isolation.** A customer-scope turn sees other customers only as "another customer": no names, no contact details, no booking notes. Bob's turn about Alice's request gets the proposal as structured data from the backend, never Alice's chat text. A customer cannot steer the agent into messaging, or saying anything about, another customer.
+**Customer isolation.** A customer-scope turn sees other customers only as "another customer": no names, no contact details, no booking notes. Bob's turn about Vincent's request gets the proposal as structured data from the backend, never Vincent's chat text. A customer cannot steer the agent into messaging, or saying anything about, another customer.
 
 ### Events that start a turn
 
@@ -187,14 +187,14 @@ Kept short; the tools carry the rules.
 
 | # | Event → scope | Tool calls | Backend does |
 |---|---|---|---|
-| 1 | `customer_message` "keep it until Thu 10am" → Alice | `get_my_bookings` → `request_change(bk_alice, extend Thu 10:00)` | Optimizer: options A and B; Alice's terms identical in both ($45). |
-| 2 | (same turn) | `present_offer([rv_A, rv_B])` → one Accept for Alice with PayPal authorize; `send_message("…$45 for the extra day…")` (lint passes: $45 came from the result) | — |
-| 3 | Alice clicks Accept + authorizes | — | Authorization recorded, claims taken, state `AWAITING_APPROVALS`; emits `offer_ready` for Bob. |
+| 1 | `customer_message` "keep it until Thu 10am" → Vincent | `get_my_bookings` → `request_change(bk_vincent, extend Thu 10:00)` | Optimizer: options A and B; Vincent's terms identical in both ($45). |
+| 2 | (same turn) | `present_offer([rv_A, rv_B])` → one Accept for Vincent with PayPal authorize; `send_message("…$45 for the extra day…")` (lint passes: $45 came from the result) | — |
+| 3 | Vincent clicks Accept + authorizes | — | Authorization recorded, claims taken, state `AWAITING_APPROVALS`; emits `offer_ready` for Bob. |
 | 4 | `offer_ready` → Bob | `present_offer([rv_A, rv_B])` with Accept per option and Keep my booking as is; `send_message` explaining both, "pending shop confirmation" on B | Bob sees only "another customer's extension". An upgrade is described to him as a free upgrade, not as its forgone-revenue value; only refunds carry an amount. |
 | 5 | `customer_message` "could I get it at noon?" → Bob | `revise_terms(pr_1, {start: Thu 12:00})` → `INFEASIBLE`, nearest Thu 2:00pm; `send_message` | No revision. |
 | 6 | Bob clicks Accept on B | — | A superseded, its claims released; owner approval card; `owner_assist` turn. |
 | 7 | `owner_assist` → owner | `get_proposal(pr_1)` → `write_owner_summary` | Owner approves → `CAPTURING` → capture → commit → Bob's refund. |
-| 8 | `proposal_update` (committed) → Alice, Bob | `send_message` each: Alice keeps it until Thu 10am; Bob's pickup is Thu 2pm and $15 is refunded | — |
+| 8 | `proposal_update` (committed) → Vincent, Bob | `send_message` each: Vincent keeps it until Thu 10am; Bob's pickup is Thu 2pm and $15 is refunded | — |
 
 ## 8. Judge scenario cross-check
 
@@ -220,6 +220,6 @@ Every row in `evals/judge-scenarios.md` §A, and the B/C/E rows that touch the a
 | B4 haggling loop | `revise_terms` → `REVISION_LIMIT` after 3 |
 | B5/B6 withdraw | **Withdraw** button; refused from `CAPTURING` |
 | C1/C2 no or declined authorization | `payment_result` turn; no turn for Bob ever starts |
-| C8 Bob cancels | `request_change(bk_bob, cancel)` → refund policy; Alice's proposal re-planned by the backend |
+| C8 Bob cancels | `request_change(bk_bob, cancel)` → refund policy; Vincent's proposal re-planned by the backend |
 | E6 usage cap | Backend template reply; no turn starts |
 | E7 free slot | `request_change(new_booking)` → `fits` → `present_offer` |

@@ -130,7 +130,7 @@ export const proposedChanges = (rows: RevisionChange[]): ProposedChange[] =>
 
 /**
  * Claims for one revision: every existing booking it changes, plus the unit capacity it moves into that the
- * booking doesn't already occupy (Alice's extension claims A7IV-1 from her current buffer end to her new one).
+ * booking doesn't already occupy (Vincent's extension claims A7IV-1 from her current buffer end to her new one).
  * Throws on a conflict with another proposal's claim (exclusion constraint); call inside a savepoint.
  */
 export async function placeClaims(tx: Tx, proposal: Proposal, revisionId: string, rows: RevisionChange[]) {

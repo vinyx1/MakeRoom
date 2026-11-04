@@ -299,7 +299,7 @@ async function onActivity(a: any) {
 
 const HELP = `
 ${c.bold}Who you are${c.off}
-  as <name>            be a customer (alice, bob, charlie, dana, eve, gina, hank)
+  as <name>            be a customer (vincent, bob, charlie, dana, eve, gina, hank)
   as owner             be the shop owner
 ${c.bold}As a customer${c.off}
   <any text>           chat with the assistant
@@ -325,10 +325,10 @@ ${c.bold}Anywhere${c.off}
   reset                start the demo over        verbose       toggle extra feed lines
   autoreply on|off     scripted customers answer their own offers (judge mode)
   quit
-${c.dim}Scenario 1: as alice → "Shoot ran over. Can I keep the camera until Thursday at 10am?" → accept → as bob → cards → pick B → as owner → inbox → approve 1
+${c.dim}Scenario 1: as vincent → "Shoot ran over. Can I keep the camera until Thursday at 10am?" → accept → as bob → cards → pick B → as owner → inbox → approve 1
 Scenario 2: as owner → extend dana Fri 9 --phone → inbox → resolve 1 → approve 1 yes → save → as dana → accept → as eve → cards → accept
-Scenario 3: Scenario 1 up to Alice's accept → as bob → keep → as charlie → keep → as alice → cards → accept (or \`ff 31\`)
-Scenario 6: Scenario 1 up to Alice's accept → as owner → move bob Thu 14 --phone → again with --override${c.off}
+Scenario 3: Scenario 1 up to Vincent's accept → as bob → keep → as charlie → keep → as vincent → cards → accept (or \`ff 31\`)
+Scenario 6: Scenario 1 up to Vincent's accept → as owner → move bob Thu 14 --phone → again with --override${c.off}
 `;
 
 async function run(line: string) {

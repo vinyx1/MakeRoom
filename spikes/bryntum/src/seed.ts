@@ -30,7 +30,7 @@ type Booking = {
 };
 
 const bookings: Booking[] = [
-  { id: 'alice', name: 'Alice', resourceId: 'A7IV-1', startDate: d(26, 9), endDate: d(28, 18), status: 'picked_up' },
+  { id: 'vincent', name: 'Vincent', resourceId: 'A7IV-1', startDate: d(26, 9), endDate: d(28, 18), status: 'picked_up' },
   { id: 'bob', name: 'Bob', resourceId: 'A7IV-1', startDate: d(29, 9), endDate: d(30, 18), status: 'confirmed' },
   { id: 'charlie', name: 'Charlie', resourceId: 'A7IV-2', startDate: d(29, 9), endDate: d(30, 18), status: 'confirmed' },
   { id: 'gina', name: 'Gina', resourceId: 'A7IV-2', startDate: d(31, 9), endDate: d(32, 18), status: 'confirmed' },

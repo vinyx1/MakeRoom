@@ -210,7 +210,7 @@ export function Help({ onClose }: { onClose: () => void }) {
         </p>
         <h4>1 · The extension</h4>
         <ol>
-          <li>As Alice: “Shoot ran over. Can I keep the camera until Thursday at 10am?”</li>
+          <li>As Vincent: “Shoot ran over. Can I keep the camera until Thursday at 10am?”</li>
           <li>Pay on her card with PayPal. The schedule shows the plan as ghosts.</li>
           <li>On Bob's card, press “Let Bob answer” and he takes option B (2pm, $15 back). Or choose for him with the card's own buttons.</li>
           <li>As the owner: Approve. The payment is captured, both bookings move, and Bob is refunded.</li>
@@ -223,15 +223,15 @@ export function Help({ onClose }: { onClose: () => void }) {
         </ol>
         <h4>3 · The race</h4>
         <ol>
-          <li>Do 1 until Alice has paid.</li>
-          <li>Drag Bob's pickup to Thu 2pm, tick “Bob agreed by phone”. The warning names Alice's pending request: Override.</li>
-          <li>Alice's request is cancelled, her hold released, and she gets a fresh offer that now fits.</li>
+          <li>Do 1 until Vincent has paid.</li>
+          <li>Drag Bob's pickup to Thu 2pm, tick “Bob agreed by phone”. The warning names Vincent's pending request: Override.</li>
+          <li>Vincent's request is cancelled, her hold released, and she gets a fresh offer that now fits.</li>
         </ol>
         <h4>Cancelling a booking</h4>
         <p className="muted small">Click a booking on the schedule and choose Delete booking, or select it and press Delete. It asks you to confirm the customer agreed by phone, then refunds everything they paid. For a rental that's out, the same click offers Mark returned.</p>
         <h4>4 · A late return</h4>
         <ol>
-          <li>The demo starts at Wed 5:30pm, 30 minutes before Alice's camera is due back. Press +30 min and it shows under Needs owner approval as “Due back”.</li>
+          <li>The demo starts at Wed 5:30pm, 30 minutes before Vincent's camera is due back. Press +30 min and it shows under Needs owner approval as “Due back”.</li>
           <li>Mark overdue, expected back Thu 10am. That runs into Bob's pickup, so the plans come to you first: Approve one.</li>
           <li>As Bob: accept it, or keep the booking (then you're alerted to sort it out). Mark returned when she's back.</li>
         </ol>

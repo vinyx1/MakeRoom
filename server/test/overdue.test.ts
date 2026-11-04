@@ -1,4 +1,4 @@
-// Overdue returns (docs/conflict-model.md §8; judge D10): Alice hasn't brought A7IV-1 back by Wed 6pm. The owner
+// Overdue returns (docs/conflict-model.md §8; judge D10): Vincent hasn't brought A7IV-1 back by Wed 6pm. The owner
 // marks it overdue with when she now expects to return it, and the next renter (Bob) is re-planned around it, with
 // nobody paying: the owner reviews every plan first. If nobody agrees, the owner is alerted. Marking it returned
 // ends anything planned around it.
@@ -43,10 +43,10 @@ const load = {
     db.select().from(s.escalations).where(and(eq(s.escalations.shopId, d.shop.id), eq(s.escalations.kind, kind as 'overdue'), eq(s.escalations.status, 'open'))),
 };
 
-/** Wed 7pm, an hour after Alice was due: she now says Thu 10am, which runs into Bob's Thu 9am pickup. */
-async function aliceOverdue(d: Seeded, gateway: ReturnType<typeof fakeGateway>) {
+/** Wed 7pm, an hour after Vincent was due: she now says Thu 10am, which runs into Bob's Thu 9am pickup. */
+async function vincentOverdue(d: Seeded, gateway: ReturnType<typeof fakeGateway>) {
   await advance(d, 5);
-  const r = await markOverdue(db, gateway, d.shop.id, { bookingId: d.bookingOf('Alice').id, expectedReturnAt: at(d, 'Thu', 10) });
+  const r = await markOverdue(db, gateway, d.shop.id, { bookingId: d.bookingOf('Vincent').id, expectedReturnAt: at(d, 'Thu', 10) });
   if (r.status !== 'planned') throw new Error(JSON.stringify(r));
   return r;
 }
@@ -54,22 +54,22 @@ async function aliceOverdue(d: Seeded, gateway: ReturnType<typeof fakeGateway>) 
 describe('overdue returns', () => {
   it("can't be marked before the rental is due back", async () => {
     const { d, gateway } = await shop();
-    const r = await markOverdue(db, gateway, d.shop.id, { bookingId: d.bookingOf('Alice').id, expectedReturnAt: at(d, 'Thu', 10) });
+    const r = await markOverdue(db, gateway, d.shop.id, { bookingId: d.bookingOf('Vincent').id, expectedReturnAt: at(d, 'Thu', 10) });
     expect(r).toMatchObject({ status: 'refused', reason: expect.stringContaining("isn't due back until") });
   });
 
-  it('re-plans Bob around the late return, with no charge to Alice: owner reviews, Bob accepts, it commits', async () => {
+  it('re-plans Bob around the late return, with no charge to Vincent: owner reviews, Bob accepts, it commits', async () => {
     const { d, gateway } = await shop();
-    const [alice, bob] = [d.bookingOf('Alice'), d.bookingOf('Bob')];
-    const r = await aliceOverdue(d, gateway);
+    const [vincent, bob] = [d.bookingOf('Vincent'), d.bookingOf('Bob')];
+    const r = await vincentOverdue(d, gateway);
 
     // The same two plans as Scenario 1, but nobody pays for them, so both run at a loss and go to the owner first.
     expect(r.proposal).toMatchObject({ source: 'overdue', requesterCustomerId: null, state: 'AWAITING_APPROVALS' });
     expect(r.revisions.map((x) => [x.optionLabel, x.quote.chargeCents, x.needsOwner])).toEqual([['A', 0, true], ['B', 0, true]]);
-    expect((await load.booking(alice.id)).overdueMarkedAt).not.toBeNull();
+    expect((await load.booking(vincent.id)).overdueMarkedAt).not.toBeNull();
     const reviews = await load.escalations(d, 'plan_review');
     expect(reviews).toHaveLength(2);
-    expect(reviews[0]!.summary).toMatch(/^Alice is overdue, expected back Thu 10:00am \(no charge to them\)/);
+    expect(reviews[0]!.summary).toMatch(/^Vincent is overdue, expected back Thu 10:00am \(no charge to them\)/);
     // Nothing reaches Bob until the owner approves a plan.
     expect((await db.transaction((tx) => customerView(tx, d.shop.id, bob.customerId)))!.cards).toEqual([]);
 
@@ -81,15 +81,15 @@ describe('overdue returns', () => {
 
     const before = gateway.calls.length;
     expect((await affectedAccept(db, gateway, d.shop.id, { proposalId: r.proposal.id, customerId: bob.customerId, revisionId: planA.id })).status).toBe('committed');
-    const [aliceAfter, bobAfter] = [await load.booking(alice.id), await load.booking(bob.id)];
-    expect([aliceAfter.endsAt, aliceAfter.priceCents, aliceAfter.status]).toEqual([at(d, 'Thu', 10), alice.priceCents, 'picked_up']);
+    const [vincentAfter, bobAfter] = [await load.booking(vincent.id), await load.booking(bob.id)];
+    expect([vincentAfter.endsAt, vincentAfter.priceCents, vincentAfter.status]).toEqual([at(d, 'Thu', 10), vincent.priceCents, 'picked_up']);
     expect(bobAfter.unitId).toBe(d.unit('A7RV-1').id);
     expect(gateway.calls.slice(before)).toEqual([]); // no one charged, and an upgrade refunds nothing
   });
 
   it('when Bob and then Charlie keep their bookings, the request ends and the owner is alerted', async () => {
     const { d, gateway } = await shop();
-    const r = await aliceOverdue(d, gateway);
+    const r = await vincentOverdue(d, gateway);
     expect(await affectedRefuse(db, gateway, d.shop.id, { proposalId: r.proposal.id, customerId: d.customer('Bob').id })).toEqual({ status: 'kept', next: 'fallback' });
     // The fallback (Charlie upgrades so Bob can swap units) runs at a loss too; Charlie can still decline it.
     expect(await affectedRefuse(db, gateway, d.shop.id, { proposalId: r.proposal.id, customerId: d.customer('Charlie').id })).toEqual({ status: 'kept', next: 'ended' });
@@ -98,7 +98,7 @@ describe('overdue returns', () => {
     // There is no "closest alternative" for a late return: the owner has to step in.
     const [alert] = await load.escalations(d, 'overdue');
     expect(alert!.summary).toBe(
-      "Alice is still out with A7IV-1, and no rearrangement was agreed (asked: Bob, then Charlie). Bob's booking may not have equipment: contact them to cancel with a full refund, or find other gear.",
+      "Vincent is still out with A7IV-1, and no rearrangement was agreed (asked: Bob, then Charlie). Bob's booking may not have equipment: contact them to cancel with a full refund, or find other gear.",
     );
     expect((await load.booking(d.bookingOf('Bob').id)).version).toBe(1);
   });
@@ -115,19 +115,19 @@ describe('overdue returns', () => {
 
   it('a new expected time replaces the earlier plan', async () => {
     const { d, gateway } = await shop();
-    const r = await aliceOverdue(d, gateway);
+    const r = await vincentOverdue(d, gateway);
     // She's coming back tonight after all: 8pm + 4h is clear of Bob's Thu 9am pickup.
-    expect(await markOverdue(db, gateway, d.shop.id, { bookingId: d.bookingOf('Alice').id, expectedReturnAt: at(d, 'Wed', 20) })).toEqual({ status: 'extended' });
+    expect(await markOverdue(db, gateway, d.shop.id, { bookingId: d.bookingOf('Vincent').id, expectedReturnAt: at(d, 'Wed', 20) })).toEqual({ status: 'extended' });
     expect((await load.proposal(r.proposal.id)).state).toBe('CANCELLED');
     expect(await db.select().from(s.claims).where(and(eq(s.claims.proposalId, r.proposal.id), isNull(s.claims.releasedAt)))).toEqual([]);
   });
 
   it('marking it returned ends the plan around it, and the unit is free', async () => {
     const { d, gateway } = await shop();
-    const r = await aliceOverdue(d, gateway);
-    expect(await markReturned(db, gateway, d.shop.id, { bookingId: d.bookingOf('Alice').id })).toEqual({ status: 'returned', ended: 1 });
+    const r = await vincentOverdue(d, gateway);
+    expect(await markReturned(db, gateway, d.shop.id, { bookingId: d.bookingOf('Vincent').id })).toEqual({ status: 'returned', ended: 1 });
     expect((await load.proposal(r.proposal.id)).state).toBe('CANCELLED');
-    expect((await load.booking(d.bookingOf('Alice').id)).status).toBe('returned');
+    expect((await load.booking(d.bookingOf('Vincent').id)).status).toBe('returned');
     expect(await load.escalations(d, 'plan_review')).toEqual([]);
     expect((await load.booking(d.bookingOf('Bob').id)).version).toBe(1);
   });

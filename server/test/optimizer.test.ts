@@ -56,9 +56,9 @@ function describe_(d: DemoShop, plan: Plan) {
     .map((c) => `${d.customers.find((x) => x.id === c.customerId)!.name}: ${d.units.find((u) => u.id === c.after.unitId)!.label} ${c.kind}`);
 }
 
-describe('Scenario 1: Alice extends to Thu 10am', () => {
+describe('Scenario 1: Vincent extends to Thu 10am', () => {
   const { d, snap } = demo();
-  const result = plansOf(optimize(snap, { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) }));
+  const result = plansOf(optimize(snap, { kind: 'extend', bookingId: d.bookingOf('Vincent').id, newEndsAt: at(d, 'Thu', 10) }));
 
   it('finds exactly Plan A (Bob to the A7R V) and Plan B (Bob at 2pm)', () => {
     expect(result.status).toBe('needs_other_changes');
@@ -86,24 +86,24 @@ describe('Scenario 1: Alice extends to Thu 10am', () => {
     expect(planA.needsOwner).toBe(false);
   });
 
-  it('quotes Alice +$45 for the extra day, with her buffer moving to Thu 2pm', () => {
-    const alice = result.plans[0]!.changes[0]!;
-    expect(alice.isRequester).toBe(true);
-    expect(alice.kind).toBe('extension');
-    expect(alice.priceDeltaCents).toBe(4500);
-    expect(alice.after.bufferEndsAt).toEqual(at(d, 'Thu', 14));
+  it('quotes Vincent +$45 for the extra day, with her buffer moving to Thu 2pm', () => {
+    const vincent = result.plans[0]!.changes[0]!;
+    expect(vincent.isRequester).toBe(true);
+    expect(vincent.kind).toBe('extension');
+    expect(vincent.priceDeltaCents).toBe(4500);
+    expect(vincent.after.bufferEndsAt).toEqual(at(d, 'Thu', 14));
   });
 
   it('lists the alternatives from the demo script as pruned, with reasons', () => {
     const messages = result.pruned.map((p) => p.message);
-    expect(messages).toContain('Move Alice to A7IV-2, return to Thu 10:00am → picked-up rentals never change unit');
+    expect(messages).toContain('Move Vincent to A7IV-2, return to Thu 10:00am → picked-up rentals never change unit');
     expect(messages).toContain("Move Bob to A7IV-2 → overlaps Charlie's booking on A7IV-2");
     expect(messages).toContain('Move Bob to A7IV-3 → A7IV-3 is unavailable (maintenance)');
   });
 
   it('every plan passes the validator on its own', () => {
     for (const plan of result.plans) {
-      const v = validate(snap, { changes: plan.changes, requesterCustomerId: d.customer('Alice').id });
+      const v = validate(snap, { changes: plan.changes, requesterCustomerId: d.customer('Vincent').id });
       expect(v.violations).toEqual([]);
     }
   });
@@ -142,7 +142,7 @@ describe('Scenario 2: Dana extends the RS3 to Fri 9am', () => {
 
 describe('Scenario 3: Bob refuses, then Charlie declines', () => {
   const { d } = demo();
-  const request = { kind: 'extend' as const, bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) };
+  const request = { kind: 'extend' as const, bookingId: d.bookingOf('Vincent').id, newEndsAt: at(d, 'Thu', 10) };
   const proposalId = randomUUID();
   const bobConstraints = [
     { kind: 'not_after' as const, value: { at: at(d, 'Thu', 9).toISOString(), field: 'start' } },
@@ -164,7 +164,7 @@ describe('Scenario 3: Bob refuses, then Charlie declines', () => {
     expect(result.plans.map((p) => describe_(d, p))).toEqual([['Bob: A7IV-2 same_model_swap', 'Charlie: A7RV-1 model_change']]);
   });
 
-  it('with Charlie excluded too, offers Alice the closest option: until 9pm tonight, same price', () => {
+  it('with Charlie excluded too, offers Vincent the closest option: until 9pm tonight, same price', () => {
     const snap = snapshotOf(d, {
       excludedCustomerIds: [d.customer('Bob').id, d.customer('Charlie').id],
       constraints: bobConstraints,
@@ -193,17 +193,17 @@ describe('requests that need no one else to move', () => {
   });
 
   it('an extension within the free time fits', () => {
-    const r = plansOf(optimize(snap, { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Wed', 20) }));
+    const r = plansOf(optimize(snap, { kind: 'extend', bookingId: d.bookingOf('Vincent').id, newEndsAt: at(d, 'Wed', 20) }));
     expect(r.status).toBe('fits');
   });
 });
 
 describe('invalid requests', () => {
   const { d, snap } = demo();
-  const alice = d.bookingOf('Alice').id;
+  const vincent = d.bookingOf('Vincent').id;
 
   it('refuses a return outside shop hours', () => {
-    const r = optimize(snap, { kind: 'extend', bookingId: alice, newEndsAt: at(d, 'Thu', 3) });
+    const r = optimize(snap, { kind: 'extend', bookingId: vincent, newEndsAt: at(d, 'Thu', 3) });
     expect(r.status).toBe('invalid_request');
     if (r.status === 'invalid_request') expect(r.violations.map((v) => v.rule)).toEqual(['outside_shop_hours']);
   });
@@ -214,7 +214,7 @@ describe('invalid requests', () => {
   });
 
   it('refuses to shorten a picked-up rental', () => {
-    const r = optimize(snap, { kind: 'shift', bookingId: alice, newEndsAt: at(d, 'Wed', 15) });
+    const r = optimize(snap, { kind: 'shift', bookingId: vincent, newEndsAt: at(d, 'Wed', 15) });
     expect(r.status).toBe('invalid_request');
     if (r.status === 'invalid_request') expect(r.violations.map((v) => v.rule)).toContain('picked_up_shortened');
   });
@@ -227,7 +227,7 @@ describe('claims from other proposals', () => {
       id: randomUUID(), shopId: d.shop.id, proposalId: randomUUID(), revisionId: randomUUID(),
       bookingId: d.bookingOf('Bob').id, unitId: null, period: null, releasedAt: null,
     };
-    const r = optimize(snapshotOf(d, { otherClaims: [claim] }), { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) });
+    const r = optimize(snapshotOf(d, { otherClaims: [claim] }), { kind: 'extend', bookingId: d.bookingOf('Vincent').id, newEndsAt: at(d, 'Thu', 10) });
     expect(r.status).toBe('infeasible');
   });
 
@@ -237,7 +237,7 @@ describe('claims from other proposals', () => {
       id: randomUUID(), shopId: d.shop.id, proposalId: randomUUID(), revisionId: randomUUID(),
       bookingId: null, unitId: d.unit('A7RV-1').id, period: { start: at(d, 'Thu', 9), end: at(d, 'Sat', 9) }, releasedAt: null,
     };
-    const r = plansOf(optimize(snapshotOf(d, { otherClaims: [claim] }), { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) }));
+    const r = plansOf(optimize(snapshotOf(d, { otherClaims: [claim] }), { kind: 'extend', bookingId: d.bookingOf('Vincent').id, newEndsAt: at(d, 'Thu', 10) }));
     expect(r.plans.map((p) => describe_(d, p))).toEqual([['Bob: A7IV-1 time_shift']]);
   });
 });
@@ -245,7 +245,7 @@ describe('claims from other proposals', () => {
 describe('determinism', () => {
   it('gives the same result for shuffled input', () => {
     const { d, snap } = demo();
-    const request = { kind: 'extend' as const, bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) };
+    const request = { kind: 'extend' as const, bookingId: d.bookingOf('Vincent').id, newEndsAt: at(d, 'Thu', 10) };
     const shuffled: Snapshot = {
       ...snap,
       units: [...snap.units].reverse(),

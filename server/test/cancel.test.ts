@@ -39,13 +39,13 @@ const cancel = async (gateway: PaymentGateway, d: Seeded, name: string, extra: {
   return ownerCancelBooking(db, gateway, d.shop.id, { bookingId: b.id, basedOnVersion: b.version, agreedByPhone: true, ...extra });
 };
 
-/** Alice has paid her hold and Bob is deciding: her request claims his booking. */
-async function aliceWaitingOnBob(gateway: ReturnType<typeof fakeGateway>, d: Seeded) {
-  const alice = d.customer('Alice').id;
-  const r = await requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) } });
+/** Vincent has paid her hold and Bob is deciding: her request claims his booking. */
+async function vincentWaitingOnBob(gateway: ReturnType<typeof fakeGateway>, d: Seeded) {
+  const vincent = d.customer('Vincent').id;
+  const r = await requestChange(db, d.shop.id, { customerId: vincent, request: { kind: 'extend', bookingId: d.bookingOf('Vincent').id, newEndsAt: at(d, 'Thu', 10) } });
   if (r.status !== 'offered') throw new Error(JSON.stringify(r));
-  await createRequesterOrder(db, gateway, d.shop.id, { proposalId: r.proposal.id, customerId: alice });
-  await requesterAccept(db, gateway, d.shop.id, { proposalId: r.proposal.id, customerId: alice });
+  await createRequesterOrder(db, gateway, d.shop.id, { proposalId: r.proposal.id, customerId: vincent });
+  await requesterAccept(db, gateway, d.shop.id, { proposalId: r.proposal.id, customerId: vincent });
   return r;
 }
 
@@ -90,7 +90,7 @@ describe('the owner cancels a booking', () => {
   it('refuses a rental out with the customer, a stale view, and a second cancel', async () => {
     const gateway = fakeGateway();
     const d = await shop(gateway);
-    expect(await cancel(gateway, d, 'Alice')).toMatchObject({ status: 'refused', reason: expect.stringContaining('mark it returned') });
+    expect(await cancel(gateway, d, 'Vincent')).toMatchObject({ status: 'refused', reason: expect.stringContaining('mark it returned') });
 
     const gina = await fresh(d, 'Gina');
     expect(await ownerCancelBooking(db, gateway, d.shop.id, { bookingId: gina.id, basedOnVersion: gina.version + 5, agreedByPhone: true })).toEqual({ status: 'stale', currentVersion: gina.version });
@@ -144,7 +144,7 @@ describe('the owner cancels a booking', () => {
   it('a refund they already got isn\'t paid twice: Bob got $15 back, so he gets the other $75', async () => {
     const gateway = fakeGateway();
     const d = await shop(gateway);
-    const r = await aliceWaitingOnBob(gateway, d);
+    const r = await vincentWaitingOnBob(gateway, d);
     const bob = d.customer('Bob').id;
     const planB = r.revisions.find((x) => x.needsOwner)!;
     await affectedAccept(db, gateway, d.shop.id, { proposalId: r.proposal.id, customerId: bob, revisionId: planB.id });
@@ -160,9 +160,9 @@ describe('the owner cancels a booking', () => {
   it('warns about a request that needs the booking; overriding ends it, voids the hold and re-plans', async () => {
     const gateway = fakeGateway();
     const d = await shop(gateway);
-    const r = await aliceWaitingOnBob(gateway, d);
+    const r = await vincentWaitingOnBob(gateway, d);
 
-    expect(await cancel(gateway, d, 'Bob')).toMatchObject({ status: 'claimed', proposals: [{ id: r.proposal.id, requesterName: 'Alice' }] });
+    expect(await cancel(gateway, d, 'Bob')).toMatchObject({ status: 'claimed', proposals: [{ id: r.proposal.id, requesterName: 'Vincent' }] });
     expect((await fresh(d, 'Bob')).status).toBe('confirmed');
     expect(await refunds(d)).toEqual([]);
 
@@ -173,7 +173,7 @@ describe('the owner cancels a booking', () => {
     const [ended] = await db.select().from(s.proposals).where(eq(s.proposals.id, r.proposal.id));
     expect(ended!.state).toBe('CANCELLED');
     expect((await db.select().from(s.paypalOrders).where(eq(s.paypalOrders.proposalId, r.proposal.id))).map((o) => o.status)).toEqual(['voided']);
-    // With Bob gone, Alice's extension simply fits.
+    // With Bob gone, Vincent's extension simply fits.
     expect(done.replanned).toHaveLength(1);
     expect(done.replanned[0]!.replan).toMatchObject({ status: 'offered', chargeCents: 4500 });
   });
@@ -192,7 +192,7 @@ describe('the owner cancels a booking', () => {
   it('is refused for those few seconds while a payment is being captured', async () => {
     const gateway = fakeGateway();
     const d = await shop(gateway);
-    const r = await aliceWaitingOnBob(gateway, d);
+    const r = await vincentWaitingOnBob(gateway, d);
     await db.update(s.proposals).set({ state: 'CAPTURING' }).where(eq(s.proposals.id, r.proposal.id));
     expect(await cancel(gateway, d, 'Bob', { override: true })).toMatchObject({ status: 'refused', reason: expect.stringContaining('being captured') });
     expect((await fresh(d, 'Bob')).status).toBe('confirmed');

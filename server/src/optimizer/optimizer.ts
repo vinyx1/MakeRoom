@@ -132,7 +132,7 @@ function requesterPlacements(idx: Index, request: Request): Requester {
   const endsAt = request.kind === 'shift' ? (request.newEndsAt ?? b.endsAt) : request.newEndsAt;
   const times = { startsAt, endsAt, bufferEndsAt: new Date(endsAt.getTime() + bufferOf(b)) };
   // Its own unit first, then the other units of the same model. A picked-up rental's other units are tried
-  // anyway and pruned, so the feed shows "Move Alice to another unit → picked-up rentals never change unit".
+  // anyway and pruned, so the feed shows "Move Vincent to another unit → picked-up rentals never change unit".
   const units = [
     ...(b.unitId ? [b.unitId] : []),
     ...idx.unitsOfModel(b.modelId).map((u) => u.id).filter((id) => id !== b.unitId),
@@ -419,7 +419,7 @@ const changeKey = (c: ProposedChange) =>
 
 const planKey = (changes: ProposedChange[]) => changes.map(changeKey).sort(cmp).join(';');
 
-/** "Move Bob to A7IV-2", "Move Bob's pickup to Thu 2:00pm", "Extend Alice to Thu 10:00am". */
+/** "Move Bob to A7IV-2", "Move Bob's pickup to Thu 2:00pm", "Extend Vincent to Thu 10:00am". */
 function describeMove(idx: Index, c: ProposedChange): string {
   const name = idx.customerName(c.customerId);
   const before = c.bookingId ? idx.bookings.get(c.bookingId) : undefined;
