@@ -39,7 +39,27 @@ cleanup() {
     fi
 }
 
-trap cleanup EXIT INT TERM
+# ---------------------------------------------------------
+# Stop when asked
+#
+# A stop request wakes the worker from its sleep. If a commit
+# or push is running, it finishes first, so the worker never
+# stops between the two.
+# ---------------------------------------------------------
+
+STOP_REQUESTED=false
+SLEEP_PID=""
+
+request_stop() {
+    STOP_REQUESTED=true
+
+    if [[ -n "$SLEEP_PID" ]]; then
+        kill "$SLEEP_PID" 2>/dev/null
+    fi
+}
+
+trap cleanup EXIT
+trap request_stop INT TERM
 
 
 # ---------------------------------------------------------
@@ -66,6 +86,10 @@ cleanup_dead_sessions() {
 # ---------------------------------------------------------
 
 while true; do
+
+    if [[ "$STOP_REQUESTED" == "true" ]]; then
+        exit 0
+    fi
 
     if [[ ! -f "$CONFIG" ]]; then
         exit 0
@@ -97,7 +121,17 @@ while true; do
     # Wait one complete interval
     # -----------------------------------------------------
 
-    sleep "$INTERVAL_SECONDS"
+    # In the background, because a signal can interrupt wait
+    # but has to wait for a foreground sleep to finish.
+    sleep "$INTERVAL_SECONDS" &
+    SLEEP_PID=$!
+
+    wait "$SLEEP_PID"
+    SLEEP_PID=""
+
+    if [[ "$STOP_REQUESTED" == "true" ]]; then
+        exit 0
+    fi
 
 
     # -----------------------------------------------------

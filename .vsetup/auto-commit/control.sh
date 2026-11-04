@@ -141,6 +141,23 @@ stop_worker() {
         pid="$(cat "$PID_FILE")"
 
         kill "$pid" 2>/dev/null
+
+        # Keep the PID file until it has exited, so a shell
+        # entering the repo can't start a second worker.
+        # The worker finishes a running commit or push first.
+        local attempt
+
+        for attempt in {1..20}; do
+            if ! kill -0 "$pid" 2>/dev/null; then
+                break
+            fi
+
+            sleep 0.25
+        done
+
+        if kill -0 "$pid" 2>/dev/null; then
+            return 0
+        fi
     fi
 
     rm -f "$PID_FILE"
