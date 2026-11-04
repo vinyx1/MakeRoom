@@ -94,13 +94,13 @@ function describe(o: Outcome): Omit<Toast, 'id'> {
         }[o.next as string] ?? 'Booking kept as is.',
       };
     case 'resolved':
-      return { kind: 'ok', text: 'The assistant found a plan: review it under Owner.' };
+      return { kind: 'ok', text: 'The assistant found a plan: review it under Needs owner approval.' };
     case 'repriced':
       return { kind: 'ok', text: `New price sent: ${usd(o.chargeCents)}. The customer gets a fresh card.` };
     case 'saved':
       return { kind: 'ok', text: 'Saved as a fact.' };
     case 'applied':
-      return { kind: 'ok', text: 'Booking changed. Undo it from the Owner column if you need to.' };
+      return { kind: 'ok', text: 'Booking changed. Undo it under Needs owner approval if you need to.' };
     case 'undone':
       return { kind: 'ok', text: 'Change undone: the booking is back where it was.' };
     case 'discarded':
@@ -108,7 +108,7 @@ function describe(o: Outcome): Omit<Toast, 'id'> {
     case 'extended':
       return { kind: 'ok', text: 'Marked overdue. Nothing else is affected, so the booking now runs to the expected return.' };
     case 'planned':
-      return { kind: 'ok', text: 'Marked overdue. The next booking is affected: review the plans under Owner.' };
+      return { kind: 'ok', text: 'Marked overdue. The next booking is affected: review the plans under Needs owner approval.' };
     case 'no_plan':
       return { kind: 'warn', text: "Marked overdue, but nothing makes room for the next booking. You'll need to contact that customer." };
     case 'returned':

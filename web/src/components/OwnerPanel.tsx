@@ -28,7 +28,7 @@ export function OwnerPanel({ owner, activity, onOutcome, onOpenChat, onResolveDr
   return (
     <section className="pane owner">
       <header className="pane-head">
-        <h2 className="pane-title">Needs you</h2>
+        <h2 className="pane-title">Needs owner approval (You)</h2>
         <span className={`count ${waiting ? 'hot' : ''}`}>{waiting || 'Nothing'}</span>
       </header>
       <div className="owner-body">

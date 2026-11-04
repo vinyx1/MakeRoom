@@ -52,7 +52,7 @@ export function OwnerMessages({ owner, openId, onOpen, typing, onOutcome, onChan
   return (
     <section className="pane threads">
       <header className="pane-head">
-        <h2 className="pane-title">Messages</h2>
+        <h2 className="pane-title">Owner's Messages</h2>
         <span className={`count ${unreadTotal ? 'hot' : ''}`}>{unreadTotal ? `${unreadTotal} new` : ''}</span>
       </header>
       <ul className="thread-list">
