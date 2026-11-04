@@ -84,7 +84,7 @@ Judges may try the live deployment, often several at once and alone. These are b
 
 - **One shop per visitor.** Every table carries `shop_id` from the day-4 data model; a new visitor gets a freshly seeded shop from the demo script's seed. The shop comes from the session cookie, never the URL. A **Reset demo** button voids the shop's open authorizations, then reseeds it.
 - **Role switcher.** One judge plays the owner, Alice and Bob: a switcher, or a three-pane view (owner dashboard + two customer chats).
-- **Auto-reply customers.** On by default for a new shop. A toggle that lets a scripted customer answer affected-party requests, so a judge acting as the requester sees the negotiation play out.
+- **Scripted customers.** A **Let Bob answer** button on an affected customer's card has them answer it (`POST /api/proposals/:id/scripted-answer`, Plan B when there are two), so a judge acting as the requester sees the negotiation play out. The `auto_reply_customers` setting still answers by itself for the terminal tester; it's off by default and has no control in the UI.
 - **Fast-forward.** A demo-clock button that jumps ahead, driving the injectable clock, so timeouts and expiry are visible in seconds.
 - **PayPal sandbox credentials** shown beside the PayPal button.
 - **Live activity feed.** Stream agent steps over SSE while a tool loop runs, so a 10–30s turn never looks frozen.

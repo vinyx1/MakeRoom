@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { type Config, type CustomerCard, type Outcome, type RequestStatus, api } from '../api';
 import { usd } from '../live';
 
-type CardProps = { card: CustomerCard; customerId: string; config: Config; zone: string; onOutcome: (o: Outcome) => void };
+type CardProps = { card: CustomerCard; customerId: string; customerName: string; config: Config; zone: string; onOutcome: (o: Outcome) => void };
 
 export function Card(props: CardProps) {
   if (props.card.role === 'counter') return <CounterCard {...props} />;
@@ -124,7 +124,7 @@ function PayPalCheckout({ card, customerId, onOutcome, disabled }: { card: Custo
   );
 }
 
-function AffectedCard({ card, customerId, onOutcome }: CardProps) {
+function AffectedCard({ card, customerId, customerName, onOutcome }: CardProps) {
   const [busy, setBusy] = useState(false);
   const run = async (fn: () => Promise<Outcome>) => {
     setBusy(true);
@@ -153,6 +153,11 @@ function AffectedCard({ card, customerId, onOutcome }: CardProps) {
           Keep my booking as is
         </button>
         <div className="muted small">Nothing about your booking changes.</div>
+      </div>
+      <div className="option">
+        <button disabled={busy} onClick={() => run(() => api.scriptedAnswer(card.proposalId, customerId))}>
+          Let {customerName} answer
+        </button>
       </div>
     </div>
   );
@@ -203,6 +208,16 @@ export function StatusCard({ status, customerId, onOutcome }: { status: RequestS
       setBusy(false);
     }
   };
+  const keep = async () => {
+    setBusy(true);
+    try {
+      onOutcome(await api.keep(status.proposalId, customerId));
+    } catch (e) {
+      onOutcome({ status: 'error', reason: (e as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <div className={`card status ${status.tone}`}>
       <div className="card-head">{status.headline}</div>
@@ -214,6 +229,13 @@ export function StatusCard({ status, customerId, onOutcome }: { status: RequestS
         </ul>
       )}
       {status.detail && <div className="status-detail">{status.detail}</div>}
+      {status.canWithdraw && (
+        <div className="card-actions">
+          <button className="link" disabled={busy} onClick={keep}>
+            Keep my booking as is
+          </button>
+        </div>
+      )}
       {status.canCancel && (
         <div className="card-actions">
           <button className="link" disabled={busy} onClick={cancel}>

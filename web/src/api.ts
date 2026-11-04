@@ -113,6 +113,7 @@ export type RequestStatus = {
   detail: string | null;
   lines: string[];
   canCancel: boolean;
+  canWithdraw?: boolean;
 };
 export type CustomerView = {
   customer: { id: string; name: string };
@@ -161,6 +162,7 @@ export const api = {
   pick: (proposalId: string, revisionId: string, customerId: string) =>
     call<Outcome>('POST', `/api/proposals/${proposalId}/revisions/${revisionId}/accept`, { customerId }),
   keep: (proposalId: string, customerId: string) => call<Outcome>('POST', `/api/proposals/${proposalId}/keep`, { customerId }),
+  scriptedAnswer: (proposalId: string, customerId: string) => call<Outcome>('POST', `/api/proposals/${proposalId}/scripted-answer`, { customerId }),
   cancel: (proposalId: string, customerId: string) => call<Outcome>('POST', `/api/proposals/${proposalId}/cancel`, { customerId }),
   sendCounter: (proposalId: string, revisionId: string, customerId: string) => call<Outcome>('POST', `/api/proposals/${proposalId}/revisions/${revisionId}/send`, { customerId }),
   discardCounter: (proposalId: string, revisionId: string, customerId: string) => call<Outcome>('POST', `/api/proposals/${proposalId}/revisions/${revisionId}/discard`, { customerId }),
@@ -182,5 +184,4 @@ export const api = {
 
   reset: () => call<Outcome>('POST', '/api/demo/reset'),
   fastForward: (minutes: number) => call<Outcome & { expired: string[] }>('POST', '/api/demo/fast-forward', { minutes }),
-  autoReply: (enabled: boolean) => call<Outcome>('POST', '/api/demo/auto-reply', { enabled }),
 };

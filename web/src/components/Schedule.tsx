@@ -89,8 +89,10 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel }: P
 
     // Ghosts: what each live plan would do. An extension shows only the added time on the same unit.
     const seen = new Set<string>();
-    for (const p of owner.proposals)
-      for (const r of p.revisions)
+    for (const p of owner.proposals) {
+      // Once the affected customer has picked, only their pick is still the plan on the table.
+      const picked = p.revisions.find((r) => r.approvals.some((a) => a.role === 'affected' && a.status === 'approved'));
+      for (const r of picked ? [picked] : p.revisions)
         for (const c of r.changes) {
           const key = `${c.bookingId}|${c.newUnitId}|${c.newStartsAt}|${c.newEndsAt}`;
           if (seen.has(key)) continue;
@@ -109,6 +111,7 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel }: P
             c.newUnitId,
           );
         }
+    }
 
     // Red drafts: owner edits that conflict. They hold nothing and block nothing.
     for (const d of owner.drafts) {

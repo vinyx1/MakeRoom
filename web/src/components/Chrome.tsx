@@ -96,13 +96,12 @@ function AtTheCounter({ owner }: { owner: OwnerView }) {
 
 type SidebarProps = {
   owner: OwnerView;
-  onAutoReply: (on: boolean) => void;
   onReset: () => void;
   onEquipment: () => void;
   onHelp: () => void;
 };
 
-export function Sidebar({ owner, onAutoReply, onReset, onEquipment, onHelp }: SidebarProps) {
+export function Sidebar({ owner, onReset, onEquipment, onHelp }: SidebarProps) {
   return (
     <aside className="side">
       <div className="brand">
@@ -122,11 +121,6 @@ export function Sidebar({ owner, onAutoReply, onReset, onEquipment, onHelp }: Si
         </ul>
       </section>
       <div className="side-foot">
-        <label className="toggle" title="Affected customers answer their offers by themselves, so you can play only the requester">
-          <input type="checkbox" checked={owner.shop.autoReplyCustomers} onChange={(e) => onAutoReply(e.target.checked)} />
-          <span>Other customers reply automatically</span>
-        </label>
-        <div style={{ height: 8 }} />
         <button className="nav-btn" onClick={onEquipment}>Equipment</button>
         <button className="nav-btn" onClick={onHelp}>How to demo</button>
         <button
@@ -219,7 +213,7 @@ export function Help({ onClose }: { onClose: () => void }) {
         <ol>
           <li>As Alice: “Shoot ran over. Can I keep the camera until Thursday at 10am?”</li>
           <li>Pay on her card with PayPal. The schedule shows the plan as ghosts.</li>
-          <li>Bob answers by himself with option B (2pm, $15 back). To answer as him, untick “Other customers reply automatically” first.</li>
+          <li>On Bob's card, press “Let Bob answer” and he takes option B (2pm, $15 back). Or choose for him with the card's own buttons.</li>
           <li>As the owner: Approve. The payment is captured, both bookings move, and Bob is refunded.</li>
         </ol>
         <h4>2 · The owner drags, the assistant asks</h4>

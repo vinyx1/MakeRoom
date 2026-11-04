@@ -7,7 +7,7 @@ import { DateTime } from 'luxon';
 import { afterAll, describe, expect, it } from 'vitest';
 import { TurnState, makeTools } from '../src/agent/tools.ts';
 import { type AgentConfig, conversationOf, runTurn } from '../src/agent/turn.ts';
-import { createAutoReply } from '../src/demo/auto-reply.ts';
+import { createAutoReply, scriptedAnswer } from '../src/demo/auto-reply.ts';
 import { createDb } from '../src/db/client.ts';
 import * as s from '../src/db/schema.ts';
 import { seedShop } from '../src/db/seed.ts';
@@ -343,8 +343,45 @@ describe('a customer who answers before the agent has finished writing to them',
 });
 
 describe('a new shop', () => {
-  it('has other customers replying automatically, so one judge can run the demo alone', async () => {
+  it('leaves other customers to wait: a person, or the scripted answer button, decides for them', async () => {
     const d = await seedShop(db, { sessionKey: randomUUID() });
-    expect(d.shop.autoReplyCustomers).toBe(true);
+    expect(d.shop.autoReplyCustomers).toBe(false);
+  });
+});
+
+describe('after an affected customer picks an option that needs the shop', () => {
+  const statusOf = async (d: Seeded, customerId: string) => db.transaction(async (tx) => (await customerView(tx, d.shop.id, customerId))!.requests[0]!);
+
+  it('no longer shows the other option as a choice, and lets them withdraw', async () => {
+    const { d, gateway, bob, proposalId, optionB } = await bobAsked();
+    await affectedAccept(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: optionB.id });
+    expect(await cardsOf(d, bob)).toEqual([]);
+    expect(await statusOf(d, bob)).toMatchObject({ headline: 'You chose option B: waiting on the shop', canWithdraw: true });
+  });
+
+  it('offers the other option again if the owner declines the pick (judge B8)', async () => {
+    const { d, gateway, bob, proposalId, optionA, optionB } = await bobAsked();
+    await affectedAccept(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: optionB.id });
+    await ownerDecision(db, gateway, d.shop.id, { proposalId, revisionId: optionB.id, decision: 'decline' });
+    expect((await cardsOf(d, bob))[0]!.options.map((o) => o.revisionId)).toEqual([optionA.id]);
+  });
+});
+
+describe('the scripted answer button', () => {
+  it('has the customer say which option they take, then take it', async () => {
+    const { d, gateway, bob, proposalId, optionB } = await bobAsked();
+    const result = await scriptedAnswer(db, gateway, { shopId: d.shop.id, customerId: bob, proposalId });
+    expect(result?.status).toBe('awaiting_approvals');
+    expect((await load.approvals(optionB.id)).find((a) => a.customerId === bob)?.status).toBe('approved');
+    const conversation = await conversationOf(db, d.shop.id, bob, d.now);
+    const said = await db.select().from(s.messages).where(eq(s.messages.conversationId, conversation.id));
+    expect(said.map((m) => m.body)).toContain('Option B works for me, thanks.');
+  });
+
+  it('does nothing when they have no decision to make', async () => {
+    const { d, gateway, alice, bob, proposalId, optionB } = await bobAsked();
+    expect(await scriptedAnswer(db, gateway, { shopId: d.shop.id, customerId: alice, proposalId })).toBeNull();
+    await affectedAccept(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: optionB.id });
+    expect(await scriptedAnswer(db, gateway, { shopId: d.shop.id, customerId: bob, proposalId })).toBeNull();
   });
 });

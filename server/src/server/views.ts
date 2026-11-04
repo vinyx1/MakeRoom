@@ -109,6 +109,8 @@ export type RequestStatus = {
   lines: string[];
   /** The requester can still back out (before the charge). */
   canCancel: boolean;
+  /** An affected party who picked can still keep their booking, until it's being confirmed (judge B5). */
+  canWithdraw?: boolean;
 };
 
 const ENDED_HEADLINE: Record<string, string> = {
@@ -189,7 +191,7 @@ async function requestStatuses(tx: Tx, idx: ReturnType<typeof indexSnapshot>, sh
     if (p.state === 'AWAITING_APPROVALS' || p.state === 'CAPTURING')
       return picked
         ? {
-            ...base, tone: 'waiting',
+            ...base, tone: 'waiting', canWithdraw: p.state === 'AWAITING_APPROVALS',
             headline: `You chose ${shownRev?.optionLabel ? `option ${shownRev.optionLabel}` : 'the offer'}: ${p.state === 'CAPTURING' ? 'confirming now' : waiting}`,
             detail: 'Your booking changes only once everything is confirmed.',
           }
@@ -243,10 +245,13 @@ export async function customerView(tx: Tx, shopId: string, customerId: string) {
     );
   // A requester's card is open while the proposal is DRAFT; an affected party's once offers are out.
   // A requester agreed by phone still has a card to pay on (owner-attested approval, demo Scenario 2).
+  // Once an affected party has picked, their card stops asking. A pick that needs the shop keeps its sibling options
+  // live in case the owner declines it (judge B8); they come back on a card only then.
+  const answered = new Set(pending.filter((p) => p.approval.role === 'affected' && p.approval.status === 'approved').map((p) => p.proposal.id));
   const visible = pending.filter(({ approval, proposal, revision }) =>
     approval.role === 'requester'
       ? proposal.state === 'DRAFT' && (approval.status === 'pending' || approval.source === 'owner_attested')
-      : approval.status === 'pending' && proposal.state === 'AWAITING_APPROVALS' && (!revision.envelopeTrips.length || ownerOk.has(revision.id)),
+      : !answered.has(proposal.id) && approval.status === 'pending' && proposal.state === 'AWAITING_APPROVALS' && (!revision.envelopeTrips.length || ownerOk.has(revision.id)),
   );
 
   const revisionIds = visible.map((v) => v.revision.id);

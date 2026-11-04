@@ -5,6 +5,7 @@
 
 import cookie from '@fastify/cookie';
 import fastifyStatic from '@fastify/static';
+import { scriptedAnswer } from '../demo/auto-reply.ts';
 import { and, eq, gt, inArray, max, sql } from 'drizzle-orm';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -206,6 +207,13 @@ export function buildApp(opts: AppOptions) {
   });
 
   // "Keep my booking as is" (affected party) and "Cancel my request" (requester): refusals are clicks too.
+  // Judge mode: the customer answers their own offer, from a button on their card.
+  app.post('/api/proposals/:proposalId/scripted-answer', async (req) => {
+    const { proposalId } = req.params as { proposalId: string };
+    const { customerId } = parse(z.object({ customerId: z.string().uuid() }), req.body);
+    return (await scriptedAnswer(db, gateway, { shopId: req.shop.id, customerId, proposalId })) ?? { status: 'already_decided' };
+  });
+
   app.post('/api/proposals/:proposalId/keep', async (req) => {
     const { proposalId } = parse(ProposalParams, req.params);
     const { customerId } = parse(CustomerBody, req.body);

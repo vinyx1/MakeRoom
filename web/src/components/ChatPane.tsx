@@ -108,7 +108,7 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
             return (
               <div className="msg card-msg" key={m.id} {...pointsAtRequest(card?.proposalId ?? statusFor(m.cardRevisionIds)?.proposalId)}>
                 {card ? (
-                  <Card card={card} customerId={customerId} config={config} zone={zone} onOutcome={onOutcome} />
+                  <Card card={card} customerId={customerId} customerName={name} config={config} zone={zone} onOutcome={onOutcome} />
                 ) : (
                   closedCard(m.id, statusFor(m.cardRevisionIds))
                 )}
@@ -133,7 +133,7 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
           .filter((c) => !shown.has(c.proposalId + c.role))
           .map((c) => (
             <div className="msg card-msg" key={c.proposalId + c.role} {...pointsAtRequest(c.proposalId)}>
-              <Card card={c} customerId={customerId} config={config} zone={zone} onOutcome={onOutcome} />
+              <Card card={c} customerId={customerId} customerName={name} config={config} zone={zone} onOutcome={onOutcome} />
             </div>
           ))}
         {typing && <div className="typing">Assistant is replying…</div>}

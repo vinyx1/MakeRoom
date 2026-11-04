@@ -51,7 +51,7 @@ function roleIn(owner: OwnerView, customerId: string): string {
   const open = owner.proposals.filter((p) => p.revisions.length > 0);
   if (open.some((p) => p.requesterCustomerId === customerId)) return 'Asking for a change';
   if (open.some((p) => p.revisions.some((r) => r.changes.some((c) => c.partyCustomerId === customerId))))
-    return owner.shop.autoReplyCustomers ? 'Affected · replies automatically' : 'Affected by a request';
+    return 'Affected by a request';
   return 'Customer';
 }
 
@@ -251,10 +251,6 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
     <div className="app">
       <Sidebar
         owner={owner}
-        onAutoReply={async (on) => {
-          await api.autoReply(on);
-          void shop.refresh();
-        }}
         onReset={() => void shop.reset()}
         onEquipment={() => setEquipment(true)}
         onHelp={() => setHelp(true)}
