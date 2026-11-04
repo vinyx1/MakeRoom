@@ -60,7 +60,8 @@ describe('tools', () => {
     expect(past).toMatchObject({ ok: false, code: 'IN_PAST', earliest: { display: expect.stringMatching(/5:45pm$/) } });
     // Shop hours: 4 hours from now is 9:30pm, after the 9pm close.
     expect(await call('check_availability', { model_id: model, start: local(4), end: local(15) })).toMatchObject({ ok: false, code: 'OUTSIDE_SHOP_HOURS' });
-    expect(await call('check_availability', { model_id: model, start: local(3), end: local(15) })).toMatchObject({ ok: true, free: true });
+    // 3 hours from now is 8:30pm (open), and 15.5 hours is 9am the next day (open).
+    expect(await call('check_availability', { model_id: model, start: local(3), end: local(15.5) })).toMatchObject({ ok: true, free: true });
   });
 
   it('get_my_bookings shows only the customer’s own bookings, with short ids', async () => {
