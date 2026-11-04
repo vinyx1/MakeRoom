@@ -513,7 +513,7 @@ export async function createRequesterOrder(
       .onConflictDoNothing({ target: s.paypalOrders.paypalOrderId });
     await logActivity(tx, {
       shopId, at: (await loadSnapshot(tx, shopId)).now, actor: 'system', kind: 'payment_order_created', proposalId: proposal.id, revisionId: revision.id,
-      payload: { orderId: created.orderId, amountCents: revision.quote.chargeCents, authorizedOnCreate: !!created.authorizationId },
+      payload: { orderId: created.orderId, customerId: input.customerId, amountCents: revision.quote.chargeCents, authorizedOnCreate: !!created.authorizationId },
     });
   });
   return { status: 'ok', orderId: created.orderId };

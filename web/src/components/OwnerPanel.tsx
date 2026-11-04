@@ -146,9 +146,11 @@ function Payments({ activity, owner }: { activity: Activity[]; owner: OwnerView 
   const rows = new Map<string, Activity>();
   for (const a of activity) {
     // A refund is its own line; a hold's later states replace it. Seeded prepayments aren't part of any request.
-    if (!PAYMENT_STATE[a.kind] || (a.kind !== 'payment_refunded' && !a.proposalId)) continue;
-    const key = a.kind === 'payment_refunded' ? `refund-${a.seq}` : a.payload.orderId;
-    if (!rows.has(key)) rows.set(key, a);
+    // A server-side test card authorizes when the order is created, so no separate authorized event follows.
+    const kind = a.kind === 'payment_order_created' && a.payload.authorizedOnCreate ? 'payment_authorized' : a.kind;
+    if (!PAYMENT_STATE[kind] || (kind !== 'payment_refunded' && !a.proposalId)) continue;
+    const key = kind === 'payment_refunded' ? `refund-${a.seq}` : a.payload.orderId;
+    if (!rows.has(key)) rows.set(key, { ...a, kind });
   }
   if (rows.size === 0) return null;
   return (
