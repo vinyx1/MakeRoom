@@ -342,6 +342,49 @@ describe('a customer who answers before the agent has finished writing to them',
   });
 });
 
+describe('a customer who answers after the card is posted but before the agent has explained it', () => {
+  async function toolsOf(d: Seeded, customerId: string) {
+    const conversation = await conversationOf(db, d.shop.id, customerId, d.now);
+    const turn = new TurnState();
+    const tools = makeTools({ db, shopId: d.shop.id, customerId, conversationId: conversation.id, turn, now: () => d.now, onStep: () => {} });
+    const call = async (name: string, input: unknown) => JSON.parse(await (tools.find((t) => t.name === name)!.run as (i: unknown) => Promise<string>)(input));
+    return { turn, call, conversation };
+  }
+
+  it('drops the stale explanation for an affected customer', async () => {
+    const { d, gateway, bob, proposalId, optionA, optionB } = await bobAsked();
+    const { turn, call, conversation } = await toolsOf(d, bob);
+    expect((await call('present_offer', { revision_ids: [turn.ids.of('rv', optionA.id), turn.ids.of('rv', optionB.id)] })).ok).toBe(true);
+
+    await affectedAccept(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: optionB.id });
+
+    expect(await call('send_message', { text: 'Please choose on the card.' })).toMatchObject({ ok: false, code: 'INVALID_STATE' });
+    expect(turn.offerClosed).toBe(true);
+    const said = await db.select().from(s.messages).where(eq(s.messages.conversationId, conversation.id));
+    expect(said.map((m) => m.body)).not.toContain('Please choose on the card.');
+  });
+
+  it('drops the stale explanation for a requester who has already paid', async () => {
+    const { gateway, d, alice } = await shop();
+    const offered = await requestChange(db, d.shop.id, { customerId: alice, request: { kind: 'extend', bookingId: d.bookingOf('Alice').id, newEndsAt: at(d, 'Thu', 10) } });
+    if (offered.status !== 'offered') throw new Error(offered.status);
+    const { turn, call } = await toolsOf(d, alice);
+    expect((await call('present_offer', { revision_ids: [turn.ids.of('rv', offered.revisions[0]!.id)] })).ok).toBe(true);
+
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
+    await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: alice });
+
+    expect(await call('send_message', { text: 'Please use the card.' })).toMatchObject({ ok: false, code: 'INVALID_STATE' });
+  });
+
+  it('still delivers the explanation while the offer is open', async () => {
+    const { d, bob, optionA, optionB } = await bobAsked();
+    const { turn, call } = await toolsOf(d, bob);
+    await call('present_offer', { revision_ids: [turn.ids.of('rv', optionA.id), turn.ids.of('rv', optionB.id)] });
+    expect((await call('send_message', { text: 'Please choose on the card.' })).ok).toBe(true);
+  });
+});
+
 describe('a new shop', () => {
   it('leaves other customers to wait: a person, or the scripted answer button, decides for them', async () => {
     const d = await seedShop(db, { sessionKey: randomUUID() });
