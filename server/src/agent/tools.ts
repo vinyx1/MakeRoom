@@ -462,6 +462,16 @@ export function makeTools(scope: ToolScope) {
           // A requester's card is open while the request is a draft, even when they agreed by phone (owner-attested).
           const open = role === 'requester' ? p!.state === 'DRAFT' : p!.state === 'AWAITING_APPROVALS' && pending.length > 0;
           if (!open) return refuse('INVALID_STATE', 'This customer has no decision pending on that request.', 'Use get_my_proposals to explain what it is waiting on.');
+          // Their card is on screen while this turn runs, so they can answer before it gets here. A pick leaves the
+          // sibling option pending, so without this the agent would be shown one button and describe the other as missing.
+          if (role === 'affected') {
+            const answered = await tx
+              .select()
+              .from(s.approvals)
+              .where(and(inArray(s.approvals.revisionId, live.map((r) => r.id)), eq(s.approvals.customerId, me), eq(s.approvals.status, 'approved')));
+            if (answered.length)
+              return refuse('INVALID_STATE', 'This customer has already answered on the card.', 'They already picked an option, so do not offer the options or describe the card again. Thank them, say what they chose from the context, and that it is waiting on what the context says.');
+          }
           // The requester's card carries every sibling option; an affected party's carries the options they can pick.
           // A plan outside the envelope reaches a customer only once the owner has approved it (invariant 6).
           const ownerOk = new Set(

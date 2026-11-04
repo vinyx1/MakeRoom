@@ -43,7 +43,8 @@ export function demoShopData({ sessionKey, realNow = new Date(), creatorIpHash =
     clockOffsetMs: now.getTime() - realNow.getTime(),
     policy,
     agentTurnsUsed: 0,
-    autoReplyCustomers: false,
+    // On for a new shop: a judge alone plays the requester and the owner, and can switch it off to answer by hand.
+    autoReplyCustomers: true,
     sessionKey,
     creatorIpHash,
     lastSeenAt: realNow,
