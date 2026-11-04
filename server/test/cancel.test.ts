@@ -39,7 +39,7 @@ const cancel = async (gateway: PaymentGateway, d: Seeded, name: string, extra: {
   return ownerCancelBooking(db, gateway, d.shop.id, { bookingId: b.id, basedOnVersion: b.version, agreedByPhone: true, ...extra });
 };
 
-/** Vincent has paid her hold and Bob is deciding: her request claims his booking. */
+/** Vincent has paid their hold and Bob is deciding: their request claims his booking. */
 async function vincentWaitingOnBob(gateway: ReturnType<typeof fakeGateway>, d: Seeded) {
   const vincent = d.customer('Vincent').id;
   const r = await requestChange(db, d.shop.id, { customerId: vincent, request: { kind: 'extend', bookingId: d.bookingOf('Vincent').id, newEndsAt: at(d, 'Thu', 10) } });

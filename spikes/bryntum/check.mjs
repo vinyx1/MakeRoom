@@ -48,7 +48,7 @@ results.q7_unassigned = await page.evaluate(() => {
 });
 results.dataEventIds = await page.evaluate(() => [...document.querySelectorAll('[data-event-id]')].map(e => e.dataset.eventId));
 
-// Q8: Vincent is picked up: drag should not move her.
+// Q8: Vincent is picked up: drag should not move them.
 const vincentBefore = await page.evaluate(() => window.sched.eventStore.getById('vincent').startDate.toISOString());
 results.q8_dragVincent = await dragBy(eventSel('vincent'), 0, 120);
 results.q8_vincentAfter = await page.evaluate(() => ({

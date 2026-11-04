@@ -16,7 +16,7 @@ Verified by `check.mjs`, which drives headless Chrome with real mouse drags and 
 | 5b | State tracking (STM) apply + reject | **Yes** | `project.stm.enable()`, `startTransaction()`, change, `rejectTransaction()` restored Eve's start. Not needed for ghosts, but available. |
 | 6 | Red conflict with a Resolve with agent button | **Yes** | Draft event with `kind: 'draft'`; `eventRenderer` returns HTML (escaped with `StringHelper.encodeHtml`) including a button; `onEventClick` checks `event.target.closest('.resolve-btn')`. |
 | 7 | Unassigned row | **Yes** | A normal resource with id `unassigned` and its own style. Ivy's unassigned booking shows there. |
-| 8 | Picked-up: no move, end can extend | **Yes** | Per event `draggable: false`, `resizable: 'end'`. Dragging Vincent did nothing; resizing her end went through the backend. |
+| 8 | Picked-up: no move, end can extend | **Yes** | Per event `draggable: false`, `resizable: 'end'`. Dragging Vincent did nothing; resizing their end went through the backend. |
 | 9 | Patch the schedule from outside (SSE) | **Yes** | Setting fields and `eventStore.add` / `assignmentStore.add` on the live instance updates in place; same instance, no reload. |
 
 ## Gotchas (must carry into the real build)

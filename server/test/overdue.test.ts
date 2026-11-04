@@ -1,5 +1,5 @@
 // Overdue returns (docs/conflict-model.md §8; judge D10): Vincent hasn't brought A7IV-1 back by Wed 6pm. The owner
-// marks it overdue with when she now expects to return it, and the next renter (Bob) is re-planned around it, with
+// marks it overdue with when they now expect to return it, and the next renter (Bob) is re-planned around it, with
 // nobody paying: the owner reviews every plan first. If nobody agrees, the owner is alerted. Marking it returned
 // ends anything planned around it.
 
@@ -43,7 +43,7 @@ const load = {
     db.select().from(s.escalations).where(and(eq(s.escalations.shopId, d.shop.id), eq(s.escalations.kind, kind as 'overdue'), eq(s.escalations.status, 'open'))),
 };
 
-/** Wed 7pm, an hour after Vincent was due: she now says Thu 10am, which runs into Bob's Thu 9am pickup. */
+/** Wed 7pm, an hour after Vincent was due: they now say Thu 10am, which runs into Bob's Thu 9am pickup. */
 async function vincentOverdue(d: Seeded, gateway: ReturnType<typeof fakeGateway>) {
   await advance(d, 5);
   const r = await markOverdue(db, gateway, d.shop.id, { bookingId: d.bookingOf('Vincent').id, expectedReturnAt: at(d, 'Thu', 10) });
@@ -116,7 +116,7 @@ describe('overdue returns', () => {
   it('a new expected time replaces the earlier plan', async () => {
     const { d, gateway } = await shop();
     const r = await vincentOverdue(d, gateway);
-    // She's coming back tonight after all: 8pm + 4h is clear of Bob's Thu 9am pickup.
+    // They're coming back tonight after all: 8pm + 4h is clear of Bob's Thu 9am pickup.
     expect(await markOverdue(db, gateway, d.shop.id, { bookingId: d.bookingOf('Vincent').id, expectedReturnAt: at(d, 'Wed', 20) })).toEqual({ status: 'extended' });
     expect((await load.proposal(r.proposal.id)).state).toBe('CANCELLED');
     expect(await db.select().from(s.claims).where(and(eq(s.claims.proposalId, r.proposal.id), isNull(s.claims.releasedAt)))).toEqual([]);

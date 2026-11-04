@@ -71,7 +71,7 @@ describe('Scenario 1: the extension, Plan B (the demo path)', () => {
     const [optionA, optionB] = offered.revisions;
     expect([optionA!.optionLabel, optionA!.needsOwner, optionA!.quote.compensation[0]!.kind]).toEqual(['A', false, 'upgrade_value']);
     expect([optionB!.optionLabel, optionB!.needsOwner, optionB!.quote.compensation[0]!.cents]).toEqual(['B', true, 1500]);
-    expect(await load.activeClaims(offered.proposal.id)).toEqual([]); // nothing held before she pays
+    expect(await load.activeClaims(offered.proposal.id)).toEqual([]); // nothing held before they pay
 
     // Step 4: Vincent accepts and authorizes. Claims are taken; Bob gets both options.
     await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent.customerId });
@@ -359,7 +359,7 @@ describe('the owner sets the price', () => {
     const d = await shop(gateway);
     const vincent = d.customer('Vincent').id;
     const offered = await vincentAsks(d);
-    // She had opened the PayPal button: an order for $45 exists, unpaid.
+    // They had opened the PayPal button: an order for $45 exists, unpaid.
     await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent });
 
     const repriced = await ownerSetPrice(db, d.shop.id, { proposalId: offered.proposal.id, priceCents: 4000 });

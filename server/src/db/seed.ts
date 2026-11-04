@@ -30,7 +30,7 @@ export function demoShopData({ sessionKey, realNow = new Date(), creatorIpHash =
   const monday = demoWeekStart(realNow);
   const t = ({ week = 0, day, hour }: DemoTime) =>
     monday.plus({ weeks: week, days: WEEKDAY[day] - 1 }).set({ hour }).toJSDate();
-  // 30 minutes before Vincent's return (her booking below ends Wed 6pm).
+  // 30 minutes before Vincent's return (their booking below ends Wed 6pm).
   const now = new Date(t({ day: 'Wed', hour: 18 }).getTime() - 30 * 60_000);
   const policy = defaultPolicy();
   const bufferMs = policy.default_buffer_minutes * 60_000;

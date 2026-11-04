@@ -73,7 +73,7 @@ Facts: `CRANE4-1.balances_r5_rf2470 = unknown`. Shop hours 9am–9pm. All bookin
 2. Bob's ghost event rolls back in Bryntum, and his booking is byte-for-byte unchanged (show its version number in the inspector). Bob is now excluded from changes needing his approval.
 3. The agent tries the next plan as revision 2: upgrade Charlie to the A7R V so Bob can swap to A7IV-2 (same model, notice only). Charlie declines.
 4. No plans are left, so the agent offers Vincent the closest option: "I can't do Thursday, but you can keep it until 9pm tonight, closing time, at no extra charge." (Mon 9am → Wed 9pm is still 3 started days, so the rate card adds nothing.)
-5. Vincent doesn't answer. The demo clock jumps ahead 30 minutes, the proposal goes to `EXPIRED`, her authorization is voided, the claims release, and her original Wed 6pm return stands.
+5. Vincent doesn't answer. The demo clock jumps ahead 30 minutes, the proposal goes to `EXPIRED`, their authorization is voided, the claims release, and their original Wed 6pm return stands.
 
 **What it shows:** invariant 3 (no change without the customer's approval), ghost-event rollback, fallback planning across revisions, expiry, and voiding an authorization.
 
@@ -113,7 +113,7 @@ Facts: `CRANE4-1.balances_r5_rf2470 = unknown`. Shop hours 9am–9pm. All bookin
 
 1. During Scenario 1 step 5, after Vincent has authorized and before Bob answers, the owner drags Bob's booking to a different time.
 2. Bryntum warns: "Bob's booking is part of Vincent's pending request." The owner overrides and ticks "Bob agreed by phone."
-3. Vincent's proposal goes to `CANCELLED`, her authorization is voided, and the ghost events disappear. The agent tells Bob his request is withdrawn and re-plans Vincent against the new schedule.
+3. Vincent's proposal goes to `CANCELLED`, their authorization is voided, and the ghost events disappear. The agent tells Bob his request is withdrawn and re-plans Vincent against the new schedule.
 4. *(Optional:)* show the Postgres exclusion constraint rejecting a forced double-booking insert in a terminal.
 
 **What it shows:** claims, the owner-wins rule, voiding instead of refunding, and the database-level double-booking guard. The rarer capture → revalidation failure → refund path is covered by Vitest, not the video.

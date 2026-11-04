@@ -69,7 +69,7 @@ describe('the requester corrects an offer before paying', () => {
 
   it('replaces the offer on the same request, with no cancelling', async () => {
     const { d, gateway, vincent, ask, first } = await asked();
-    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: first.proposal.id, customerId: vincent }); // She opened PayPal, then changed her mind.
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: first.proposal.id, customerId: vincent }); // They opened PayPal, then changed their mind.
     const second = await ask(at(d, 'Thu', 10));
     if (second.status !== 'offered') throw new Error(JSON.stringify(second));
 
@@ -143,7 +143,7 @@ describe('an affected customer counters', () => {
     const reviews = () => db.select().from(s.escalations).where(and(eq(s.escalations.proposalId, proposalId), eq(s.escalations.status, 'open')));
     expect(await reviews()).toEqual([]);
 
-    // Send is Bob's approval; Vincent's terms didn't change, so hers carries over; the shop is asked.
+    // Send is Bob's approval; Vincent's terms didn't change, so theirs carries over; the shop is asked.
     expect(await counterSend(db, gateway, d.shop.id, { proposalId, customerId: bob, revisionId: r.revision.id })).toEqual({ status: 'awaiting_approvals', waitingOn: ['owner'] });
     const approvals = await load.approvals(r.revision.id);
     expect(approvals.map((a) => [a.role, a.status, a.source]).sort()).toEqual([
@@ -275,7 +275,7 @@ describe('a new booking that can\'t go ahead gets the longest free stretch', () 
     expect(mine.map((b) => b.endsAt)).toEqual([at(d, 'Fri', 21)]);
   });
 
-  it('nobody answers: the same stretch on a new card, which she pays for afresh', async () => {
+  it('nobody answers: the same stretch on a new card, which they pay for afresh', async () => {
     const { gateway, d, vincent, proposalId } = await vincentWantsTheRV();
     await db.update(s.shops).set({ clockOffsetMs: d.shop.clockOffsetMs + 31 * 60_000 }).where(eq(s.shops.id, d.shop.id));
     expect(await expireDue(db, gateway, d.shop.id)).toEqual([proposalId]);
