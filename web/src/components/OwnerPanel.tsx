@@ -389,6 +389,12 @@ function FeedLine({ a, owner }: { a: Activity; owner: OwnerView }) {
       return line('dim', <>Clock moved forward {p.minutes} min</>);
     case 'prepayments_seeded':
       return line('dim', <>Demo bookings prepaid in the PayPal sandbox ({p.paid})</>);
+    case 'owner_message':
+      return line('', <>You wrote to {name(p.customerId)}</>);
+    case 'owner_took_over':
+      return line('dim', <>Assistant paused in {name(p.customerId)}'s chat</>);
+    case 'handed_back':
+      return line('dim', <>Assistant resumed in {name(p.customerId)}'s chat</>);
     case 'auto_reply_toggled':
       return line('dim', <>Auto-reply customers {p.enabled ? 'on' : 'off'}</>);
     default:
