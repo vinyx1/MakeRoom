@@ -9,3 +9,4 @@ server/.try-session
 
 # Logs from start.sh
 .run/
+.taste-skill/
