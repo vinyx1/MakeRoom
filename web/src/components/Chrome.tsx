@@ -7,9 +7,9 @@ import { scheduleToToday } from '../highlight';
 import { shopTime, usd } from '../live';
 
 /** Three schedule bars, the middle one moved over to make room. */
-export function Mark({ size = 20, live = false }: { size?: number; live?: boolean }) {
+export function Mark({ size = 20 }: { size?: number }) {
   return (
-    <svg className={`mark ${live ? 'mark-live' : ''}`} width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">
+    <svg className="mark" width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">
       <rect x="1" y="2" width="11" height="4" rx="1.5" fill="#1d1f22" />
       <rect x="8" y="8" width="11" height="4" rx="1.5" fill="#d9480f" />
       <rect x="1" y="14" width="11" height="4" rx="1.5" fill="#1d1f22" />
@@ -105,7 +105,7 @@ export function Sidebar({ owner, onReset, onEquipment, onHelp }: SidebarProps) {
   return (
     <aside className="side">
       <div className="brand">
-        <Mark live />
+        <Mark />
         <span className="brand-name">MakeRoom</span>
       </div>
       <MiniMonth now={owner.shop.now} zone={owner.shop.timezone} />

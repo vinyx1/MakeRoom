@@ -51,12 +51,6 @@ img { display: block; max-width: 100%; height: auto; }
 
 /* Bar */
 .topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; height: 56px; padding: 0 20px; background: var(--frame); }
-/* The orange steps down the logo's bars, as in the app (src/styles.css). */
-.mark-live rect { animation: mark-step 3.6s linear infinite; }
-.mark-live rect:nth-child(1) { animation-delay: -1.2s; }
-.mark-live rect:nth-child(3) { animation-delay: -2.4s; }
-@keyframes mark-step { 0%, 28% { fill: #d9480f; } 33%, 95% { fill: #1d1f22; } 100% { fill: #d9480f; } }
-@media (prefers-reduced-motion: reduce) { .mark-live rect { animation: none; } }
 .logo { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 17px; text-decoration: none; }
 .topbar nav { display: flex; align-items: center; gap: 22px; font-size: 15px; }
 .topbar nav a:not(.button) { text-decoration: none; }

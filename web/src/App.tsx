@@ -29,7 +29,7 @@ export function App() {
   if (!config || !shop.owner)
     return (
       <main className="splash">
-        <h1><Mark live /> MakeRoom</h1>
+        <h1><Mark /> MakeRoom</h1>
         <div>Setting up your demo shop…</div>
         <div className="muted">The demo bookings are being prepaid in the PayPal sandbox. This takes a few seconds.</div>
       </main>
