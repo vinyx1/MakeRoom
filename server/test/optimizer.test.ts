@@ -94,6 +94,13 @@ describe('Scenario 1: Vincent extends to Thu 10am', () => {
     expect(vincent.after.bufferEndsAt).toEqual(at(d, 'Thu', 14));
   });
 
+  it('keeps where a pruned plan would have gone and what it ran into, so the schedule can show it', () => {
+    const moved = result.pruned.find((p) => p.message.startsWith('Move Bob to A7IV-2'))!;
+    const idx = indexSnapshot(snapshot);
+    expect(idx.unitLabel(moved.after.unitId)).toBe('A7IV-2');
+    expect(moved.conflictsWith.map((id) => idx.customers.get(idx.bookings.get(id)!.customerId)?.name)).toEqual(['Charlie']);
+  });
+
   it('lists the alternatives from the demo script as pruned, with reasons', () => {
     const messages = result.pruned.map((p) => p.message);
     expect(messages).toContain('Move Vincent to A7IV-2, return to Thu 10:00am → picked-up rentals never change unit');

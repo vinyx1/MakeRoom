@@ -98,7 +98,7 @@ export function requestChange(db: Db, shopId: string, input: { customerId: strin
         request: storeRequest(request),
         status: result.status,
         plans: result.status === 'fits' || result.status === 'needs_other_changes' ? result.plans.map(planSummary) : [],
-        pruned: result.status === 'invalid_request' ? [] : result.pruned.map((p) => ({ message: p.message, rules: p.rules, bookingId: p.bookingId })),
+        pruned: result.status === 'invalid_request' ? [] : result.pruned.map((p) => ({ message: p.message, rules: p.rules, bookingId: p.bookingId, customerId: p.customerId, after: p.after, conflictsWith: p.conflictsWith })),
       },
     });
     if (result.status === 'invalid_request') return { status: 'invalid', violations: result.violations };
@@ -264,7 +264,7 @@ export function resolveDraft(db: Db, shopId: string, input: { draftId: string; a
       payload: {
         request: storeRequest(request), source: 'owner_resolve', status: result.status,
         plans: result.status === 'fits' || result.status === 'needs_other_changes' ? result.plans.map(planSummary) : [],
-        pruned: result.status === 'invalid_request' ? [] : result.pruned.map((p) => ({ message: p.message, rules: p.rules, bookingId: p.bookingId })),
+        pruned: result.status === 'invalid_request' ? [] : result.pruned.map((p) => ({ message: p.message, rules: p.rules, bookingId: p.bookingId, customerId: p.customerId, after: p.after, conflictsWith: p.conflictsWith })),
       },
     });
     if (result.status === 'invalid_request') return { status: 'invalid', violations: result.violations };
@@ -357,7 +357,7 @@ export async function markOverdue(
       payload: {
         request: storeRequest(request), source: 'overdue', status: result.status,
         plans: result.status === 'infeasible' ? [] : result.plans.map(planSummary),
-        pruned: result.pruned.map((p) => ({ message: p.message, rules: p.rules, bookingId: p.bookingId })),
+        pruned: result.pruned.map((p) => ({ message: p.message, rules: p.rules, bookingId: p.bookingId, customerId: p.customerId, after: p.after, conflictsWith: p.conflictsWith })),
       },
     });
     const overdueLog = (outcome: string) =>

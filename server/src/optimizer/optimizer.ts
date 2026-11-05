@@ -71,6 +71,8 @@ export type Pruned = {
   customerId: string;
   after: Placement;
   rules: Rule[];
+  /** Bookings this plan would have overlapped, so the schedule can light them up. */
+  conflictsWith: string[];
   /** Owner-facing, for the activity feed: "Move Bob to A7IV-3 → A7IV-3 is unavailable (maintenance)". */
   message: string;
 };
@@ -149,7 +151,7 @@ function runSearch(idx: Index, requester: Requester, budget: number) {
   const plans = new Map<string, Plan>();
   const pruned = new Map<string, Pruned>();
 
-  const prune = (change: ProposedChange, violations: Pick<Violation, 'rule' | 'message'>[]) => {
+  const prune = (change: ProposedChange, violations: Pick<Violation, 'rule' | 'message' | 'otherBookingId'>[]) => {
     const key = changeKey(change);
     if (pruned.has(key)) return;
     const messages = [...new Set(violations.map((v) => v.message))];
@@ -158,6 +160,7 @@ function runSearch(idx: Index, requester: Requester, budget: number) {
       customerId: change.customerId,
       after: change.after,
       rules: [...new Set(violations.map((v) => v.rule))],
+      conflictsWith: [...new Set(violations.flatMap((v) => (v.otherBookingId ? [v.otherBookingId] : [])))],
       message: `${describeMove(idx, change)} → ${messages.join('; ')}`,
     });
   };
