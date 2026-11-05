@@ -11,23 +11,28 @@ import { Avatar } from './Chrome';
 type Props = Omit<ComponentProps<typeof ChatPane>, 'typing' | 'role' | 'waitingOn'> & {
   open: boolean;
   now: Date;
-  onClose: () => void;
+  onToggle: () => void;
   typing: boolean;
   role: string;
   waitingOn: Customer[];
 };
 
-export function CustomerPhone({ open, now, onClose, ...chat }: Props) {
+export function CustomerPhone({ open, now, onToggle, ...chat }: Props) {
   const { customers, customerId, onCustomer, waitingOn, zone, role } = chat;
   const name = customers.find((c) => c.id === customerId)?.name ?? '';
   return (
-    <div className={`phone-slot ${open ? 'open' : ''}`} inert={!open}>
+    <div className="phone-dock">
+      <button className={`phone-tab ${!open && waitingOn.length ? 'waiting' : ''}`} aria-expanded={open} onClick={onToggle} title={open ? 'Slide the customer phone away' : 'Slide the customer phone out'}>
+        <span className="phone-tab-arrow" aria-hidden="true">{open ? '›' : '‹'}</span>
+        <span className="phone-tab-label">{open ? 'Hide phone' : waitingOn.length ? `${waitingOn[0]!.name} has an offer` : 'Customer phone'}</span>
+      </button>
+      <div className={`phone-slot ${open ? 'open' : ''}`} inert={!open}>
       <aside className="phone" aria-label={`${name}'s phone`}>
         <div className="phone-screen">
           <div className="phone-status">
             <span>{DateTime.fromJSDate(now, { zone }).toFormat('h:mm')}</span>
             <span className="phone-island" aria-hidden="true" />
-            <button className="phone-close" onClick={onClose} aria-label="Close the customer phone">Close</button>
+            <span />
           </div>
           <div className="phone-accounts" role="tablist" aria-label="Customer accounts">
             {customers.map((c) => (
@@ -54,6 +59,7 @@ export function CustomerPhone({ open, now, onClose, ...chat }: Props) {
           <div className="phone-home" aria-hidden="true" />
         </div>
       </aside>
+      </div>
     </div>
   );
 }

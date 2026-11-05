@@ -290,9 +290,6 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
       <TopBar
         owner={owner}
         shopNow={shop.shopNow!}
-        phoneOpen={phoneOpen}
-        onPhone={() => setPhoneOpen((o) => !o)}
-        waitingOn={waitingOn(owner, playing)}
         onFastForward={async (m) => {
           const r = await api.fastForward(m);
           toast({ kind: 'ok', text: `Shop clock +${m} min${r.expired.length ? `; ${r.expired.length} offer${r.expired.length === 1 ? '' : 's'} expired` : ''}.` });
@@ -316,7 +313,7 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
       <CustomerPhone
         open={phoneOpen}
         now={shop.shopNow!}
-        onClose={() => setPhoneOpen(false)}
+        onToggle={() => setPhoneOpen((o) => !o)}
         customerId={playing}
         customers={customers}
         onCustomer={setPlaying}
