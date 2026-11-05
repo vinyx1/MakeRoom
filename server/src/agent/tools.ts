@@ -584,26 +584,28 @@ export function makeTools(scope: ToolScope) {
       name: 'send_message',
       description: 'The only way to reach the customer; plain reply text is never shown. Every dollar amount must come from a tool result, the context or the policy.',
       inputSchema: z.object({ text: z.string().min(1) }),
-      run: async ({ text }) => {
-        // The card is on screen while this turn runs. An explanation that lands after they've answered would ask them
-        // to choose again.
-        if (!turn.offerClosed && turn.offer && !(await offerStillOpen(db, me, turn.offer))) turn.offerClosed = true;
-        if (turn.offerClosed) return refuse('INVALID_STATE', 'Not sent: this offer already moved on.', OFFER_MOVED_ON);
-        const unverified = amountsIn(text).filter((c) => !turn.citable.has(c));
-        if (unverified.length) {
-          await logActivity(db, { shopId, at: scope.now(), actor: 'agent', kind: 'agent_message_blocked', payload: { customerId: me, text, amounts: unverified.map(usd) } });
-          return refuse('UNVERIFIED_AMOUNT', `Not sent: ${unverified.map(usd).join(', ')} did not come from a tool.`, 'Remove the amount or get it from a tool, then send again.');
-        }
-        return turn.inOrder(() => db.transaction(async (tx) => {
-          const [conversation] = await tx.select().from(s.conversations).where(eq(s.conversations.id, scope.conversationId));
-          const now = (await loadSnapshot(tx, shopId)).now;
-          // The message telling them a person will reply has to reach them; only what comes after it is held back.
-          const draft = !!conversation?.handedOffAt && !turn.handedOffThisTurn;
-          await tx.insert(s.messages).values({ shopId, conversationId: scope.conversationId, author: 'agent', body: text, isOwnerDraft: draft, at: turn.nextAt(now) });
-          turn.messagesSent++;
-          return ok(draft ? { sent: false, saved_as_draft_for_owner: true } : { sent: true });
-        }));
-      },
+      // The whole call takes its turn in order: anything awaited before joining the queue could let a later message pass.
+      run: async ({ text }) =>
+        turn.inOrder(async () => {
+          // The card is on screen while this turn runs. An explanation that lands after they've answered would ask them
+          // to choose again.
+          if (!turn.offerClosed && turn.offer && !(await offerStillOpen(db, me, turn.offer))) turn.offerClosed = true;
+          if (turn.offerClosed) return refuse('INVALID_STATE', 'Not sent: this offer already moved on.', OFFER_MOVED_ON);
+          const unverified = amountsIn(text).filter((c) => !turn.citable.has(c));
+          if (unverified.length) {
+            await logActivity(db, { shopId, at: scope.now(), actor: 'agent', kind: 'agent_message_blocked', payload: { customerId: me, text, amounts: unverified.map(usd) } });
+            return refuse('UNVERIFIED_AMOUNT', `Not sent: ${unverified.map(usd).join(', ')} did not come from a tool.`, 'Remove the amount or get it from a tool, then send again.');
+          }
+          return db.transaction(async (tx) => {
+            const [conversation] = await tx.select().from(s.conversations).where(eq(s.conversations.id, scope.conversationId));
+            const now = (await loadSnapshot(tx, shopId)).now;
+            // The message telling them a person will reply has to reach them; only what comes after it is held back.
+            const draft = !!conversation?.handedOffAt && !turn.handedOffThisTurn;
+            await tx.insert(s.messages).values({ shopId, conversationId: scope.conversationId, author: 'agent', body: text, isOwnerDraft: draft, at: turn.nextAt(now) });
+            turn.messagesSent++;
+            return ok(draft ? { sent: false, saved_as_draft_for_owner: true } : { sent: true });
+          });
+        }),
     }),
   ];
 }
