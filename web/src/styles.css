@@ -1,7 +1,7 @@
 /*
   MakeRoom's look: one grey frame holds the sidebar and top bar; the work sits on a sheet inset 8px.
-  Persimmon has one meaning: the assistant is proposing this. It marks ghosts on the schedule, the assistant in
-  chats, and owner cards waiting on a plan. Actions are near-black. Red, amber and green are status only.
+  Orange is the brand: actions, today, selections and anything new. A plan the assistant proposes is the same hue but
+  always a pale fill with a dashed edge, so it reads apart from a button. Red, amber and green are status only.
   Grid: 232 sidebar + fluid sheet + 8 inset. The sheet's panes are divided by 1px rules, with one 12px gutter inside.
 */
 :root {
@@ -15,7 +15,12 @@
   --control: #cdd1d7;
   --text: #17191c;
   --muted: #5a6068;
-  --primary: #1d1f22;
+  --primary: #c2410c; /* orange deep enough for white text (5:1) */
+  --primary-hover: #a83809;
+  --ink-fill: #1d1f22; /* the dark surfaces that aren't actions: toasts, the replay strip */
+  --brand: #d9480f;
+  --brand-soft: #fdeee6;
+  --brand-tint: #fbe0d2;
 
   --proposal: #d9480f;
   --proposal-ink: #a33609;
@@ -50,10 +55,10 @@ h1, h2, h3, h4, p { margin: 0; }
 button { font: inherit; height: 28px; padding: 0 10px; border: 1px solid var(--control); border-radius: var(--radius-control); background: var(--surface); color: var(--text); cursor: pointer; white-space: nowrap; }
 button:hover:not(:disabled) { background: var(--raised); }
 button:active:not(:disabled) { background: var(--active); }
-button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 button:disabled { color: var(--muted); background: var(--raised); cursor: default; }
 button.primary { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 500; }
-button.primary:hover:not(:disabled) { background: #33363b; }
+button.primary:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); }
 button.primary:disabled { background: var(--active); border-color: var(--active); color: var(--muted); }
 button.danger { background: var(--conflict); border-color: var(--conflict); color: #fff; font-weight: 500; }
 button.danger:hover:not(:disabled) { background: #8a1740; }
@@ -65,6 +70,7 @@ button.chip { min-width: 48px; }
 button.chip.on { background: var(--primary); color: #fff; border-color: var(--primary); }
 select, input[type='datetime-local'], .price-input { font: inherit; height: 28px; padding: 0 6px; border-radius: var(--radius-control); border: 1px solid var(--control); background: var(--surface); color: var(--text); }
 input[type='checkbox'] { accent-color: var(--primary); margin: 0; }
+.pane-title { color: var(--text); }
 
 .muted { color: var(--muted); }
 .small { font-size: 12px; }
@@ -79,7 +85,7 @@ code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; b
 /* Sidebar */
 .side { grid-row: 1 / 3; display: flex; flex-direction: column; gap: 18px; min-height: 0; overflow-y: auto; padding: 0 14px 12px; }
 .brand { display: flex; align-items: center; gap: 8px; height: 48px; flex: none; }
-.brand-name { font-size: 15px; font-weight: 600; }
+.brand-name { font-size: 15px; font-weight: 600; color: var(--primary-hover); }
 .mark { flex: none; display: block; }
 .side-sec { flex: none; }
 .side-title { font-size: 12px; font-weight: 600; margin-bottom: 6px; }
@@ -87,7 +93,7 @@ code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; b
 .month-grid .dow { color: var(--muted); }
 .month-grid .day { border-radius: 0; }
 .month-grid .day.out { color: #767c85; }
-.month-grid .day.span { background: var(--active); }
+.month-grid .day.span { background: var(--brand-soft); }
 .month-grid .day.span-start { border-radius: 6px 0 0 6px; }
 .month-grid .day.span-end { border-radius: 0 6px 6px 0; }
 .month-grid .day.today { background: var(--primary); color: #fff; font-weight: 600; border-radius: 6px; }
@@ -123,7 +129,7 @@ code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; b
 .bottom { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); min-height: 0; }
 .pane { display: flex; flex-direction: column; min-height: 0; min-width: 0; border-right: 1px solid var(--edge); }
 .pane:last-child { border-right: none; }
-.pane-head { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px var(--gutter); border-bottom: 1px solid var(--rule); flex: none; }
+.pane-head { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px var(--gutter); border-bottom: 2px solid var(--brand); flex: none; }
 .pane-title { font-weight: 600; font-size: 13px; }
 .pane-who { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
 .pane-names { min-width: 0; line-height: 15px; }
@@ -135,7 +141,7 @@ code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; b
 .owner-body { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 .inbox { padding: var(--gutter); display: flex; flex-direction: column; gap: 8px; flex: 0 1 auto; max-height: 62%; overflow: auto; border-bottom: 1px solid var(--edge); }
 .count { margin-left: auto; font-size: 12px; color: var(--muted); }
-.count.hot { color: var(--text); font-weight: 500; }
+.count.hot { color: var(--primary); font-weight: 600; }
 .ocard { flex: none; border: 1px solid var(--edge); border-radius: var(--radius-card); padding: 10px var(--gutter); background: var(--surface); }
 .ocard-kind { margin-bottom: 4px; }
 .tag { display: inline-block; font-size: 12px; line-height: 16px; font-weight: 500; padding: 1px 6px; border-radius: 4px; white-space: nowrap; background: var(--raised); color: var(--muted); }
@@ -200,7 +206,7 @@ code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; b
 .thread-preview { display: block; font-size: 12px; line-height: 17px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .thread-row.unread .thread-name { font-weight: 600; }
 .thread-row.unread .thread-preview { color: var(--text); }
-.unread-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); }
+.unread-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--brand); }
 .thread-note { font-size: 12px; color: var(--muted); text-align: center; flex: none; }
 .back { flex: none; width: 28px; padding: 0; font-size: 18px; line-height: 1; }
 .msg.draft .body { color: var(--muted); }
@@ -217,7 +223,8 @@ code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; b
 .phone-accounts { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 1px; padding: 4px 2px 8px; flex: none; border-bottom: 1px solid var(--rule); }
 .phone-account { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; height: auto; padding: 3px 0; border: none; border-radius: 10px; background: none; }
 .phone-account:hover:not(:disabled) { background: var(--raised); }
-.phone-account.on { background: var(--active); }
+.phone-account.on { background: var(--brand-soft); }
+.phone-account.on .phone-account-name { color: var(--primary); }
 .phone-account.on .phone-account-name { font-weight: 600; }
 .phone-avatar { position: relative; display: block; }
 .phone-avatar .avatar { width: 28px; height: 28px; font-size: 12px; }
@@ -233,7 +240,7 @@ code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; b
 .phone .msg .body { display: inline-block; padding: 7px 11px; border-radius: 16px; background: #eef0f2; line-height: 18px; margin: 0; }
 .phone .msg.customer { justify-content: flex-end; }
 .phone .msg.customer > .avatar, .phone .msg.customer .who { display: none; }
-.phone .msg.customer .body { background: var(--booked); color: #fff; }
+.phone .msg.customer .body { background: var(--primary); color: #fff; }
 .phone .msg.card-msg { display: block; }
 .phone .msg.card-msg > div { max-width: none; }
 .phone .card { border-radius: 16px; padding: 10px 12px; }
@@ -275,7 +282,7 @@ code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; b
 
 /* Schedule: bookings, ghosts (pending plans) and red drafts. Bryntum keeps its own theme around them;
    only the marks that carry a meaning here are recoloured, so amber and orange stay reserved. */
-:root { --now-line: #d93025; --b-current-time-color: var(--now-line); --b-time-range-line-primary: var(--now-line); --b-time-range-line-color: var(--now-line); --b-time-range-line-width: 1px; }
+:root { --b-primary: var(--brand); --now-line: #d93025; --b-current-time-color: var(--now-line); --b-time-range-line-primary: var(--now-line); --b-time-range-line-color: var(--now-line); --b-time-range-line-width: 1px; }
 .b-sch-resource-time-range { --b-primary: #5a6068; --b-resource-time-range-background: repeating-linear-gradient(135deg, #eef0f2 0 5px, #f7f8f9 5px 10px); color: var(--muted); background: repeating-linear-gradient(135deg, #e7e9ec 0 5px, #f3f4f6 5px 10px) !important; }
 .b-sch-resource-time-range .b-sch-event-content { color: var(--muted) !important; font-weight: 500; }
 .b-sch-event { border-radius: 4px !important; }
@@ -296,7 +303,7 @@ code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; b
 }
 .b-sch-event.kind-rejected { background: var(--surface) !important; border: 1.5px dashed var(--muted) !important; color: var(--muted) !important; font-weight: 500; }
 .b-sch-event.kind-booking.lit-up { outline: 2px solid var(--conflict); outline-offset: 1px; }
-.replay-note { position: absolute; left: 230px; right: 12px; bottom: 34px; z-index: 12; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 5px 10px; background: var(--primary); color: #fff; border-radius: var(--radius-control); font-size: 12px; line-height: 17px; box-shadow: 0 2px 8px rgba(20, 24, 30, 0.2); }
+.replay-note { position: absolute; left: 230px; right: 12px; bottom: 34px; z-index: 12; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 5px 10px; background: var(--ink-fill); color: #fff; border-radius: var(--radius-control); font-size: 12px; line-height: 17px; box-shadow: 0 2px 8px rgba(20, 24, 30, 0.2); }
 .replay-note button.link { flex: none; color: #fff; text-decoration-color: rgba(255, 255, 255, 0.6); }
 .pruned-plan { display: block; width: 100%; height: auto; padding: 1px 4px; margin-left: -4px; border: none; border-radius: 4px; background: none; color: inherit; font-size: inherit; line-height: inherit; text-align: left; white-space: normal; }
 .pruned-plan:hover:not(:disabled) { background: var(--active); color: var(--text); }
@@ -325,7 +332,7 @@ code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; b
 .modal li { margin: 3px 0; }
 .modal label { display: flex; align-items: center; gap: 8px; margin: 8px 0; flex-wrap: wrap; }
 .toasts { position: fixed; right: 20px; bottom: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 40; }
-.toast { padding: 8px 12px; border-radius: var(--radius-control); background: var(--primary); color: #fff; max-width: 420px; box-shadow: 0 4px 14px rgba(20, 24, 30, 0.22); }
+.toast { padding: 8px 12px; border-radius: var(--radius-control); background: var(--ink-fill); color: #fff; max-width: 420px; box-shadow: 0 4px 14px rgba(20, 24, 30, 0.22); }
 .toast.warn { background: #6b4f00; }
 .toast.error { background: #84183d; }
 .splash { min-height: 100vh; padding: 24px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; justify-content: center; max-width: 480px; margin: 0 auto; }
