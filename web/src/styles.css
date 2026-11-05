@@ -117,6 +117,14 @@ code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; b
 /* Top bar */
 .top { grid-column: 2; display: flex; align-items: center; gap: 12px; padding-right: 12px; min-width: 0; }
 .top h1 { font-size: 15px; line-height: 20px; font-weight: 600; white-space: nowrap; }
+.shop-switch { position: relative; min-width: 0; }
+.shop-switch-button { display: flex; align-items: center; gap: 6px; background: transparent; border-color: transparent; padding: 0 6px; margin-left: -6px; }
+.shop-switch-button:hover:not(:disabled) { background: var(--active); }
+.shop-menu { position: absolute; top: calc(100% + 4px); left: -6px; z-index: 40; width: 320px; display: flex; flex-direction: column; gap: 2px; padding: 4px; background: var(--surface); border: 1px solid var(--frame-line); border-radius: var(--radius-sheet); box-shadow: 0 8px 24px rgb(0 0 0 / 0.14); }
+.shop-menu button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; height: auto; padding: 8px; background: transparent; border-color: transparent; text-align: left; white-space: normal; }
+.shop-menu button:hover:not(:disabled), .shop-menu button[aria-checked='true'] { background: var(--active); }
+.shop-menu-name { font-weight: 500; }
+.shop-menu .error { padding: 4px 8px; }
 .top > button { background: transparent; }
 .top > button:hover:not(:disabled) { background: var(--active); }
 .top .clock { margin-left: auto; display: flex; align-items: center; gap: 6px; white-space: nowrap; flex: none; }

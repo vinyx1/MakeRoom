@@ -90,7 +90,10 @@ export type Message = { id: string; author: 'customer' | 'agent' | 'owner' | 'sy
 export type Conversation = { id: string; customerId: string; handedOffAt: string | null; messages: Message[] };
 
 export type OwnerView = {
-  shop: { name: string; now: string; timezone: string; opensAt: string; closesAt: string; agentTurnsUsed: number; autoReplyCustomers: boolean };
+  shop: {
+    name: string; scenario: string; now: string; timezone: string; opensAt: string; closesAt: string; agentTurnsUsed: number; autoReplyCustomers: boolean;
+    demo: { shops: { id: string; label: string; tagline: string }[]; defaultCustomer: string; suggestions: Record<string, string> };
+  };
   models: Model[];
   units: Unit[];
   customers: Customer[];
@@ -191,5 +194,6 @@ export const api = {
   saveFact: (factId: string, value: 'yes' | 'no') => call<Outcome>('POST', `/api/facts/${factId}`, { value }),
 
   reset: () => call<Outcome>('POST', '/api/demo/reset'),
+  switchShop: (scenario: string) => call<Outcome>('POST', '/api/demo/scenario', { scenario }),
   fastForward: (minutes: number) => call<Outcome & { expired: string[] }>('POST', '/api/demo/fast-forward', { minutes }),
 };

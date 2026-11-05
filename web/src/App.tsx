@@ -126,7 +126,7 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
   const owner = shop.owner!;
   const customers = owner.customers;
   const byName = (n: string) => customers.find((c) => c.name === n)?.id ?? customers[0]!.id;
-  const [playing, setPlaying] = useState(() => byName('Vincent'));
+  const [playing, setPlaying] = useState(() => byName(owner.shop.demo.defaultCustomer));
   const [ownerThread, setOwnerThread] = useState<string | null>(null);
   // Open at first: the demo's first step happens on the customer's phone.
   const [phoneOpen, setPhoneOpen] = useState(true);
@@ -140,7 +140,7 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
 
   // After a reset the customers have new ids; point the panes at the same names again.
   useEffect(() => {
-    if (!customers.some((c) => c.id === playing)) setPlaying(byName('Vincent'));
+    if (!customers.some((c) => c.id === playing)) setPlaying(byName(owner.shop.demo.defaultCustomer));
     if (ownerThread && !customers.some((c) => c.id === ownerThread)) setOwnerThread(null);
   }, [customers]);
 
@@ -316,6 +316,7 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
       </div>
       </main>
       <CustomerPhone
+        suggestions={owner.shop.demo.suggestions}
         open={phoneOpen}
         now={shop.shopNow!}
         onClose={() => setPhoneOpen(false)}
@@ -331,7 +332,7 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
         onOutcome={onOutcome}
       />
       {equipment && <EquipmentDrawer owner={owner} onClose={() => setEquipment(false)} />}
-      {help && <Help onClose={() => setHelp(false)} />}
+      {help && <Help scenario={owner.shop.scenario} onClose={() => setHelp(false)} />}
       {prompt && <EditDialog prompt={prompt} />}
       <Toasts toasts={toasts} />
     </div>

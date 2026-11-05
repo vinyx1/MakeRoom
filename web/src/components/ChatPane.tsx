@@ -19,13 +19,14 @@ type Props = {
   /** Other customers with a card waiting on them: with one chat on screen, this is how the visitor finds them. */
   waitingOn: Customer[];
   onOutcome: (o: Outcome) => void;
+  /** This shop's one-click first messages, in each customer's own words. */
+  suggestions: Record<string, string>;
 };
 
-/** One click to start, in the customer's own words. */
-const TRY: Record<string, string> = { Vincent: 'Shoot ran over. Can I keep the camera until Thursday at 10am?' };
+/** One click to start, for a customer with no message of their own in this shop's demo. */
 const TRY_ANYONE = 'When is my booking?';
 
-export function ChatPane({ customerId, customers, onCustomer, config, zone, tick, typing, waitingOn, onOutcome }: Props) {
+export function ChatPane({ customerId, customers, onCustomer, config, zone, tick, typing, waitingOn, onOutcome, suggestions }: Props) {
   const [view, setView] = useState<CustomerView | null>(null);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -79,8 +80,8 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
         {view?.messages.length === 0 && view.cards.length === 0 && view.requests.length === 0 && (
           <div className="empty">
             <p>You're writing as {name}. Nothing here yet.</p>
-            <button className="try" disabled={sending} onClick={() => void send(TRY[name] ?? TRY_ANYONE)}>
-              {TRY[name] ?? TRY_ANYONE}
+            <button className="try" disabled={sending} onClick={() => void send(suggestions[name] ?? TRY_ANYONE)}>
+              {suggestions[name] ?? TRY_ANYONE}
             </button>
           </div>
         )}

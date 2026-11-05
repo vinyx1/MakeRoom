@@ -1,8 +1,8 @@
 // The page's frame: the sidebar, the top bar with the shop clock, the equipment drawer, help, and toasts.
 
 import { DateTime } from 'luxon';
-import { useState } from 'react';
-import type { Customer, OwnerView } from '../api';
+import { useEffect, useRef, useState } from 'react';
+import { type Customer, type OwnerView, api } from '../api';
 import { scheduleToToday } from '../highlight';
 import { shopTime, usd } from '../live';
 
@@ -142,7 +142,7 @@ export function TopBar({ owner, shopNow, onFastForward, phoneOpen, onPhone, wait
   const zone = owner.shop.timezone;
   return (
     <header className="top">
-      <h1>{owner.shop.name}</h1>
+      <ShopSwitcher owner={owner} />
       <button onClick={scheduleToToday} title="Scroll the schedule back to the current time">Today</button>
       <div className="clock" title="The demo runs on its own clock">
         <span className="muted">Shop time</span> <b>{shopTime(shopNow, zone, 'ccc d LLL, h:mma')}</b>
@@ -157,6 +157,62 @@ export function TopBar({ owner, shopNow, onFastForward, phoneOpen, onPhone, wait
         </button>
       </div>
     </header>
+  );
+}
+
+/** The shop name opens the visitor's other demo shop. Each keeps its own state; the page reloads into the one chosen. */
+function ShopSwitcher({ owner }: { owner: OwnerView }) {
+  const [open, setOpen] = useState(false);
+  const [opening, setOpening] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => {
+      if (!root.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', away);
+    document.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('mousedown', away);
+      document.removeEventListener('keydown', esc);
+    };
+  }, [open]);
+
+  const choose = async (id: string, label: string) => {
+    if (id === owner.shop.scenario) return setOpen(false);
+    setOpening(label);
+    setError(null);
+    try {
+      await api.switchShop(id);
+      window.location.reload();
+    } catch (e) {
+      setOpening(null);
+      setError((e as Error).message);
+    }
+  };
+
+  return (
+    <div className="shop-switch" ref={root}>
+      <button className="shop-switch-button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <h1>{owner.shop.name}</h1>
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </button>
+      {open && (
+        <div className="shop-menu" role="menu">
+          {owner.shop.demo.shops.map((s) => (
+            <button key={s.id} role="menuitemradio" aria-checked={s.id === owner.shop.scenario} disabled={!!opening} onClick={() => void choose(s.id, s.label)}>
+              <span className="shop-menu-name">{s.label}</span>
+              <span className="muted small">{opening === s.label ? 'Opening, and placing its sandbox payments…' : s.tagline}</span>
+            </button>
+          ))}
+          {error && <div className="error small">{error}</div>}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -204,7 +260,47 @@ export function EquipmentDrawer({ owner, onClose }: { owner: OwnerView; onClose:
   );
 }
 
-export function Help({ onClose }: { onClose: () => void }) {
+function YardHelp({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="modal-back" onClick={onClose}>
+      <div className="modal help" onClick={(e) => e.stopPropagation()}>
+        <h3>A rainy Monday at the yard</h3>
+        <p className="muted small">
+          It's 6:30am after a wet weekend. The same engine as the camera shop, with four problems already open at once. Each holds what it needs, so they can't step on each other. Handle them in any order. A dot on the phone marks anyone with an offer to answer.
+        </p>
+        <h4>The rain delay</h4>
+        <ol>
+          <li>Harbor needs their skid steer until Wednesday, which runs into Northside's booking. Harbor's hold is already placed.</li>
+          <li>On the phone, open Delgado Paving: they're asked to take a track loader on Tuesday, at no extra charge.</li>
+          <li>When they accept, Northside moves to Delgado's skid steer. It's the same model, so they only get a notice.</li>
+        </ol>
+        <h4>Over the assistant's limit</h4>
+        <ol>
+          <li>Redwood's extra day would mean giving Mesa a four-day upgrade, worth more than the cap and more than Redwood pays.</li>
+          <li>It waits for you under Needs owner approval, and Mesa hears nothing until you decide. Approve, then answer as Mesa.</li>
+        </ol>
+        <h4>Will it fit?</h4>
+        <ol>
+          <li>Summit phoned in an extension. The only machine left for Alder's backyard job is the larger Cat 308, and nobody has recorded whether it fits their gate.</li>
+          <li>Answer on your card. Yes and Approve moves on to Summit's payment and Alder's answer. No ends that plan, and nothing moves.</li>
+        </ol>
+        <h4>The last telehandler</h4>
+        <ol>
+          <li>Pacific's extension holds the Genie for Coastline while Coastline decides.</li>
+          <li>As Dune Framing, press the one-click message. Both telehandlers are taken or held for those days, so the assistant works from what's actually free.</li>
+          <li>Open Coastline Roofing and choose Keep my booking as is. The Genie is released, and Dune can ask again.</li>
+        </ol>
+        <p className="muted small">Reset demo starts this shop over and leaves the camera shop as it is. Switch shops from the name at the top.</p>
+        <button className="primary" onClick={onClose}>
+          Got it
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function Help({ scenario, onClose }: { scenario: string; onClose: () => void }) {
+  if (scenario === 'yard') return <YardHelp onClose={onClose} />;
   return (
     <div className="modal-back" onClick={onClose}>
       <div className="modal help" onClick={(e) => e.stopPropagation()}>
