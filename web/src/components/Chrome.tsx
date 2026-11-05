@@ -104,10 +104,10 @@ type SidebarProps = {
 export function Sidebar({ owner, onReset, onEquipment, onHelp }: SidebarProps) {
   return (
     <aside className="side">
-      <div className="brand">
+      <a className="brand" href="/" title="Back to the home page">
         <Mark />
         <span className="brand-name">MakeRoom</span>
-      </div>
+      </a>
       <MiniMonth now={owner.shop.now} zone={owner.shop.timezone} />
       <AtTheCounter owner={owner} />
       <section className="side-sec ref">

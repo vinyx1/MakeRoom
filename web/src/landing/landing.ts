@@ -202,3 +202,17 @@ if (!reducedMotion) {
     riseObserver.observe(el);
   });
 }
+
+// ---- The hero's orange square drops in, then steps along the stripe. With reduced motion it stays where it landed. ----
+
+if (!reducedMotion) {
+  const squares = [...document.querySelectorAll<HTMLElement>('.stripe i')];
+  let lit = squares.findIndex((el) => el.classList.contains('moved'));
+  window.setTimeout(() => {
+    window.setInterval(() => {
+      squares[lit]!.classList.remove('moved', 'lit');
+      lit = (lit + 1) % squares.length;
+      squares[lit]!.classList.add('lit');
+    }, 800);
+  }, 2400); // the drop-in has finished by now
+}
