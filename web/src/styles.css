@@ -214,15 +214,15 @@ code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; b
 .phone-island { width: 74px; height: 20px; border-radius: 12px; background: #17191c; }
 .phone-close { justify-self: end; height: auto; padding: 0; border: none; background: none; font-size: 12px; font-weight: 400; color: var(--muted); }
 .phone-close:hover:not(:disabled) { background: none; color: var(--text); }
-.phone-accounts { display: flex; gap: 2px; padding: 4px 4px 8px; overflow-x: auto; flex: none; scrollbar-width: none; border-bottom: 1px solid var(--rule); }
-.phone-account { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: none; width: 48px; height: auto; padding: 3px 0; border: none; border-radius: 10px; background: none; }
+.phone-accounts { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 1px; padding: 4px 2px 8px; flex: none; border-bottom: 1px solid var(--rule); }
+.phone-account { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; height: auto; padding: 3px 0; border: none; border-radius: 10px; background: none; }
 .phone-account:hover:not(:disabled) { background: var(--raised); }
 .phone-account.on { background: var(--active); }
 .phone-account.on .phone-account-name { font-weight: 600; }
 .phone-avatar { position: relative; display: block; }
-.phone-avatar .avatar { width: 30px; height: 30px; font-size: 12px; }
+.phone-avatar .avatar { width: 28px; height: 28px; font-size: 12px; }
 .phone-dot { position: absolute; top: -1px; right: -2px; width: 10px; height: 10px; border-radius: 50%; background: var(--proposal); border: 2px solid #fff; }
-.phone-account-name { font-size: 10.5px; line-height: 13px; max-width: 46px; overflow: hidden; text-overflow: ellipsis; }
+.phone-account-name { font-size: 11px; line-height: 13px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .phone-who { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 6px 10px; flex: none; }
 .phone-who span { font-size: 12px; color: var(--muted); }
 .phone .pane { flex: 1; border: none; background: #fff; }
