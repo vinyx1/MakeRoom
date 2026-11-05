@@ -55,6 +55,16 @@ const hoursBetween = (a: string, b: string) => Math.round((new Date(b).getTime()
  * The models with no unit left at some moment in this stretch of opening hours, by the prefix of their unit labels.
  * Counts confirmed bookings with their turnaround, and unavailable units; a plan that's only proposed holds nothing here.
  */
+/** Like equipment together: the biggest category first, each from its smallest model up. */
+function unitOrder(owner: OwnerView) {
+  const modelOf = (u: OwnerView['units'][number]) => owner.models.find((m) => m.id === u.modelId)!;
+  const size = (category: string) => owner.units.filter((u) => modelOf(u).category === category).length;
+  return (a: OwnerView['units'][number], b: OwnerView['units'][number]) => {
+    const [x, y] = [modelOf(a), modelOf(b)];
+    return size(y.category) - size(x.category) || x.category.localeCompare(y.category) || x.tier - y.tier || a.label.localeCompare(b.label);
+  };
+}
+
 export function fullyBooked(owner: OwnerView, start: Date, end: Date): string[] {
   const zone = owner.shop.timezone;
   const opens = Number(owner.shop.opensAt.slice(0, 2));
@@ -93,7 +103,7 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel, onR
 
   const data = useMemo(() => {
     const resources = [
-      ...[...owner.units].sort((a, b) => a.label.localeCompare(b.label)).map((u) => ({ id: u.id, name: u.label, model: modelOf(u.modelId) })),
+      ...[...owner.units].sort(unitOrder(owner)).map((u) => ({ id: u.id, name: u.label, model: modelOf(u.modelId) })),
       { id: UNASSIGNED, name: 'Unassigned', model: '', cls: 'unassigned-row' },
     ];
     const events: Record<string, unknown>[] = [];
@@ -281,7 +291,7 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel, onR
       eventStyle: 'rounded',
       // Units of one model sit under one merged cell, which groups them without adding rows.
       columns: [
-        { text: 'Model', field: 'model', width: 118, mergeCells: true, sum: 'count', summaryRenderer: () => 'Fully booked' },
+        { text: 'Model', field: 'model', width: owner.units.length > 12 ? 190 : 118, mergeCells: true, sum: 'count', summaryRenderer: () => 'Fully booked' },
         { text: 'Unit', field: 'name', width: 104 },
       ],
       mergeCellsFeature: { sortedOnly: false },
@@ -290,7 +300,9 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel, onR
         renderer({ startDate, endDate }: any) {
           const { owner: view, tz: zone } = latest.current;
           const full = fullyBooked(view, TimeZoneHelper.fromTimeZone(startDate, zone), TimeZoneHelper.fromTimeZone(endDate, zone));
-          return full.length ? `<span class="day-full">${StringHelper.encodeHtml(full.join(', '))}</span>` : '<span class="day-free">Room</span>';
+          if (!full.length) return '<span class="day-free">Room</span>';
+          const names = StringHelper.encodeHtml(full.join(', '));
+          return `<span class="day-full" title="${names}">${full.length > 2 ? `${full.length} models out` : names}</span>`;
         },
       },
       // The React wrapper takes one `<name>Feature` prop per feature (spike gotcha 1).

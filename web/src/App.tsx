@@ -60,7 +60,9 @@ function roleIn(owner: OwnerView, customerId: string): string {
 function waitingOn(owner: OwnerView, playing: string) {
   const ids = new Set<string>();
   for (const p of owner.proposals) {
-    if (p.state === 'DRAFT' && p.requesterCustomerId) ids.add(p.requesterCustomerId);
+    // A request the owner started goes to the customer once the owner has reviewed it.
+    const ownerFirst = p.source !== 'customer_request' && p.revisions.every((r) => r.needsOwner && !r.approvals.some((a) => a.role === 'owner' && a.status === 'approved'));
+    if (p.state === 'DRAFT' && p.requesterCustomerId && !ownerFirst) ids.add(p.requesterCustomerId);
     if (p.state !== 'AWAITING_APPROVALS') continue;
     const approvals = p.revisions.flatMap((r) => r.approvals.filter((a) => a.role === 'affected'));
     const answered = new Set(approvals.filter((a) => a.status === 'approved').map((a) => a.customerId));
@@ -301,7 +303,7 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
           void shop.refresh();
         }}
       />
-      <main className="sheet">
+      <main className={`sheet ${owner.units.length > 12 ? 'dense' : ''}`}>
       <Schedule owner={owner} shopNow={shop.shopNow!} onEdit={onEdit} onResolveDraft={onResolveDraft} onCancel={onCancelBooking} onReturned={onReturned} onMarkOverdue={onMarkOverdue} rejected={rejected} onClearRejected={() => setRejected(null)} />
       <div className="bottom">
         <OwnerPanel owner={owner} activity={shop.activity} onOutcome={onOutcome} onOpenChat={setOwnerThread} rejected={rejected} onRejected={setRejected} onResolveDraft={onResolveDraft} onMarkOverdue={onMarkOverdue} />

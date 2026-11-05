@@ -134,12 +134,22 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
       {view?.handedOff && (
         <div className="handoff">The shop is handling this chat, so the assistant is paused.</div>
       )}
-      {waitingOn.map((c) => (
-        <div className="nudge" key={c.id}>
-          {c.name} has an offer to answer.
-          <button onClick={() => onCustomer(c.id)}>Open {c.name}'s phone</button>
+      {waitingOn.length === 1 && (
+        <div className="nudge">
+          {waitingOn[0]!.name} has an offer to answer.
+          <button onClick={() => onCustomer(waitingOn[0]!.id)}>Open {waitingOn[0]!.name}'s phone</button>
         </div>
-      ))}
+      )}
+      {waitingOn.length > 1 && (
+        <div className="nudge nudge-many">
+          <span>{waitingOn.length} customers have an offer to answer:</span>
+          <span className="nudge-names">
+            {waitingOn.map((c) => (
+              <button key={c.id} onClick={() => onCustomer(c.id)}>{c.name}</button>
+            ))}
+          </span>
+        </div>
+      )}
       <form
         className="composer"
         onSubmit={(e) => {

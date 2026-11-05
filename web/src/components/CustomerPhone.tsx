@@ -36,13 +36,14 @@ export function CustomerPhone({ open, now, onClose, ...chat }: Props) {
                 role="tab"
                 aria-selected={c.id === customerId}
                 className={`phone-account ${c.id === customerId ? 'on' : ''}`}
+                ref={c.id === customerId ? (el) => el?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) : undefined}
                 onClick={() => onCustomer(c.id)}
               >
                 <span className="phone-avatar">
                   <Avatar name={c.name} />
                   {waitingOn.some((w) => w.id === c.id) && <span className="phone-dot" aria-label="Has an offer to answer" />}
                 </span>
-                <span className="phone-account-name">{c.name}</span>
+                <span className="phone-account-name">{c.name.split(' ')[0]}</span>
               </button>
             ))}
           </div>

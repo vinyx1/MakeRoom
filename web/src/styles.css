@@ -203,6 +203,9 @@ code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; b
 /* The one customer's chat: who else has a card waiting on them */
 .nudge { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px var(--gutter); background: var(--proposal-soft); color: var(--proposal-ink); font-size: 12px; font-weight: 500; border-top: 1px solid var(--rule); flex: none; }
 .nudge button { flex: none; background: var(--surface); }
+.nudge-many { flex-direction: column; align-items: flex-start; gap: 6px; }
+.nudge-names { display: flex; flex-wrap: wrap; gap: 4px; }
+.sheet.dense { grid-template-rows: minmax(366px, 56%) minmax(0, 1fr); }
 
 /* The owner's messages */
 .thread-list { list-style: none; margin: 0; padding: 0; overflow: auto; flex: 1; min-height: 0; }
@@ -228,7 +231,7 @@ code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; b
 .phone-island { width: 74px; height: 20px; border-radius: 12px; background: #17191c; }
 .phone-close { justify-self: end; height: auto; padding: 0; border: none; background: none; font-size: 12px; font-weight: 400; color: var(--muted); }
 .phone-close:hover:not(:disabled) { background: none; color: var(--text); }
-.phone-accounts { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 1px; padding: 4px 2px 8px; flex: none; border-bottom: 1px solid var(--rule); }
+.phone-accounts { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(46px, 1fr); gap: 1px; padding: 4px 2px 8px; flex: none; border-bottom: 1px solid var(--rule); overflow-x: auto; scrollbar-width: none; }
 .phone-account { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; height: auto; padding: 3px 0; border: none; border-radius: 10px; background: none; }
 .phone-account:hover:not(:disabled) { background: var(--raised); }
 .phone-account.on { background: var(--brand-soft); }
