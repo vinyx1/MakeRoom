@@ -3,7 +3,7 @@
 // button survives closing it.
 
 import { DateTime } from 'luxon';
-import type { ComponentProps } from 'react';
+import { type ComponentProps, useEffect, useRef } from 'react';
 import type { Customer } from '../api';
 import { ChatPane } from './ChatPane';
 import { Avatar } from './Chrome';
@@ -20,6 +20,13 @@ type Props = Omit<ComponentProps<typeof ChatPane>, 'typing' | 'role' | 'waitingO
 export function CustomerPhone({ open, now, onClose, ...chat }: Props) {
   const { customers, customerId, onCustomer, waitingOn, zone, role } = chat;
   const name = customers.find((c) => c.id === customerId)?.name ?? '';
+  // Keep the open account in view when there are more than fit. Scrolls only this strip, never the panel around a closed phone.
+  const accounts = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const strip = accounts.current;
+    const on = strip?.querySelector<HTMLElement>('.phone-account.on');
+    if (strip && on) strip.scrollLeft = on.offsetLeft - strip.offsetLeft - (strip.clientWidth - on.offsetWidth) / 2;
+  }, [customerId]);
   return (
     <div className={`phone-slot ${open ? 'open' : ''}`} inert={!open}>
       <aside className="phone" aria-label={`${name}'s phone`}>
@@ -29,14 +36,13 @@ export function CustomerPhone({ open, now, onClose, ...chat }: Props) {
             <span className="phone-island" aria-hidden="true" />
             <button className="phone-close" onClick={onClose} aria-label="Close the customer phone">Close</button>
           </div>
-          <div className="phone-accounts" role="tablist" aria-label="Customer accounts">
+          <div className="phone-accounts" ref={accounts} role="tablist" aria-label="Customer accounts">
             {customers.map((c) => (
               <button
                 key={c.id}
                 role="tab"
                 aria-selected={c.id === customerId}
                 className={`phone-account ${c.id === customerId ? 'on' : ''}`}
-                ref={c.id === customerId ? (el) => el?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) : undefined}
                 onClick={() => onCustomer(c.id)}
               >
                 <span className="phone-avatar">
