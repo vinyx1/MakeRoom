@@ -11,7 +11,8 @@ import { openProblems, openYardMorning } from '../src/demo/yard-morning.ts';
 import { loadSnapshot } from '../src/db/load-snapshot.ts';
 import { optimize } from '../src/optimizer/optimizer.ts';
 import { seedPrepayments } from '../src/payments/prepay.ts';
-import { affectedAccept, ownerDecision, requestChange } from '../src/proposals/flow.ts';
+import { affectedAccept, affectedRefuse, ownerDecision, requestChange } from '../src/proposals/flow.ts';
+import { resetShop, shopForSession } from '../src/server/shops.ts';
 import { fakeGateway } from './fake-gateway.ts';
 
 const { db, pool } = createDb();
@@ -113,12 +114,39 @@ describe('the yard', () => {
     expect(claims.length).toBeGreaterThan(0);
   });
 
+  it('the last telehandler: when Coastline keeps their booking the Genie is released, and Dune can have it', async () => {
+    const { d, gateway } = await yard();
+    const coastline = d.bookingOn('Coastline Roofing', 'JCB507-1'), pacific = d.bookingOn('Pacific Steel', 'JCB507-1');
+    const p = await load.proposalOf(d.shop.id, pacific.customerId);
+    expect((await affectedRefuse(db, gateway, d.shop.id, { proposalId: p.id, customerId: coastline.customerId })).status).not.toBe('refused');
+    expect((await load.booking(coastline.id)).unitId).toBe(d.unit('JCB507-1').id);
+
+    const dune = d.customer('Dune Framing');
+    const genie = d.models.find((m) => m.name.startsWith('Genie'))!.id;
+    const r = await requestChange(db, d.shop.id, { customerId: dune.id, request: { kind: 'new_booking', customerId: dune.id, modelId: genie, startsAt: d.t({ day: 'Tue', hour: 7 }), endsAt: d.t({ day: 'Wed', hour: 17 }) } });
+    expect(r.status).toBe('offered');
+  });
+
+  it('switching shops keeps each one separate, and Reset demo reseeds the one that is open', async () => {
+    const gateway = fakeGateway();
+    const token = randomUUID();
+    const camera = await shopForSession(db, gateway, token);
+    const first = await shopForSession(db, gateway, token, undefined, 'yard');
+    expect([camera.name, first.name, first.scenario]).toEqual(['Lens & Light Rentals', 'Ridgeline Equipment Rental', 'yard']);
+    expect((await shopForSession(db, gateway, token, undefined, 'yard')).id).toBe(first.id);
+
+    const again = await resetShop(db, gateway, first.id);
+    expect([again.name, again.sessionKey]).toEqual([first.name, first.sessionKey]);
+    expect(await openProblems(db, again.id)).toHaveLength(4);
+    expect((await shopForSession(db, gateway, token)).id).toBe(camera.id);
+  });
+
   it('plans fast enough at this size to run under the shop lock', async () => {
     const { d } = await yard();
     const snapshot = await db.transaction((tx) => loadSnapshot(tx, d.shop.id));
-    const b = d.bookingOn('Greenline Landscape', 'U35-3');
+    // The widest search this yard offers: every machine out at once, each pushing into the next booking.
     const t0 = performance.now();
-    for (let i = 0; i < 10; i++) optimize(snapshot, { kind: 'extend', bookingId: b.id, newEndsAt: d.t({ week: 1, day: 'Tue', hour: 17 }) });
-    expect((performance.now() - t0) / 10).toBeLessThan(250);
+    for (const x of d.bookings) optimize(snapshot, { kind: 'extend', bookingId: x.id, newEndsAt: new Date(x.endsAt.getTime() + 48 * 3_600_000) });
+    expect((performance.now() - t0) / d.bookings.length).toBeLessThan(250);
   });
 });
