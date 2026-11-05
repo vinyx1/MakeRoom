@@ -1,6 +1,6 @@
 // The HTTP API, through Fastify's inject (and one real socket for SSE). PayPal is the stateful fake.
 
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DateTime } from 'luxon';
@@ -237,11 +237,18 @@ describe('hosting', () => {
   it('serves the built frontend, without touching a shop', async () => {
     const root = mkdtempSync(join(tmpdir(), 'makeroom-web-'));
     writeFileSync(join(root, 'index.html'), '<title>MakeRoom</title>');
+    mkdirSync(join(root, 'demo'));
+    writeFileSync(join(root, 'demo', 'index.html'), '<title>The app</title>');
     const hosted = buildApp({ db, gateway, webRoot: root });
     const page = await hosted.inject({ method: 'GET', url: '/' });
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain('MakeRoom');
     expect(page.headers['set-cookie']).toBeUndefined();
+    // The landing page is at /, and the app at /demo/, with or without the slash.
+    const demo = await hosted.inject({ method: 'GET', url: '/demo/' });
+    expect([demo.statusCode, demo.body]).toEqual([200, '<title>The app</title>']);
+    const bare = await hosted.inject({ method: 'GET', url: '/demo' });
+    expect([bare.statusCode, bare.headers.location]).toEqual([301, '/demo/']);
     await hosted.close();
     rmSync(root, { recursive: true });
   });

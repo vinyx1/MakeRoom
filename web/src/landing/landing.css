@@ -164,7 +164,7 @@ h1 { font-size: clamp(2.25rem, 0.9rem + 3vw, 3.875rem); }
 .rules { display: flex; flex-direction: column; gap: clamp(24px, 3vw, 40px); margin: 120px var(--gap) 0; padding: 0 clamp(8px, 3vw, 48px); }
 .rules-head { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); align-items: end; gap: 16px 32px; }
 .rules-head p { line-height: 1.5; color: var(--muted); max-width: 44ch; font-size: var(--body); }
-.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px 10px; }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px 10px; }
 .tiles .wide { grid-column: span 2; }
 .tile { display: flex; align-items: center; justify-content: center; min-height: 196px; padding: 16px; border-radius: 8px; margin-bottom: 12px; }
 .tile.soft { background: var(--brand-soft); }

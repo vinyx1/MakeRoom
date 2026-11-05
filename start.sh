@@ -129,6 +129,6 @@ wait_for_port "The API" "$SERVER_PORT" "$LOGS/server.log"
 wait_for_port "The frontend" "$WEB_PORT" "$LOGS/web.log"
 
 echo
-echo "MakeRoom is running on port $WEB_PORT (API on port $SERVER_PORT)."
+echo "MakeRoom is running: landing page on port $WEB_PORT, the app at /demo/ (API on port $SERVER_PORT)."
 if [ "$TEST_CARD" = 1 ]; then echo "Test card is on: use npm run try in server/."; fi
 echo "Logs are in .run/. Stop it with ./start.sh stop."
