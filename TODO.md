@@ -26,7 +26,7 @@ The rule from `CLAUDE.md` still holds: the video scenarios must run reliably bef
    - **Payment states shown as states:** a held / captured / voided / refunded badge on each request, linked to the feed.
    - **Visual polish:** spacing, typography, an empty-state for each pane. Check at 1280px wide and in Safari.
    - **Read-only Bryntum depth, if time allows** (see `CLAUDE.md` "If time permits"), in this order:
-     1. **Play rejected alternatives on the schedule:** clicking a pruned plan in the feed shows it as ghosts, with the rule it broke lit up. The optimizer already stores these as data, so this is cheap and very visual.
+     1. ~~**Play rejected alternatives on the schedule**~~ done 2026-11-05: clicking a ruled-out plan in the feed draws it, lights up the booking it overlaps and states why. Also added an availability row and merged model cells.
      2. **Resource utilization view** under the schedule: per-unit load before and after a plan.
      3. **Engine what-if:** a separate read-only scheduler instance that computes conflicts for a proposed plan. This one carries the most risk. The engine must never touch real bookings (invariant: the backend decides).
 9. ~~**Counter-offers: `revise_terms`**~~ done 2026-11-03 (judge B1, B2, B4): infeasible → nearest time; a counter is a draft with Send and Discard; beyond limits → the owner; the 3-revision cap. A requester correcting an unpaid offer now replaces it. Not built: changing terms after paying the hold, owner editing a refund (B3).

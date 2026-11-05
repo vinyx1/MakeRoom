@@ -73,7 +73,7 @@ Bryntum must do real work, not just display a calendar: event buffers for turnar
 
 Optional Bryntum depth, all read-only views over backend data, behind a toggle, dropped if unreliable. None of it may change a booking or turn the engine on for real bookings.
 
-- **Play rejected alternatives on the schedule:** clicking a pruned alternative in the feed shows it as ghosts with the broken rule lit up (the overlapping buffer, the maintenance block). Cheap if the optimizer's pruned alternatives are stored as structured data (proposed changes, rule broken, conflicting booking), not just a sentence.
+- **Play rejected alternatives on the schedule** (built): clicking a pruned alternative in the feed draws it on the schedule, read-only, and lights up the booking it overlaps. The optimizer logs each one's placement, rules and conflicts.
 - **Resource utilization view** under the schedule (native Scheduler Pro widget): per-unit load and revenue, before and after a plan.
 - **Planned vs actual** for extensions and late returns, instead of hand-made ghost styling.
 - **Engine what-if:** a separate read-only scheduler instance where the Scheduler Pro engine computes load or conflicts for a proposed plan; the backend keeps the final say.
