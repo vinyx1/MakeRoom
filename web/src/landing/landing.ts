@@ -106,22 +106,44 @@ const STEPS: Record<number, { bars: Bars; who: 'Vincent' | 'Bob'; focus: 'custom
   6: { bars: { ...vincent(34), ...bob(0, 38), planA: { name: '', row: 3, start: 33, end: 66, kind: 'ghost', hidden: true }, planB: { name: '', row: 0, start: 38, end: 66, kind: 'ghost', hidden: true } }, who: 'Bob', focus: 'owner' },
 };
 
+/** Wires one stage to the steps: on a wide screen a single pinned stage, on a narrow one a copy inside each step. */
+function makeStage(root: HTMLElement) {
+  const draw = schedule(root.querySelector<HTMLElement>('.stage-sched')!);
+  const shows = [...root.querySelectorAll<HTMLElement>('[data-show]')];
+  return (n: number) => {
+    const s = STEPS[n]!;
+    root.dataset.step = String(n);
+    root.dataset.focus = s.focus;
+    draw(s.bars);
+    root.querySelector('.who-name')!.textContent = s.who;
+    root.querySelector('.who-dot')!.textContent = s.who[0]!;
+    for (const el of shows) {
+      const [from, to] = el.dataset.show!.split('-').map(Number) as [number, number];
+      el.classList.toggle('on', n >= from && n <= to);
+    }
+  };
+}
+
 const stage = document.getElementById('stage')!;
-const drawStage = schedule(document.getElementById('stage-sched')!);
-const shows = [...stage.querySelectorAll<HTMLElement>('[data-show]')];
 const steps = [...document.querySelectorAll<HTMLElement>('.step')];
+// Each step's copy starts one step back, so arriving at it plays the change.
+const copies = new Map<number, (n: number) => void>();
+for (const el of steps) {
+  const n = Number(el.dataset.step);
+  const copy = stage.cloneNode(true) as HTMLElement;
+  copy.removeAttribute('id');
+  copy.classList.add('step-stage');
+  copy.querySelector('.sched')!.innerHTML = '';
+  el.append(copy);
+  const go = makeStage(copy);
+  go(Math.max(n - 1, 1));
+  copies.set(n, go);
+}
+const goMain = makeStage(stage);
 
 function goTo(n: number) {
-  const s = STEPS[n]!;
-  stage.dataset.step = String(n);
-  stage.dataset.focus = s.focus;
-  drawStage(s.bars);
-  document.getElementById('who-name')!.textContent = s.who;
-  document.getElementById('who-dot')!.textContent = s.who[0]!;
-  for (const el of shows) {
-    const [from, to] = el.dataset.show!.split('-').map(Number) as [number, number];
-    el.classList.toggle('on', n >= from && n <= to);
-  }
+  goMain(n);
+  copies.get(n)?.(n);
   for (const el of steps) el.classList.toggle('on', Number(el.dataset.step) === n);
 }
 
