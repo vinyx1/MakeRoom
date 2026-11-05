@@ -118,6 +118,11 @@ describe('the yard', () => {
       const r = await requestChange(db, d.shop.id, { customerId: dune.id, request: { ...request, modelId } });
       expect(r.status, prefix).toBe('infeasible');
     }
+    // A larger machine is offered as that; a track loader is still a plain upgrade.
+    const coastline = await db.select().from(s.revisions).where(eq(s.revisions.proposalId, (await load.proposalOf(d.shop.id, d.bookingOn('Pacific Steel', 'JCB507-1').customerId)).id));
+    expect(coastline[0]!.quote.compensation[0]!.reason).toBe('larger machine at no extra charge: the Genie GTH-1056 telehandler');
+    const harbor = await db.select().from(s.revisions).where(eq(s.revisions.proposalId, (await load.proposalOf(d.shop.id, d.bookingOn('Harbor Concrete', 'S66-1').customerId)).id));
+    expect(harbor[0]!.quote.compensation[0]!.reason).toBe('free upgrade to the Bobcat T66 track loader');
     const claims = await db.select().from(s.claims).where(and(eq(s.claims.shopId, d.shop.id), eq(s.claims.unitId, d.unit('GTH1056-1').id), isNull(s.claims.releasedAt)));
     expect(claims.length).toBeGreaterThan(0);
   });

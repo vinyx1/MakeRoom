@@ -61,8 +61,9 @@ export function renderOption(
     const toModel = idx.models.get(after.modelId);
     if (c.kind === 'model_change') {
       const upgrade = (toModel?.tier ?? 0) > (fromModel?.tier ?? 0);
-      const offer = !upgrade ? 'Switch' : toModel?.sizeTier ? 'No extra charge: move up' : 'Free upgrade';
-      lines.push(`${offer} to the ${model}, same times (${t(after.startsAt)} → ${t(after.endsAt)})`);
+      const times = `same times (${t(after.startsAt)} → ${t(after.endsAt)})`;
+      if (upgrade && toModel?.sizeTier) lines.push(`Move to the larger ${model} at no extra charge, ${times}`);
+      else lines.push(`${upgrade ? 'Free upgrade' : 'Switch'} to the ${model}, ${times}`);
       lines.push(...checkedFacts(idx, revision, c, ownerApproved));
     } else if (c.kind === 'same_model_swap') {
       lines.push(`Same ${model}, a different unit. Nothing else changes.`);
