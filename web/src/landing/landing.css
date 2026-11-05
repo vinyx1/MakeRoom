@@ -84,6 +84,7 @@ h1 { font-size: clamp(2.25rem, 0.9rem + 3vw, 3.875rem); }
 [data-ui] .sched { display: grid; grid-template-columns: 62px minmax(0, 1fr); font-size: 13px; }
 [data-ui] .sched-units { display: grid; grid-auto-rows: 38px; padding-top: 26px; color: var(--muted); }
 [data-ui] .sched-units span { display: flex; align-items: center; border-top: 1px solid var(--rule); }
+[data-ui] .sched-units span:empty { border-top: none; }
 [data-ui] .sched-days { display: grid; grid-template-columns: repeat(3, 1fr); height: 26px; font-weight: 500; }
 [data-ui] .sched-days span { padding-left: 6px; border-left: 1px solid var(--rule); }
 [data-ui] .sched-rows { position: relative; display: grid; grid-auto-rows: 38px; }
@@ -143,6 +144,7 @@ h1 { font-size: clamp(2.25rem, 0.9rem + 3vw, 3.875rem); }
 [data-ui] .btn-like, [data-ui] .btn-ghost { display: inline-block; padding: 5px 12px; border-radius: 6px; font-weight: 500; font-size: 13px; }
 .btn-like { background: var(--primary); color: #fff; }
 [data-ui] .btn-ghost { border: 1px solid #cdd1d7; background: var(--surface); }
+.approve-row { display: flex; gap: 6px; }
 .approve .btn-like { animation: press 1.6s 0.6s var(--ease) infinite; }
 @keyframes press { 0%, 70%, 100% { transform: none; } 80% { transform: scale(0.95); } }
 

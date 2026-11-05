@@ -12,18 +12,17 @@ type Kind = 'booked' | 'out' | 'ghost' | 'grey';
 type Bar = { name: string; row: number; start: number; end: number; kind: Kind; hidden?: boolean; noBuffer?: boolean };
 type Bars = Record<string, Bar>;
 
-const fixed: Bars = {
-  charlie: { name: 'Charlie', row: 1, start: 33, end: 66, kind: 'booked' },
-  maintenance: { name: 'maintenance', row: 2, start: 9, end: 69, kind: 'grey', noBuffer: true },
-};
-
-function schedule(root: HTMLElement) {
-  const rows = ['A7IV-1', 'A7IV-2', 'A7IV-3', 'A7RV-1'];
+function schedule(root: HTMLElement, rows: string[]) {
+  // The other bookings sit on whichever row carries their unit's label.
+  const fixed: Bars = {
+    charlie: { name: 'Charlie', row: rows.indexOf('A7IV-2'), start: 33, end: 66, kind: 'booked' },
+    maintenance: { name: 'maintenance', row: rows.indexOf('A7IV-3'), start: 9, end: 69, kind: 'grey', noBuffer: true },
+  };
   root.innerHTML = `
     <div class="sched-units">${rows.map((r) => `<span>${r}</span>`).join('')}</div>
     <div class="sched-plot">
       <div class="sched-days"><span>Wed</span><span>Thu</span><span>Fri</span></div>
-      <div class="sched-rows"><i></i><i></i><i></i><i></i><u class="now" style="--at:${17.5 / SPAN}"></u></div>
+      <div class="sched-rows">${rows.map(() => '<i></i>').join('')}<u class="now" style="--at:${17.5 / SPAN}"></u></div>
     </div>`;
   const lane = root.querySelector<HTMLElement>('.sched-rows')!;
   const els = new Map<string, { bar: HTMLElement; buffer: HTMLElement }>();
@@ -67,7 +66,7 @@ const OUTCOMES = {
   fri: { bars: { ...vincent(58), ...bob(3, 33) }, pay: '$90.00', bob: 'Free upgrade to the Sony A7R V', net: '+$50.00' },
 } as const;
 
-const drawHero = schedule(document.getElementById('hero-sched')!);
+const drawHero = schedule(document.getElementById('hero-sched')!, ['A7IV-1', 'A7IV-2', 'A7IV-3', 'A7RV-1']);
 const buttons = [...document.querySelectorAll<HTMLButtonElement>('[data-choice]')];
 let touched = false;
 
@@ -97,18 +96,27 @@ window.setTimeout(() => {
 
 // ---- How to use: the stage follows the step being read. -------------------------------------------------------------
 
+// Like the real schedule, the unit in contention gets a second lane for what's proposed on it.
+const STAGE_ROWS = ['A7IV-1', '', 'A7IV-2', 'A7IV-3', 'A7RV-1'];
+const LANE = 1;
+const A7RV = 4;
+const more = (shown: boolean, kind: Kind = 'ghost'): Bar => ({ name: '+16h', row: kind === 'ghost' ? LANE : 0, start: 18, end: 34, kind, hidden: !shown });
+const planA = (shown: boolean): Bar => ({ name: 'Plan A: Bob', row: A7RV, start: 33, end: 66, kind: 'ghost', hidden: !shown });
+const planB = (shown: boolean): Bar => ({ name: 'Plan B: Bob', row: LANE, start: 38, end: 66, kind: 'ghost', hidden: !shown });
+const base: Bars = { vincent: { name: 'Vincent', row: 0, start: 0, end: 18, kind: 'out' }, bob: { name: 'Bob', row: 0, start: 33, end: 66, kind: 'booked' } };
+
 const STEPS: Record<number, { bars: Bars; who: 'Vincent' | 'Bob'; focus: 'customer' | 'owner' }> = {
-  1: { bars: { ...vincent(18), ...bob(0, 33), planA: { name: '', row: 3, start: 33, end: 66, kind: 'ghost', hidden: true }, planB: { name: '', row: 0, start: 38, end: 66, kind: 'ghost', hidden: true } }, who: 'Vincent', focus: 'customer' },
-  2: { bars: { ...vincent(34, false), ...bob(0, 33), planA: { name: 'Plan A: Bob', row: 3, start: 33, end: 66, kind: 'ghost' }, planB: { name: 'Plan B: Bob', row: 0, start: 38, end: 66, kind: 'ghost', hidden: true } }, who: 'Vincent', focus: 'owner' },
-  3: { bars: { ...vincent(34, false), ...bob(0, 33), planA: { name: 'Plan A: Bob', row: 3, start: 33, end: 66, kind: 'ghost' }, planB: { name: 'Plan B: Bob', row: 0, start: 38, end: 66, kind: 'ghost', hidden: true } }, who: 'Vincent', focus: 'customer' },
-  4: { bars: { ...vincent(34, false), ...bob(0, 33), planA: { name: 'Plan A: Bob', row: 3, start: 33, end: 66, kind: 'ghost', hidden: true }, planB: { name: 'Plan B: Bob', row: 0, start: 38, end: 66, kind: 'ghost', hidden: true } }, who: 'Bob', focus: 'customer' },
-  5: { bars: { ...vincent(34, false), ...bob(0, 33), planA: { name: '', row: 3, start: 33, end: 66, kind: 'ghost', hidden: true }, planB: { name: '', row: 0, start: 38, end: 66, kind: 'ghost', hidden: true } }, who: 'Bob', focus: 'owner' },
-  6: { bars: { ...vincent(34), ...bob(0, 38), planA: { name: '', row: 3, start: 33, end: 66, kind: 'ghost', hidden: true }, planB: { name: '', row: 0, start: 38, end: 66, kind: 'ghost', hidden: true } }, who: 'Bob', focus: 'owner' },
+  1: { bars: { ...base, vincentMore: more(false), planA: planA(false), planB: planB(false) }, who: 'Vincent', focus: 'customer' },
+  2: { bars: { ...base, vincentMore: more(true), planA: planA(true), planB: planB(true) }, who: 'Vincent', focus: 'owner' },
+  3: { bars: { ...base, vincentMore: more(true), planA: planA(true), planB: planB(true) }, who: 'Vincent', focus: 'customer' },
+  4: { bars: { ...base, vincentMore: more(true), planA: planA(false), planB: planB(true) }, who: 'Bob', focus: 'customer' },
+  5: { bars: { ...base, vincentMore: more(true), planA: planA(false), planB: planB(true) }, who: 'Bob', focus: 'owner' },
+  6: { bars: { vincent: { ...base.vincent!, noBuffer: true }, bob: { name: 'Bob', row: 0, start: 38, end: 66, kind: 'booked' }, vincentMore: more(true, 'out'), planA: planA(false), planB: planB(false) }, who: 'Bob', focus: 'owner' },
 };
 
 /** Wires one stage to the steps: on a wide screen a single pinned stage, on a narrow one a copy inside each step. */
 function makeStage(root: HTMLElement) {
-  const draw = schedule(root.querySelector<HTMLElement>('.stage-sched')!);
+  const draw = schedule(root.querySelector<HTMLElement>('.stage-sched')!, STAGE_ROWS);
   const shows = [...root.querySelectorAll<HTMLElement>('[data-show]')];
   return (n: number) => {
     const s = STEPS[n]!;
