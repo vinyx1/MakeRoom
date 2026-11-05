@@ -125,8 +125,8 @@ Facts: `CRANE4-1.balances_r5_rf2470 = unknown`. Shop hours 9am–9pm. All bookin
 **Situation:** the same engine at realistic size. From the chevron on the shop name, open Ridgeline Equipment Rental. It's 6:30am after a wet weekend, with 18 machines, 25 bookings and four problems already open.
 
 - **Rain delay:** Harbor's skid steer runs into Northside. Delgado takes a free track loader so Northside can take Delgado's skid steer, a chain of two moves with one decision and one notice.
-- **Over the limit:** Redwood's extra day means a $560 upgrade for Mesa, worth more than the cap and more than Redwood pays. It waits for the owner, and Mesa hears nothing until then.
-- **Will it fit?** Summit's extension leaves only the larger Cat 308 for Alder's backyard job, and nobody has recorded whether it fits through the 8 ft gate.
+- **Over the limit:** Redwood's extra day means a larger machine for Mesa: $560 of list value given up, more than the cap and more than Redwood pays, while the shop still collects $340. It waits for the owner, and Mesa hears nothing until then.
+- **Will it fit?** Summit's extension leaves only the larger Cat 308 for Alder's backyard job, and nobody has recorded whether it's right for that site: the 8 ft gate, its weight, the ground.
 - **Last telehandler:** Pacific's extension holds the Genie while Coastline decides, so Dune is told neither telehandler is free. If Coastline keeps their booking, the Genie is released.
 
 **What it shows:** concurrent claims on one schedule, a multi-booking plan, the money limits and fact questions at higher stakes, and Bryntum at a realistic row count.

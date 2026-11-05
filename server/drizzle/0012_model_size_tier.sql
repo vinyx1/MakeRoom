@@ -1,0 +1,1 @@
+ALTER TABLE "equipment_models" ADD COLUMN "size_tier" boolean DEFAULT false NOT NULL;

@@ -105,7 +105,10 @@ const isDowngrade = (idx: Index, c: PlanChange) => {
 };
 
 function upgradeReason(idx: Index, c: PlanChange) {
-  if (c.kind === 'model_change') return `free upgrade to the ${idx.models.get(c.after.modelId)?.name ?? 'other model'}`;
+  if (c.kind === 'model_change') {
+    const to = idx.models.get(c.after.modelId);
+    return `${to?.sizeTier ? 'larger machine at no extra charge:' : 'free upgrade to'} the ${to?.name ?? 'other model'}`;
+  }
   return 'extra time at no charge';
 }
 

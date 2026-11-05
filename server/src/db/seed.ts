@@ -62,6 +62,7 @@ export function demoShopData({ sessionKey, realNow = new Date(), creatorIpHash =
     { name: 'Zhiyun Crane 4 gimbal', category: 'gimbal', tier: 1, dailyRateCents: 2000 },
   ].map((m) => ({
     ...m,
+    sizeTier: false,
     id: randomUUID(),
     shopId,
     rateMinCents: m.dailyRateCents / 2,

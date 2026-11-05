@@ -141,6 +141,8 @@ export const equipmentModels = pgTable(
     category: text().notNull(),
     /** Rank within category: lower = downgrade, higher = upgrade. */
     tier: integer().notNull(),
+    /** Tier ranks size, not quality, so a move up is a larger machine, which isn't always better for the job. */
+    sizeTier: boolean().notNull().default(false),
     dailyRateCents: integer().notNull(),
     rateMinCents: integer().notNull(),
     rateMaxCents: integer().notNull(),

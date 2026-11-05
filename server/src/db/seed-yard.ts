@@ -59,7 +59,7 @@ export function yardShopData({ sessionKey, realNow = new Date(), creatorIpHash =
     { name: 'JLG 1930 scissor lift', category: 'aerial_lift', tier: 1, dailyRateCents: 13_000 },
     { name: 'JLG 2646 scissor lift', category: 'aerial_lift', tier: 2, dailyRateCents: 19_000 },
     { name: 'Wacker RD12 roller', category: 'compaction', tier: 1, dailyRateCents: 26_000 },
-  ].map((m) => ({ ...m, id: randomUUID(), shopId, rateMinCents: m.dailyRateCents / 2, rateMaxCents: m.dailyRateCents * 2 }));
+  ].map((m) => ({ ...m, sizeTier: m.category !== 'loader' && m.category !== 'compaction', id: randomUUID(), shopId, rateMinCents: m.dailyRateCents / 2, rateMaxCents: m.dailyRateCents * 2 }));
   const model = (prefix: string) => models.find((m) => m.name.startsWith(prefix))!;
 
   const substitutes: (typeof s.modelSubstitutes.$inferSelect)[] = (
@@ -84,7 +84,7 @@ export function yardShopData({ sessionKey, realNow = new Date(), creatorIpHash =
   ).map(([label, m]) => ({ id: randomUUID(), shopId, label, modelId: model(m).id, active: true }));
   const unit = (label: string) => units.find((u) => u.label === label)!;
 
-  const gate = { key: 'fits_8ft_gate', label: 'Fits through an 8 ft site gate' };
+  const gate = { key: 'suits_backyard_8ft_gate', label: 'Right for a backyard job with an 8 ft gate (width, weight, ground)' };
   const fact = (label: string, value: 'yes' | 'unknown'): typeof s.facts.$inferSelect => ({
     id: randomUUID(), shopId, unitId: unit(label).id, modelId: null, ...gate, value, source: 'seed', setAt: now, escalationId: null, version: 1,
   });
@@ -124,7 +124,7 @@ export function yardShopData({ sessionKey, realNow = new Date(), creatorIpHash =
     booking('Dune Framing', 'T66-1', on('Wed', 7), on('Fri', 17), 'confirmed'),
     booking('Redwood Utilities', 'T66-2', on('Mon', 7), on('Fri', 17), 'confirmed'),
 
-    // Problem 2, over the agent's limit: Redwood's U35 runs into Mesa, and the only fix is a four-day upgrade to the U55,
+    // Problem 2, over the agent's limit: Redwood's U35 runs into Mesa, and the only fix is four days on the larger U55,
     // worth more than the cap and more than Redwood's extra day brings in.
     booking('Redwood Utilities', 'U35-1', last('Wed', 7), on('Mon', 17), 'picked_up'),
     booking('Mesa Septic', 'U35-1', on('Tue', 7), on('Fri', 17), 'confirmed'),
@@ -133,7 +133,7 @@ export function yardShopData({ sessionKey, realNow = new Date(), creatorIpHash =
     booking('Cascade Demolition', 'U55-1', { week: 1, day: 'Mon', hour: 7 }, { week: 1, day: 'Wed', hour: 17 }, 'confirmed'),
 
     // Problem 3, site fit: Summit's U55 runs into Alder's backyard job. The only machine left is the larger Cat 308, and
-    // nobody has recorded whether it fits through Alder's gate.
+    // nobody has recorded whether it's right for that site: the gate, its weight, the ground.
     booking('Summit Grading', 'U55-2', last('Thu', 7), on('Mon', 16), 'picked_up'),
     booking('Alder Homes', 'U55-2', on('Tue', 8), on('Wed', 8), 'confirmed', { note: 'Backyard job, 8 ft side gate', requiredFacts: [gate.key] }),
     booking('Cascade Demolition', 'CAT308-1', last('Fri', 7), on('Mon', 15), 'picked_up', { bufferHours: 5 }),

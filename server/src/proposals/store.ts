@@ -247,6 +247,7 @@ export async function ensureOwnerApproval(
 /**
  * The owner card's text, rendered from the revision, never from agent text:
  *   "Bob's booking shortened by 5h (now Thu 2:00pm → Fri 6:00pm), $15 refund. Net +$30."
+ *   "Mesa moved to the Kubota U55 excavator (larger machine), $560 of list value given up. Cash +$340."
  *   "Eve moved to the Zhiyun Crane 4 gimbal (downgrade), $20 refund. Net +$5. Needs a fact: … Balances a Canon R5 + RF 24-70?"
  */
 export function ownerSummary(idx: Index, proposal: Proposal, revision: Revision, rows: RevisionChange[]) {
@@ -262,7 +263,8 @@ export function ownerSummary(idx: Index, proposal: Proposal, revision: Revision,
       const lostMs = new Date(before.endsAt).getTime() - new Date(before.startsAt).getTime() - (after.endsAt.getTime() - after.startsAt.getTime());
       if (c.kind === 'model_change') {
         const [from, to] = [idx.models.get(before.modelId), idx.models.get(after.modelId)];
-        const direction = from && to ? (to.tier < from.tier ? ' (downgrade)' : to.tier > from.tier ? ' (upgrade)' : '') : '';
+        const [down, up] = to?.sizeTier ? [' (smaller machine)', ' (larger machine)'] : [' (downgrade)', ' (upgrade)'];
+        const direction = from && to ? (to.tier < from.tier ? down : to.tier > from.tier ? up : '') : '';
         out.push(`${name} moved to the ${to?.name ?? 'other model'}${direction}`);
       }
       else if (c.kind === 'same_model_swap') out.push(`${name} moved to ${idx.unitLabel(after.unitId)} (notice only)`);
@@ -272,7 +274,7 @@ export function ownerSummary(idx: Index, proposal: Proposal, revision: Revision,
       const refund = comp.filter((x) => x.kind === 'refund').reduce((sum, x) => sum + x.cents, 0);
       const upgrade = comp.filter((x) => x.kind === 'upgrade_value').reduce((sum, x) => sum + x.cents, 0);
       if (refund) out.push(`${usd(refund)} refund`);
-      if (upgrade) out.push(`${usd(upgrade)} upgrade value`);
+      if (upgrade) out.push(`${usd(upgrade)} of list value given up`);
       return out.length ? [out.join(', ')] : [];
     });
   const net = revision.quote.netRevenueCents;
@@ -291,7 +293,12 @@ export function ownerSummary(idx: Index, proposal: Proposal, revision: Revision,
       const why = booking?.note ? `${idx.customerName(booking.customerId)}'s booking says "${booking.note}". ` : '';
       return `Needs a fact: ${why}${f.unitId ? idx.unitLabel(f.unitId) : (idx.models.get(f.modelId!)?.name ?? '')}: ${f.label ?? f.key.replaceAll('_', ' ')}?`;
     });
-  return [`${parts.join('; ') || 'No other bookings change'}.`, `Net ${net < 0 ? '−' : '+'}${usd(net)}.`, ...questions].join(' ');
+  // List value given up isn't money leaving the shop, so a plan with any says what actually comes in.
+  const refunds = revision.quote.compensation.filter((x) => x.kind === 'refund').reduce((sum, x) => sum + x.cents, 0);
+  const cash = revision.quote.chargeCents - refunds;
+  const givesUpValue = revision.quote.compensation.some((x) => x.kind === 'upgrade_value');
+  const money = givesUpValue ? `Cash ${cash < 0 ? '−' : '+'}${usd(cash)}.` : `Net ${net < 0 ? '−' : '+'}${usd(net)}.`;
+  return [`${parts.join('; ') || 'No other bookings change'}.`, money, ...questions].join(' ');
 }
 
 /** Every approval this revision needs is in: the requester's, each affected party's, and the owner's if needed. */

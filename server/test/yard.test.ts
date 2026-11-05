@@ -81,6 +81,9 @@ describe('the yard', () => {
     const [rev] = await load.revisions(p.id);
     expect(rev!.ownerTriggers).toContain('over_cap');
     expect(rev!.envelopeTrips).toContain('compensation_over_revenue');
+    // The rules still treat the value given up as a cost, but the card says what actually comes in.
+    expect(rev!.ownerTriggers).toContain('negative_net');
+    expect((await load.escalations(p.id))[0]!.summary).toBe('Mesa Septic moved to the Kubota U55 excavator (larger machine), $560 of list value given up. Cash +$340.');
     expect((await load.escalations(p.id)).map((e) => e.kind)).toEqual(['plan_review']);
     // Mesa can't accept what the shop hasn't reviewed.
     expect((await affectedAccept(db, gateway, d.shop.id, { proposalId: p.id, customerId: mesa.customerId, revisionId: rev!.id })).status).toBe('refused');
@@ -97,7 +100,8 @@ describe('the yard', () => {
     const [rev] = await load.revisions(p.id);
     expect(rev!.ownerTriggers).toContain('unknown_fact');
     const [card] = await load.escalations(p.id);
-    expect(card!.summary).toContain('Fits through an 8 ft site gate');
+    expect(card!.summary).toContain('Right for a backyard job with an 8 ft gate');
+    expect(card!.summary).toContain('(larger machine), $240 of list value given up. Cash +$480.');
     expect(card!.summary).toContain('Cat 308');
     const gate = d.facts.find((f) => f.unitId === d.unit('CAT308-1').id)!;
     const declined = await ownerDecision(db, gateway, d.shop.id, { proposalId: p.id, revisionId: rev!.id, decision: 'approve', factAnswers: { [gate.id]: 'no' } });

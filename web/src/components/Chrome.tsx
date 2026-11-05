@@ -276,12 +276,12 @@ function YardHelp({ onClose }: { onClose: () => void }) {
         </ol>
         <h4>Over the assistant's limit</h4>
         <ol>
-          <li>Redwood's extra day would mean giving Mesa a four-day upgrade, worth more than the cap and more than Redwood pays.</li>
+          <li>Redwood's extra day would put Mesa on a larger machine for four days. That's $560 of list value, more than the cap and more than Redwood pays, though the shop still collects $340.</li>
           <li>It waits for you under Needs owner approval, and Mesa hears nothing until you decide. Approve, then answer as Mesa.</li>
         </ol>
         <h4>Will it fit?</h4>
         <ol>
-          <li>Summit phoned in an extension. The only machine left for Alder's backyard job is the larger Cat 308, and nobody has recorded whether it fits their gate.</li>
+          <li>Summit phoned in an extension. The only machine left for Alder's backyard job is the larger Cat 308, and nobody has recorded whether it's right for that site: the gate, its weight, the ground.</li>
           <li>Answer on your card. Yes and Approve moves on to Summit's payment and Alder's answer. No ends that plan, and nothing moves.</li>
         </ol>
         <h4>The last telehandler</h4>
