@@ -13,7 +13,7 @@ import { EventModel, StringHelper, TimeZoneHelper } from '@bryntum/schedulerpro'
 import { BryntumSchedulerPro, BryntumSchedulerProProjectModel } from '@bryntum/schedulerpro-react';
 import { DateTime } from 'luxon';
 import { useEffect, useMemo, useRef } from 'react';
-import type { OwnerView } from '../api';
+import type { OwnerView, RejectedPlan } from '../api';
 import { onHighlightRequest, onScheduleToToday } from '../highlight';
 import { shopTime, usd } from '../live';
 
@@ -28,6 +28,7 @@ class ScheduleEvent extends EventModel {
       { name: 'inRequest', type: 'boolean' }, // a pending request would change this booking
       { name: 'overdue', type: 'boolean' }, // picked up and not back on time
       { name: 'dueBack', type: 'boolean' }, // picked up and past its return time, whether or not it's marked overdue
+      { name: 'litUp', type: 'boolean' }, // a rejected plan being shown would have overlapped this booking
       { name: 'tip' }, // tooltip text, already composed
     ];
   }
@@ -43,12 +44,40 @@ type Props = {
   onCancel: (booking: { bookingId: string; name: string; version: number; status: string }) => void;
   onReturned: (bookingId: string) => void;
   onMarkOverdue: (bookingId: string) => void;
+  rejected: RejectedPlan | null;
+  onClearRejected: () => void;
 };
 
 const UNASSIGNED = 'unassigned';
 const hoursBetween = (a: string, b: string) => Math.round((new Date(b).getTime() - new Date(a).getTime()) / 3600_000);
 
-export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel, onReturned, onMarkOverdue }: Props) {
+/**
+ * The models with no unit left at some moment in this stretch of opening hours, by the prefix of their unit labels.
+ * Counts confirmed bookings with their turnaround, and unavailable units; a plan that's only proposed holds nothing here.
+ */
+export function fullyBooked(owner: OwnerView, start: Date, end: Date): string[] {
+  const zone = owner.shop.timezone;
+  const opens = Number(owner.shop.opensAt.slice(0, 2));
+  const closes = Number(owner.shop.closesAt.slice(0, 2));
+  const day = DateTime.fromJSDate(start, { zone });
+  const from = Math.max(start.getTime(), day.set({ hour: opens }).toMillis());
+  const to = Math.min(end.getTime(), day.set({ hour: closes }).toMillis());
+  if (to <= from) return [];
+  return owner.models.flatMap((model) => {
+    const units = owner.units.filter((u) => u.modelId === model.id);
+    const busy = (unitId: string) => [
+      ...owner.bookings.filter((b) => b.unitId === unitId).map((b) => [new Date(b.startsAt).getTime(), new Date(b.bufferEndsAt).getTime()]),
+      ...owner.unavailability.filter((u) => u.unitId === unitId).map((u) => [new Date(u.period.start).getTime(), new Date(u.period.end).getTime()]),
+    ].filter(([a, b]) => a! < to && b! > from) as [number, number][];
+    const spans = units.map((u) => busy(u.id));
+    // Each unit busy at the same instant: it's enough to test the moments a span begins.
+    const moments = [from, ...spans.flat().map(([a]) => a).filter((a) => a >= from && a < to)];
+    const full = units.length > 0 && moments.some((t) => spans.every((s) => s.some(([a, b]) => a <= t && t < b)));
+    return full ? [units[0]!.label.split('-')[0]!] : [];
+  });
+}
+
+export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel, onReturned, onMarkOverdue, rejected, onClearRejected }: Props) {
   const project = useRef<BryntumSchedulerProProjectModel>(null);
   const tz = owner.shop.timezone;
   const nameOf = (id: string | null) => owner.customers.find((c) => c.id === id)?.name ?? 'Customer';
@@ -82,7 +111,7 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel, onR
         {
           id: b.id, name: nameOf(b.customerId), kind: 'booking', status: b.status, bookingId: b.id, version: b.version,
           startDate: b.startsAt, endDate: b.endsAt, manuallyScheduled: true, postamble: `${hoursBetween(b.endsAt, b.bufferEndsAt)}h`,
-          draggable: !picked, resizable: picked ? 'end' : true, inRequest: touched.has(b.id), overdue: picked && !!b.overdueMarkedAt, dueBack: picked && new Date(b.endsAt) <= new Date(owner.shop.now),
+          draggable: !picked, resizable: picked ? 'end' : true, inRequest: touched.has(b.id), overdue: picked && !!b.overdueMarkedAt, dueBack: picked && new Date(b.endsAt) <= new Date(owner.shop.now), litUp: !!rejected?.conflictsWith.includes(b.id),
           tip: `${nameOf(b.customerId)} · ${modelOf(b.modelId)}\n${t(b.startsAt)} → ${t(b.endsAt)}\n${picked ? (b.overdueMarkedAt ? 'Overdue' : 'Picked up') : 'Confirmed'} · paid ${usd(b.priceCents)}${b.note ? `\n“${b.note}”` : ''}`,
         },
         b.unitId,
@@ -129,6 +158,17 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel, onR
       );
     }
 
+    // A ruled-out plan the owner is looking at: read-only, and nothing about it reaches the server.
+    if (rejected)
+      place(
+        {
+          id: 'rejected', kind: 'rejected', manuallyScheduled: true, draggable: false, resizable: false, name: `Ruled out: ${nameOf(rejected.customerId)}`,
+          startDate: rejected.after.startsAt, endDate: rejected.after.endsAt, postamble: `${hoursBetween(rejected.after.endsAt, rejected.after.bufferEndsAt)}h`,
+          tip: rejected.message,
+        },
+        rejected.after.unitId,
+      );
+
     // What each request touches, for the highlight when its card is pointed at.
     const byRequest = new Map<string, string[]>();
     for (const p of owner.proposals) {
@@ -141,7 +181,7 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel, onR
       id: u.id, resourceId: u.unitId, startDate: u.period.start, endDate: u.period.end, name: u.reason.replace('_', ' '),
     }));
     return { resources, events, assignments, resourceTimeRanges, byRequest };
-  }, [owner]);
+  }, [owner, rejected]);
 
   const root = useRef<HTMLDivElement>(null);
   const wraps = (ids: string[]) =>
@@ -194,6 +234,13 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel, onR
   nowRef.current = shopNow;
   const showToday = (animate: boolean) =>
     void (scheduler.current as any)?.instance?.scrollToDate(TimeZoneHelper.toTimeZone(nowRef.current, tz), { block: 'center', animate });
+  // Bring a ruled-out plan into view when it's chosen.
+  useEffect(() => {
+    if (!rejected) return;
+    const date = TimeZoneHelper.toTimeZone(new Date(rejected.after.startsAt), tz);
+    void (scheduler.current as any)?.instance?.scrollToDate(date, { block: 'center', animate: true });
+  }, [rejected, tz]);
+
   useEffect(() => {
     const opening = window.setTimeout(() => showToday(false), 0);
     const off = onScheduleToToday(() => showToday(true));
@@ -204,8 +251,8 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel, onR
   }, [tz]);
 
   // Bryntum keeps the config from the first render, so its handlers read the latest props from here.
-  const latest = useRef({ onEdit, onResolveDraft, onCancel, onReturned, onMarkOverdue, tz });
-  latest.current = { onEdit, onResolveDraft, onCancel, onReturned, onMarkOverdue, tz };
+  const latest = useRef({ onEdit, onResolveDraft, onCancel, onReturned, onMarkOverdue, tz, owner });
+  latest.current = { onEdit, onResolveDraft, onCancel, onReturned, onMarkOverdue, tz, owner };
   const submit = (record: any, resourceId: string, start: Date, end: Date, finalize: (ok: boolean) => void) => {
     if (record.kind !== 'booking') return finalize(false);
     const real = (d: Date) => TimeZoneHelper.fromTimeZone(d, latest.current.tz);
@@ -232,10 +279,20 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel, onR
       rowHeight: 36,
       barMargin: 4,
       eventStyle: 'rounded',
+      // Units of one model sit under one merged cell, which groups them without adding rows.
       columns: [
-        { text: 'Unit', field: 'name', width: 104 },
-        { text: 'Model', field: 'model', width: 150 },
+        { text: 'Model', field: 'model', width: 118, mergeCells: true, sum: 'count', summaryRenderer: () => 'Fully booked' },
+        { text: 'Unit', field: 'name', width: 92 },
       ],
+      mergeCellsFeature: true,
+      // Under each day, what the shop has run out of, from confirmed bookings and unavailable units.
+      summaryFeature: {
+        renderer({ startDate, endDate }: any) {
+          const { owner: view, tz: zone } = latest.current;
+          const full = fullyBooked(view, TimeZoneHelper.fromTimeZone(startDate, zone), TimeZoneHelper.fromTimeZone(endDate, zone));
+          return full.length ? `<span class="day-full">${StringHelper.encodeHtml(full.join(', '))}</span>` : '<span class="day-free">Room</span>';
+        },
+      },
       // The React wrapper takes one `<name>Feature` prop per feature (spike gotcha 1).
       eventBufferFeature: { showDuration: true },
       resourceTimeRangesFeature: true,
@@ -290,10 +347,11 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel, onR
         renderData.cls.add(`kind-${eventRecord.kind}`);
         if (eventRecord.kind === 'draft')
           return `<span class="draft-name">${name}</span><button class="resolve-btn" type="button">Resolve with agent</button>`;
-        if (eventRecord.kind === 'ghost') return name;
+        if (eventRecord.kind === 'ghost' || eventRecord.kind === 'rejected') return name;
         if (eventRecord.status === 'picked_up') renderData.cls.add('picked-up');
         if (eventRecord.inRequest) renderData.cls.add('in-request');
         if (eventRecord.overdue) renderData.cls.add('overdue');
+        if (eventRecord.litUp) renderData.cls.add('lit-up');
         return eventRecord.status === 'picked_up' ? `<span class="lock">●</span> ${name}` : name;
       },
       onBeforeEventDropFinalize({ context }: any) {
@@ -315,6 +373,12 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel, onR
 
   return (
     <div className="schedule" ref={root}>
+      {rejected && (
+        <div className="replay-note">
+          <span>{rejected.message}</span>
+          <button className="link" onClick={onClearRejected}>Clear</button>
+        </div>
+      )}
       <BryntumSchedulerProProjectModel
         ref={project}
         timeZone={tz}

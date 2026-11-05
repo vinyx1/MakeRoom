@@ -77,6 +77,14 @@ export type LastEdit = {
   before: { unitId: string | null; startsAt: string; endsAt: string };
   after: { unitId: string | null; startsAt: string; endsAt: string };
 };
+/** A plan the optimizer ruled out, from an `optimizer_run` in the feed. Shown on the schedule, never applied. */
+export type RejectedPlan = {
+  message: string;
+  customerId: string;
+  after: { unitId: string | null; startsAt: string; endsAt: string; bufferEndsAt: string };
+  conflictsWith: string[];
+};
+
 export type Activity = { seq: number; at: string; actor: string; kind: string; proposalId: string | null; payload: Record<string, any> };
 export type Message = { id: string; author: 'customer' | 'agent' | 'owner' | 'system'; body: string; cardRevisionIds: string[]; at: string; isOwnerDraft?: boolean };
 export type Conversation = { id: string; customerId: string; handedOffAt: string | null; messages: Message[] };

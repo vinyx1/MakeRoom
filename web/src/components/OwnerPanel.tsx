@@ -1,7 +1,7 @@
 // The owner's column: what needs a decision (cards rendered by the backend), red drafts, and the live activity feed.
 
 import { useState } from 'react';
-import { type Activity, type Escalation, type Fact, type Outcome, type OwnerView, api } from '../api';
+import { type Activity, type Escalation, type Fact, type Outcome, type OwnerView, type RejectedPlan, api } from '../api';
 import { pointsAtRequest } from '../highlight';
 import { shopTime, usd } from '../live';
 
@@ -12,11 +12,13 @@ type Props = {
   onOpenChat: (customerId: string) => void;
   onResolveDraft: (draftId: string) => void;
   onMarkOverdue: (bookingId: string) => void;
+  rejected: RejectedPlan | null;
+  onRejected: (plan: RejectedPlan | null) => void;
 };
 
 type SaveOffer = { factId: string; value: 'yes' | 'no'; label: string };
 
-export function OwnerPanel({ owner, activity, onOutcome, onOpenChat, onResolveDraft, onMarkOverdue }: Props) {
+export function OwnerPanel({ owner, activity, onOutcome, onOpenChat, onResolveDraft, onMarkOverdue, rejected, onRejected }: Props) {
   const [saveOffers, setSaveOffers] = useState<SaveOffer[]>([]);
   const nameOf = (id: string | null | undefined) => owner.customers.find((c) => c.id === id)?.name ?? 'A customer';
   const zone = owner.shop.timezone;
@@ -125,7 +127,7 @@ export function OwnerPanel({ owner, activity, onOutcome, onOpenChat, onResolveDr
         <div className="feed">
           <h3 className="feed-title">Activity</h3>
           {activity.map((a) => (
-            <FeedLine key={a.seq} a={a} owner={owner} />
+            <FeedLine key={a.seq} a={a} owner={owner} rejected={rejected} onRejected={onRejected} />
           ))}
         </div>
       </div>
@@ -311,19 +313,19 @@ const LABEL: Record<string, string> = {
   overdue: 'Late return: needs you',
 };
 
-function FeedLine({ a, owner }: { a: Activity; owner: OwnerView }) {
+function FeedLine({ a, owner, rejected, onRejected }: { a: Activity; owner: OwnerView; rejected: RejectedPlan | null; onRejected: (plan: RejectedPlan | null) => void }) {
   const p = a.payload ?? {};
   const name = (id: string | undefined) => owner.customers.find((c) => c.id === id)?.name ?? 'A customer';
   const at = shopTime(a.at, owner.shop.timezone, 'h:mm');
-  const line = (cls: string, text: React.ReactNode, sub?: string[]) => (
+  const line = (cls: string, text: React.ReactNode, sub?: React.ReactNode[]) => (
     <div className={`fl ${cls}`}>
       <span className="fl-at">{at}</span>
       <div>
         {text}
         {sub && sub.length > 0 && (
           <ul>
-            {sub.map((x) => (
-              <li key={x}>{x}</li>
+            {sub.map((x, i) => (
+              <li key={i}>{x}</li>
             ))}
           </ul>
         )}
@@ -340,7 +342,21 @@ function FeedLine({ a, owner }: { a: Activity; owner: OwnerView }) {
     case 'agent_message_blocked':
       return line('warn', <>Blocked a message to {name(p.customerId)}: {p.amounts.join(', ')} didn't come from a tool</>);
     case 'optimizer_run':
-      return line('opt', <>Optimizer: {p.plans.length} plan{p.plans.length === 1 ? "" : "s"}{p.pruned.length ? `, ruled out ${p.pruned.length}:` : ""}</>, p.pruned.map((x: { message: string }) => x.message));
+      return line('opt', <>Optimizer: {p.plans.length} plan{p.plans.length === 1 ? "" : "s"}{p.pruned.length ? `, ruled out ${p.pruned.length}:` : ""}</>, p.pruned.map((x: RejectedPlan) =>
+        // Runs logged before plans carried their placement have nothing to draw.
+        x.after ? (
+          <button
+            className={`pruned-plan ${rejected?.message === x.message ? 'on' : ''}`}
+            aria-pressed={rejected?.message === x.message}
+            title="Show this plan on the schedule"
+            onClick={() => onRejected(rejected?.message === x.message ? null : x)}
+          >
+            {x.message}
+          </button>
+        ) : (
+          x.message
+        ),
+      ));
     case 'proposal_created':
       return line('', <>Request created{p.source === 'owner_resolve' ? ' by Resolve with agent' : ''}</>);
     case 'offer_ready':

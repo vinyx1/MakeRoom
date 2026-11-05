@@ -96,9 +96,9 @@ describe('Scenario 1: Vincent extends to Thu 10am', () => {
 
   it('keeps where a pruned plan would have gone and what it ran into, so the schedule can show it', () => {
     const moved = result.pruned.find((p) => p.message.startsWith('Move Bob to A7IV-2'))!;
-    const idx = indexSnapshot(snapshot);
-    expect(idx.unitLabel(moved.after.unitId)).toBe('A7IV-2');
-    expect(moved.conflictsWith.map((id) => idx.customers.get(idx.bookings.get(id)!.customerId)?.name)).toEqual(['Charlie']);
+    expect(d.units.find((u) => u.id === moved.after.unitId)?.label).toBe('A7IV-2');
+    const nameOf = (bookingId: string) => d.customers.find((c) => c.id === d.bookings.find((b) => b.id === bookingId)?.customerId)?.name;
+    expect(moved.conflictsWith.map(nameOf)).toEqual(['Charlie']);
   });
 
   it('lists the alternatives from the demo script as pruned, with reasons', () => {

@@ -162,7 +162,7 @@ async function replaceUnpaidOffer(tx: Tx, p: Proposal, request: Request, custome
     payload: {
       request: storeRequest(request), source: 'correction', status: result.status,
       plans: result.status === 'fits' || result.status === 'needs_other_changes' ? result.plans.map(planSummary) : [],
-      pruned: result.status === 'invalid_request' ? [] : result.pruned.map((x) => ({ message: x.message, rules: x.rules, bookingId: x.bookingId })),
+      pruned: result.status === 'invalid_request' ? [] : result.pruned.map((x) => ({ message: x.message, rules: x.rules, bookingId: x.bookingId, customerId: x.customerId, after: x.after, conflictsWith: x.conflictsWith })),
     },
   });
   if (result.status === 'invalid_request') return { status: 'invalid', violations: result.violations };
@@ -777,7 +777,7 @@ async function planFallback(tx: Tx, p: Proposal, now: Date): Promise<{ result?: 
     payload: {
       request: storeRequest(request), source: 'fallback', status: result.status, excluded: snapshot.excludedCustomerIds,
       plans: plans.map(planSummary),
-      pruned: result.status === 'invalid_request' ? [] : result.pruned.map((x) => ({ message: x.message, rules: x.rules, bookingId: x.bookingId })),
+      pruned: result.status === 'invalid_request' ? [] : result.pruned.map((x) => ({ message: x.message, rules: x.rules, bookingId: x.bookingId, customerId: x.customerId, after: x.after, conflictsWith: x.conflictsWith })),
     },
   });
   const seq = p.revisionSeq + 1;

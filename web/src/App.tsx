@@ -4,7 +4,7 @@
 import { DateTime } from 'luxon';
 import { PayPalProvider } from '@paypal/react-paypal-js/sdk-v6';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { type Config, type Outcome, type OwnerView, api } from './api';
+import { type Config, type Outcome, type OwnerView, type RejectedPlan, api } from './api';
 import { CustomerPhone } from './components/CustomerPhone';
 import { EditDialog, type EditPrompt, EquipmentDrawer, Help, Mark, Sidebar, type Toast, Toasts, TopBar } from './components/Chrome';
 import { OwnerMessages } from './components/OwnerMessages';
@@ -130,6 +130,8 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
   const [ownerThread, setOwnerThread] = useState<string | null>(null);
   // Open at first: the demo's first step happens on the customer's phone.
   const [phoneOpen, setPhoneOpen] = useState(true);
+  // A ruled-out plan from the feed, drawn on the schedule while it's selected.
+  const [rejected, setRejected] = useState<RejectedPlan | null>(null);
   const [equipment, setEquipment] = useState(false);
   const [help, setHelp] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -300,9 +302,9 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
         }}
       />
       <main className="sheet">
-      <Schedule owner={owner} shopNow={shop.shopNow!} onEdit={onEdit} onResolveDraft={onResolveDraft} onCancel={onCancelBooking} onReturned={onReturned} onMarkOverdue={onMarkOverdue} />
+      <Schedule owner={owner} shopNow={shop.shopNow!} onEdit={onEdit} onResolveDraft={onResolveDraft} onCancel={onCancelBooking} onReturned={onReturned} onMarkOverdue={onMarkOverdue} rejected={rejected} onClearRejected={() => setRejected(null)} />
       <div className="bottom">
-        <OwnerPanel owner={owner} activity={shop.activity} onOutcome={onOutcome} onOpenChat={setOwnerThread} onResolveDraft={onResolveDraft} onMarkOverdue={onMarkOverdue} />
+        <OwnerPanel owner={owner} activity={shop.activity} onOutcome={onOutcome} onOpenChat={setOwnerThread} rejected={rejected} onRejected={setRejected} onResolveDraft={onResolveDraft} onMarkOverdue={onMarkOverdue} />
         <OwnerMessages
           owner={owner}
           openId={ownerThread}
