@@ -1,0 +1,1 @@
+ALTER TABLE "shops" ADD COLUMN "scenario" text DEFAULT 'camera' NOT NULL;

@@ -13,7 +13,9 @@ import { DateTime } from 'luxon';
 import { rentalPriceCents } from '../pricing.ts';
 import type { Db, Tx } from './client.ts';
 import { defaultPolicy } from './policy.ts';
+import type { Scenario } from './scenarios.ts';
 import * as s from './schema.ts';
+import { yardShopData } from './seed-yard.ts';
 
 export const DEMO_TIMEZONE = 'America/Los_Angeles';
 
@@ -38,6 +40,7 @@ export function demoShopData({ sessionKey, realNow = new Date(), creatorIpHash =
   const shop: typeof s.shops.$inferSelect = {
     id: randomUUID(),
     name: 'Lens & Light Rentals',
+    scenario: 'camera',
     timezone: DEMO_TIMEZONE,
     opensAt: '09:00:00',
     closesAt: '21:00:00',
@@ -186,20 +189,41 @@ export function demoShopData({ sessionKey, realNow = new Date(), creatorIpHash =
 
 type SeedOptions = { sessionKey: string; realNow?: Date; creatorIpHash?: string | null };
 
+/** Seeds the camera shop: most tests and scripts want its fixed lookups. */
 export function seedShop(db: Db, opts: SeedOptions) {
   return db.transaction((tx) => seedShopTx(tx, opts));
 }
 
 export async function seedShopTx(tx: Tx, opts: SeedOptions) {
   const d = demoShopData(opts);
+  await insertShop(tx, d);
+  return d;
+}
+
+export function seedYard(db: Db, opts: SeedOptions) {
+  return db.transaction((tx) => seedYardTx(tx, opts));
+}
+
+export async function seedYardTx(tx: Tx, opts: SeedOptions) {
+  const d = yardShopData(opts);
+  await insertShop(tx, d);
+  return d;
+}
+
+export type SeededScenario = { scenario: 'camera'; data: DemoShop } | { scenario: 'yard'; data: ReturnType<typeof yardShopData> };
+
+export async function seedScenarioTx(tx: Tx, scenario: Scenario, opts: SeedOptions): Promise<SeededScenario> {
+  return scenario === 'yard' ? { scenario, data: await seedYardTx(tx, opts) } : { scenario, data: await seedShopTx(tx, opts) };
+}
+
+async function insertShop(tx: Tx, d: Pick<DemoShop, 'shop' | 'models' | 'substitutes' | 'units' | 'unavailability' | 'facts' | 'customers' | 'bookings' | 'conversations'>) {
   await tx.insert(s.shops).values(d.shop);
   await tx.insert(s.equipmentModels).values(d.models);
   await tx.insert(s.modelSubstitutes).values(d.substitutes);
   await tx.insert(s.units).values(d.units);
-  await tx.insert(s.unitUnavailability).values(d.unavailability);
+  if (d.unavailability.length) await tx.insert(s.unitUnavailability).values(d.unavailability);
   await tx.insert(s.facts).values(d.facts);
   await tx.insert(s.customers).values(d.customers);
   await tx.insert(s.bookings).values(d.bookings);
   await tx.insert(s.conversations).values(d.conversations);
-  return d;
 }

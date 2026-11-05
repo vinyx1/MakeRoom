@@ -34,6 +34,8 @@ declare module 'fastify' {
 }
 
 export const SESSION_COOKIE = 'makeroom_session';
+/** Which demo shop the visitor has open. It only chooses between that visitor's own shops. */
+export const SCENARIO_COOKIE = 'makeroom_scenario';
 
 export type AppOptions = {
   db: Db;
@@ -116,6 +118,8 @@ export function buildApp(opts: AppOptions) {
   app.register(cookie);
   if (opts.webRoot) app.register(fastifyStatic, { root: opts.webRoot, redirect: true }); // /demo → /demo/
   app.decorateRequest('shop', null as unknown as Shop);
+  app.decorateRequest('sessionToken', '');
+  const newShopLimit = (req: FastifyRequest) => (opts.shopsPerIpPerHour ? { ip: req.ip, perHour: opts.shopsPerIpPerHour } : undefined);
 
   // Every /api route except config acts on the visitor's own shop, seeded on first visit.
   app.addHook('preHandler', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -125,7 +129,9 @@ export function buildApp(opts: AppOptions) {
       token = newSessionToken();
       reply.setCookie(SESSION_COOKIE, token, { path: '/', httpOnly: true, sameSite: 'lax', secure: opts.secureCookies ?? false, maxAge: 7 * 24 * 3600 });
     }
-    req.shop = await shopForSession(db, gateway, token, opts.shopsPerIpPerHour ? { ip: req.ip, perHour: opts.shopsPerIpPerHour } : undefined);
+    req.sessionToken = token;
+    const scenario = isScenario(req.cookies[SCENARIO_COOKIE]) ? req.cookies[SCENARIO_COOKIE] : 'camera';
+    req.shop = await shopForSession(db, gateway, token, newShopLimit(req), scenario);
     // Cleanup deletes shops nobody has opened lately. Hourly is precise enough for a 48-hour window.
     if (Date.now() - req.shop.lastSeenAt.getTime() > 3600_000)
       await db.update(s.shops).set({ lastSeenAt: new Date() }).where(eq(s.shops.id, req.shop.id));
@@ -341,6 +347,14 @@ export function buildApp(opts: AppOptions) {
   app.post('/api/demo/reset', async (req) => {
     const shop = await resetShop(db, gateway, req.shop.id);
     return { status: 'reset', shopId: shop.id };
+  });
+
+  // Opens the visitor's other demo shop, seeding it here so the switch waits rather than the next page load.
+  app.post('/api/demo/scenario', async (req, reply) => {
+    const { scenario } = parse(z.object({ scenario: z.enum(SCENARIOS) }), req.body);
+    const shop = await shopForSession(db, gateway, req.sessionToken, newShopLimit(req), scenario);
+    reply.setCookie(SCENARIO_COOKIE, scenario, { path: '/', httpOnly: true, sameSite: 'lax', secure: opts.secureCookies ?? false, maxAge: 7 * 24 * 3600 });
+    return { status: 'switched', scenario, name: shop.name };
   });
 
   // Judge mode: scripted customers answer affected-party offers by themselves.

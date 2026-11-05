@@ -6,6 +6,7 @@ const MINUTE = 60_000;
 const LIMITS = [
   { name: 'chat', pattern: /\/messages$/, max: 20, windowMs: MINUTE, message: 'Too many messages. Please wait a minute and try again.' },
   { name: 'payment', pattern: /\/(order|accept|send|cancel)$/, max: 20, windowMs: MINUTE, message: 'Too many payment requests. Please wait a minute and try again.' },
+  { name: 'scenario', pattern: /\/demo\/scenario$/, max: 30, windowMs: 60 * MINUTE, message: 'Too many shop switches. Please try again later.' },
   { name: 'reset', pattern: /\/demo\/reset$/, max: 10, windowMs: 60 * MINUTE, message: 'Too many resets. Please try again later.' },
 ];
 

@@ -4,6 +4,7 @@
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import type { Tx } from '../db/client.ts';
 import { loadSnapshot } from '../db/load-snapshot.ts';
+import { PROFILES, SCENARIOS, profileOf } from '../db/scenarios.ts';
 import * as s from '../db/schema.ts';
 import { indexSnapshot } from '../optimizer/snapshot.ts';
 import { lastUndoableEdit } from '../owner/edit-booking.ts';
@@ -43,6 +44,13 @@ export async function ownerView(tx: Tx, shopId: string) {
   return {
     shop: {
       name: shop!.name,
+      scenario: shop!.scenario,
+      /** The switcher's choices, and this shop's first account and one-click messages. */
+      demo: {
+        shops: SCENARIOS.map((id) => ({ id, label: PROFILES[id].label, tagline: PROFILES[id].tagline })),
+        defaultCustomer: profileOf(shop!.scenario).defaultCustomer,
+        suggestions: profileOf(shop!.scenario).suggestions,
+      },
       now: snapshot.now,
       timezone: snapshot.shop.timezone,
       opensAt: snapshot.shop.opensAt,

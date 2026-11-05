@@ -110,6 +110,8 @@ export const escalationStatus = pgEnum('escalation_status', ['open', 'resolved']
 export const shops = pgTable('shops', {
   id: id(),
   name: text().notNull(),
+  /** Which demo shop this is (src/db/scenarios.ts). Decides how Reset demo reseeds it and the agent's wording. */
+  scenario: text().notNull().default('camera'),
   timezone: text().notNull(),
   opensAt: time().notNull(),
   closesAt: time().notNull(),

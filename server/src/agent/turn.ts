@@ -76,7 +76,7 @@ const PRICE: Record<string, [number, number]> = {
   'claude-haiku-5-5': [0.1, 0.5],
 };
 
-const SYSTEM = `You are the AI assistant of a small camera rental shop, talking to one customer by chat. Be friendly, brief and plain.
+const systemPrompt = (business: string) => `You are the AI assistant of ${business}, talking to one customer by chat. Be friendly, brief and plain.
 
 Rules:
 1. Reach the customer only with send_message. Your plain reply text is never shown. Send one or two short messages per turn.
@@ -160,7 +160,7 @@ export async function runTurn(db: Db, config: AgentConfig, input: { shopId: stri
         // Policy refusals retry on the server's default fallback model; a model without fallbacks just runs alone.
         betas: ['server-side-fallback-2026-07-01'],
         fallbacks: 'default' as const,
-        system: SYSTEM,
+        system: systemPrompt(profileOf(shop.scenario).business),
         tools,
       };
       const runner = config.client.beta.messages.toolRunner({ ...base, messages: [{ role: 'user', content: prompt }] });
@@ -361,7 +361,7 @@ ${await eventFacts(tx, idx, customerId, event)}`;
 const MENTION_OTHER_GEAR = "Also say, in one sentence, that the shop has other models available for that time, and that the only inconvenience would be coming back to the shop to pick one up. Only mention it: don't name a model or a price, don't offer or reserve one, and don't ask them to decide.";
 
 /**
- * Whether another unit of this model or a substitute is free from when this customer's camera is due back until the
+ * Whether another unit of this model or a substitute is free from when this customer's rental is due back until the
  * time they asked for, so the agent only mentions other gear when there is some. Extensions only.
  */
 async function otherGearFree(tx: Tx, idx: Index, proposalId: string, customerId: string, alternativeRevisionIds: string[] = []) {

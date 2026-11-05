@@ -234,7 +234,7 @@ export function makeTools(scope: ToolScope) {
           const hits = idx.snap.models.filter((m) => !q || words.some((w) => `${m.name} ${m.category}`.toLowerCase().replace('_', ' ').includes(w)));
           if (hits.length) return ok({ models: hits.map(row) });
           // A miss still answers from data (spike gotcha 9): same kind of gear where the query hints at a category.
-          const category = /gimbal|stabili[sz]er/.test(q ?? '') ? 'gimbal' : /camera|body|cinema|komodo|red|canon|nikon|sony|fuji/.test(q ?? '') ? 'camera_body' : null;
+          const category = profileOf(idx.snap.shop.scenario).categoryHints.find(([words]) => words.test(q ?? ''))?.[1] ?? null;
           const closest = idx.snap.models.filter((m) => !category || m.category === category);
           return ok({
             models: [], not_carried: query, closest: closest.map(row),
