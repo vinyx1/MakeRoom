@@ -24,6 +24,10 @@ Planning → spikes. Bryntum spike done: all 9 questions pass; read `spikes/bryn
 | Payments | PayPal Orders v2 with `intent: AUTHORIZE` + JS SDK v6 buttons (`@paypal/react-paypal-js/sdk-v6`); capture or void the authorization, partial refunds on prepaid captures; sandbox only; poll status, no webhooks |
 | Tests | Vitest |
 
+## The second shop
+
+The camera shop stays the story and the spec. The chevron on the shop name opens **Ridgeline Equipment Rental** (`server/src/db/seed-yard.ts`), the same engine under realistic load: 18 machines, 13 contractors, 25 bookings, Monday 6:30am after a rainy weekend, with four problems open on arrival (`server/src/demo/yard-morning.ts`). They go through the real flow with real sandbox holds. `shops.scenario` says which shop a row is; each session has one shop per scenario, chosen by the `makeroom_scenario` cookie, never the URL. Differences between shops live in `server/src/db/scenarios.ts` and the seed. The yard's schedule is arranged so each problem has one honest answer: a time changed there can change the plans, and `server/test/yard.test.ts` pins them. Not modelled: machine breakdowns (Scenario 4), delivery trucks (haul time is the buffer), multi-machine jobs, weekly rates.
+
 ## Vocabulary
 
 - **Owner**: the shop running MakeRoom; uses the dashboard. **Customer**: Vincent, Bob, Charlie, etc.; talks to the agent by chat.

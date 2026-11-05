@@ -32,6 +32,8 @@ The rule from `CLAUDE.md` still holds: the video scenarios must run reliably bef
 9. ~~**Counter-offers: `revise_terms`**~~ done 2026-11-03 (judge B1, B2, B4): infeasible → nearest time; a counter is a draft with Send and Discard; beyond limits → the owner; the 3-revision cap. A requester correcting an unpaid offer now replaces it. Not built: changing terms after paying the hold, owner editing a refund (B3).
 10. **Agent speed perception** (half a day). Sonnet turns take several seconds. Show the agent's tool steps live in the chat ("checking the schedule…") rather than only in the feed.
 
+11a. ~~**A second, realistic shop**~~ built 2026-11-05: the chevron on the shop name opens the equipment yard (`CLAUDE.md` "The second shop"). Checked in the browser against the real sandbox: first open and reset each take about 12s (25 captures, 3 holds), and all four problems reach the right ending. Each open or reset costs about $0.05 in agent turns. Still to check: the real PayPal popup in the yard (Summit's payment was made with the test card), Safari, and the per-IP shop limit on Railway, since a visitor who switches uses two of the 5 an hour. If breakdowns go in, that's item 13.
+
 ## P2: if time permits
 
 11. **A customer cancels their own booking** (half a day; C8). Refund policy: 100% if 24h or more before pickup, otherwise 50%. A request that claimed the booking gets re-planned. The owner's version is done (2026-11-03): Delete on the schedule, agreed by phone, full refund.
