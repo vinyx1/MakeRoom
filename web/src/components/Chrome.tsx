@@ -2,7 +2,7 @@
 
 import { DateTime } from 'luxon';
 import { useState } from 'react';
-import type { OwnerView } from '../api';
+import type { Customer, OwnerView } from '../api';
 import { scheduleToToday } from '../highlight';
 import { shopTime, usd } from '../live';
 
@@ -136,7 +136,9 @@ export function Sidebar({ owner, onReset, onEquipment, onHelp }: SidebarProps) {
   );
 }
 
-export function TopBar({ owner, shopNow, onFastForward }: { owner: OwnerView; shopNow: Date; onFastForward: (minutes: number) => void }) {
+type TopBarProps = { owner: OwnerView; shopNow: Date; onFastForward: (minutes: number) => void; phoneOpen: boolean; onPhone: () => void; waitingOn: Customer[] };
+
+export function TopBar({ owner, shopNow, onFastForward, phoneOpen, onPhone, waitingOn }: TopBarProps) {
   const zone = owner.shop.timezone;
   return (
     <header className="top">
@@ -149,6 +151,9 @@ export function TopBar({ owner, shopNow, onFastForward }: { owner: OwnerView; sh
         </button>
         <button onClick={() => onFastForward(240)} title="Jump the shop clock ahead four hours">
           +4 h
+        </button>
+        <button className={`phone-toggle ${!phoneOpen && waitingOn.length ? 'waiting' : ''}`} aria-pressed={phoneOpen} onClick={onPhone}>
+          {phoneOpen ? 'Hide customer phone' : waitingOn.length ? `Customer phone · ${waitingOn[0]!.name} has an offer` : 'Customer phone'}
         </button>
       </div>
     </header>
@@ -205,7 +210,7 @@ export function Help({ onClose }: { onClose: () => void }) {
       <div className="modal help" onClick={(e) => e.stopPropagation()}>
         <h3>How to demo</h3>
         <p className="muted small">
-          You play everyone: the owner (Needs owner approval and Owner's Messages) and one customer at a time (bottom right; switch with the menu by their name, or the prompt that appears when someone has an offer to answer). Payments use the PayPal sandbox; the
+          You play everyone: the owner (Needs owner approval and Owner's Messages) and one customer at a time, on the phone at the side. Switch accounts along the top of the phone; a dot marks anyone with an offer to answer. Payments use the PayPal sandbox; the
           buyer login is shown on each payment card. Reset demo starts over any time.
         </p>
         <h4>1 · The extension</h4>

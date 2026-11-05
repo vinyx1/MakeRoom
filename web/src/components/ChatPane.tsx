@@ -16,7 +16,6 @@ type Props = {
   zone: string;
   tick: number;
   typing: boolean;
-  role: string;
   /** Other customers with a card waiting on them: with one chat on screen, this is how the visitor finds them. */
   waitingOn: Customer[];
   onOutcome: (o: Outcome) => void;
@@ -26,18 +25,19 @@ type Props = {
 const TRY: Record<string, string> = { Vincent: 'Shoot ran over. Can I keep the camera until Thursday at 10am?' };
 const TRY_ANYONE = 'When is my booking?';
 
-export function ChatPane({ customerId, customers, onCustomer, config, zone, tick, typing, role, waitingOn, onOutcome }: Props) {
+export function ChatPane({ customerId, customers, onCustomer, config, zone, tick, typing, waitingOn, onOutcome }: Props) {
   const [view, setView] = useState<CustomerView | null>(null);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
-  const bottom = useRef<HTMLDivElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => setView(await api.customer(customerId)), [customerId]);
   useEffect(() => {
     void load().catch(() => {});
   }, [load, tick]);
   useEffect(() => {
-    bottom.current?.scrollIntoView({ block: 'end' });
+    // Scrolls only this list: scrollIntoView would also move the panel around a closed phone.
+    if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight;
   }, [view?.messages.length, typing]);
 
   const send = async (typed = text) => {
@@ -74,24 +74,7 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
 
   return (
     <section className="pane chat">
-      <header className="pane-head">
-        <div className="pane-who">
-          <Avatar name={name} />
-          <div className="pane-names">
-            <select className="who-select" value={customerId} onChange={(e) => onCustomer(e.target.value)} aria-label="Show another customer's chat">
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            <span className="pane-role">{role}</span>
-          </div>
-        </div>
-        {view?.handedOff && <span className="badge shop">With the shop</span>}
-      </header>
-
-      <div className="messages">
+      <div className="messages" ref={scroller}>
         {!view && <div className="muted small">Loading…</div>}
         {view?.messages.length === 0 && view.cards.length === 0 && view.requests.length === 0 && (
           <div className="empty">
@@ -145,7 +128,6 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
             </div>
           ))}
         {typing && <div className="typing">Assistant is replying…</div>}
-        <div ref={bottom} />
       </div>
 
       {view?.handedOff && (
@@ -154,7 +136,7 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
       {waitingOn.map((c) => (
         <div className="nudge" key={c.id}>
           {c.name} has an offer to answer.
-          <button onClick={() => onCustomer(c.id)}>Open {c.name}'s chat</button>
+          <button onClick={() => onCustomer(c.id)}>Open {c.name}'s phone</button>
         </div>
       ))}
       <form

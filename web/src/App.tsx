@@ -1,11 +1,11 @@
 // Layout: a sidebar and top bar around one sheet. On the sheet, the schedule across the top; below it the owner's
-// decisions, the owner's messages, and one customer's chat (switchable), so cause and effect are in one frame.
+// decisions and messages. One customer's chat (switchable) is on a phone beside the sheet, so cause and effect stay in one frame.
 
 import { DateTime } from 'luxon';
 import { PayPalProvider } from '@paypal/react-paypal-js/sdk-v6';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { type Config, type Outcome, type OwnerView, api } from './api';
-import { ChatPane } from './components/ChatPane';
+import { CustomerPhone } from './components/CustomerPhone';
 import { EditDialog, type EditPrompt, EquipmentDrawer, Help, Mark, Sidebar, type Toast, Toasts, TopBar } from './components/Chrome';
 import { OwnerMessages } from './components/OwnerMessages';
 import { OwnerPanel } from './components/OwnerPanel';
@@ -128,6 +128,8 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
   const byName = (n: string) => customers.find((c) => c.name === n)?.id ?? customers[0]!.id;
   const [playing, setPlaying] = useState(() => byName('Vincent'));
   const [ownerThread, setOwnerThread] = useState<string | null>(null);
+  // Open at first: the demo's first step happens on the customer's phone.
+  const [phoneOpen, setPhoneOpen] = useState(true);
   const [equipment, setEquipment] = useState(false);
   const [help, setHelp] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -288,6 +290,9 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
       <TopBar
         owner={owner}
         shopNow={shop.shopNow!}
+        phoneOpen={phoneOpen}
+        onPhone={() => setPhoneOpen((o) => !o)}
+        waitingOn={waitingOn(owner, playing)}
         onFastForward={async (m) => {
           const r = await api.fastForward(m);
           toast({ kind: 'ok', text: `Shop clock +${m} min${r.expired.length ? `; ${r.expired.length} offer${r.expired.length === 1 ? '' : 's'} expired` : ''}.` });
@@ -306,20 +311,23 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
           onOutcome={onOutcome}
           onChanged={() => void shop.refresh()}
         />
-        <ChatPane
-          customerId={playing}
-          customers={customers}
-          onCustomer={setPlaying}
-          config={config}
-          zone={owner.shop.timezone}
-          tick={shop.tick}
-          typing={isTyping(shop.activity, playing)}
-          role={roleIn(owner, playing)}
-          waitingOn={waitingOn(owner, playing)}
-          onOutcome={onOutcome}
-        />
       </div>
       </main>
+      <CustomerPhone
+        open={phoneOpen}
+        now={shop.shopNow!}
+        onClose={() => setPhoneOpen(false)}
+        customerId={playing}
+        customers={customers}
+        onCustomer={setPlaying}
+        config={config}
+        zone={owner.shop.timezone}
+        tick={shop.tick}
+        typing={isTyping(shop.activity, playing)}
+        role={roleIn(owner, playing)}
+        waitingOn={waitingOn(owner, playing)}
+        onOutcome={onOutcome}
+      />
       {equipment && <EquipmentDrawer owner={owner} onClose={() => setEquipment(false)} />}
       {help && <Help onClose={() => setHelp(false)} />}
       {prompt && <EditDialog prompt={prompt} />}
