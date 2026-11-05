@@ -7,6 +7,7 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { logActivity } from '../activity.ts';
 import type { Db, Tx } from '../db/client.ts';
 import { loadSnapshot } from '../db/load-snapshot.ts';
+import { profileOf } from '../db/scenarios.ts';
 import * as s from '../db/schema.ts';
 import { type Index, indexSnapshot } from '../optimizer/snapshot.ts';
 import { earliestOpenAtOrAfter } from '../optimizer/time.ts';

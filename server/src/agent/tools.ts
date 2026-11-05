@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { logActivity } from '../activity.ts';
 import type { Db, Tx } from '../db/client.ts';
 import { loadSnapshot } from '../db/load-snapshot.ts';
+import { profileOf } from '../db/scenarios.ts';
 import * as s from '../db/schema.ts';
 import { type Request, optimize } from '../optimizer/optimizer.ts';
 import { type Index, indexSnapshot, occupancy, overlaps } from '../optimizer/snapshot.ts';
@@ -224,7 +225,7 @@ export function makeTools(scope: ToolScope) {
       description: 'Models the shop carries, with daily rates and substitutes. Text match on name and category; omit the query to list everything.',
       inputSchema: z.object({ query: z.string().optional() }),
       run: async ({ query }) =>
-        read(async (_tx, idx) => {
+        read(async (tx, idx) => {
           const row = (m: (typeof idx.snap.models)[number]) => ({
             model_id: turn.ids.of('md', m.id), name: m.name, category: m.category.replace('_', ' '), daily_rate: usd(m.dailyRateCents),
             substitutes: idx.substitutesOf(m.id).map((x) => x.name),
@@ -234,7 +235,8 @@ export function makeTools(scope: ToolScope) {
           const hits = idx.snap.models.filter((m) => !q || words.some((w) => `${m.name} ${m.category}`.toLowerCase().replace('_', ' ').includes(w)));
           if (hits.length) return ok({ models: hits.map(row) });
           // A miss still answers from data (spike gotcha 9): same kind of gear where the query hints at a category.
-          const category = profileOf(idx.snap.shop.scenario).categoryHints.find(([words]) => words.test(q ?? ''))?.[1] ?? null;
+          const [shop] = await tx.select({ scenario: s.shops.scenario }).from(s.shops).where(eq(s.shops.id, shopId));
+          const category = profileOf(shop!.scenario).categoryHints.find(([words]) => words.test(q ?? ''))?.[1] ?? null;
           const closest = idx.snap.models.filter((m) => !category || m.category === category);
           return ok({
             models: [], not_carried: query, closest: closest.map(row),

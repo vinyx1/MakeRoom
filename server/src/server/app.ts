@@ -11,6 +11,7 @@ import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { Db } from '../db/client.ts';
 import { withShopLock } from '../db/lock.ts';
+import { SCENARIOS, isScenario } from '../db/scenarios.ts';
 import * as s from '../db/schema.ts';
 import { discardDraft, ownerCancelBooking, ownerEditBooking, undoOwnerEdit } from '../owner/edit-booking.ts';
 import type { AgentService } from '../agent/service.ts';
@@ -30,6 +31,7 @@ type Shop = typeof s.shops.$inferSelect;
 declare module 'fastify' {
   interface FastifyRequest {
     shop: Shop;
+    sessionToken: string;
   }
 }
 
