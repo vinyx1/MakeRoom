@@ -303,6 +303,21 @@ describe('chat order', () => {
     await Promise.all([call('send_message', { text: 'first' }), call('send_message', { text: 'second' }), call('send_message', { text: 'third' })]);
     expect((await messagesOf(conversationId)).map((m) => m.body)).toEqual(['first', 'second', 'third']);
   });
+
+  it('stay in order on an offer turn too, where each one first checks the offer is still open', async () => {
+    const { d, gateway } = await shop();
+    const vincent = d.customer('Vincent').id;
+    const offered = await requestChange(db, d.shop.id, { customerId: vincent, request: { kind: 'extend', bookingId: d.bookingOf('Vincent').id, newEndsAt: at(d, 'Thu', 10) } });
+    if (offered.status !== 'offered') throw new Error(offered.status);
+    await createRequesterOrder(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent });
+    await requesterAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: vincent });
+
+    const { call, turn, conversationId } = await toolsFor(d, 'Bob');
+    turn.offer = { proposalId: offered.proposal.id, revisionIds: offered.revisions.map((r) => r.id), role: 'affected' };
+    const sent = Array.from({ length: 8 }, (_, i) => `message ${i}`);
+    await Promise.all(sent.map((text) => call('send_message', { text })));
+    expect((await messagesOf(conversationId)).map((m) => m.body)).toEqual(sent);
+  });
 });
 
 describe('revise_terms', () => {
