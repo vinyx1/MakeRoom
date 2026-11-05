@@ -50,11 +50,11 @@ img { display: block; max-width: 100%; height: auto; }
 .text-link:hover { text-decoration-color: var(--text); }
 
 /* Bar */
-.bar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; height: 56px; padding: 0 20px; background: var(--frame); }
+.topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; height: 56px; padding: 0 20px; background: var(--frame); }
 .logo { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 17px; text-decoration: none; }
-.bar nav { display: flex; align-items: center; gap: 22px; font-size: 15px; }
-.bar nav a:not(.button) { text-decoration: none; }
-.bar nav a:not(.button):hover { text-decoration: underline; text-underline-offset: 3px; }
+.topbar nav { display: flex; align-items: center; gap: 22px; font-size: 15px; }
+.topbar nav a:not(.button) { text-decoration: none; }
+.topbar nav a:not(.button):hover { text-decoration: underline; text-underline-offset: 3px; }
 
 /* Hero */
 .hero { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: var(--gap); padding: 0 var(--gap); min-height: calc(100svh - 68px); }
@@ -89,7 +89,7 @@ h1 { font-size: clamp(2.25rem, 1rem + 3.5vw, 4.5rem); max-width: 12.5em; }
 .sched-rows { position: relative; display: grid; grid-auto-rows: 38px; }
 .sched-rows > i { border-top: 1px solid var(--rule); background-image: linear-gradient(to right, var(--rule) 1px, transparent 1px); background-size: 33.333% 100%; }
 .now { position: absolute; top: 0; bottom: 0; left: calc(var(--at) * 100%); width: 1px; background: #d93025; z-index: 3; }
-.bar-base, .sched-rows .bar { position: absolute; top: calc(var(--row) * 38px + 5px); height: 28px; display: flex; align-items: center; padding: 0 7px; border-radius: 4px; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; transition: left 0.7s var(--ease), width 0.7s var(--ease), top 0.7s var(--ease), opacity 0.35s, background-color 0.35s, color 0.35s; z-index: 2; }
+.sched-rows .bar { position: absolute; top: calc(var(--row) * 38px + 5px); height: 28px; display: flex; align-items: center; padding: 0 7px; border-radius: 4px; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; transition: left 0.7s var(--ease), width 0.7s var(--ease), top 0.7s var(--ease), opacity 0.35s, background-color 0.35s, color 0.35s; z-index: 2; }
 .sched-rows .buffer { position: absolute; top: calc(var(--row) * 38px + 18px); height: 2px; background: #b6bbc2; text-decoration: none; transition: left 0.7s var(--ease), width 0.7s var(--ease), top 0.7s var(--ease), opacity 0.35s; }
 .bar.booked { background: var(--booked-soft); color: var(--booked-ink); box-shadow: inset 3px 0 0 var(--booked); }
 .bar.out { background: var(--booked); color: #fff; }
@@ -193,7 +193,7 @@ h1 { font-size: clamp(2.25rem, 1rem + 3.5vw, 4.5rem); max-width: 12.5em; }
 .will-rise .risen { opacity: 1 !important; transform: none !important; transition: opacity 0.6s var(--ease) var(--delay, 0ms), transform 0.6s var(--ease) var(--delay, 0ms); }
 
 @media (max-width: 1000px) {
-  .bar nav a:not(.button) { display: none; }
+  .topbar nav a:not(.button) { display: none; }
   .hero, .how, .real, .rules { grid-template-columns: minmax(0, 1fr); }
   .hero { min-height: 0; }
   .hero-text { padding: 28px 20px; }
