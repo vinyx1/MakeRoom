@@ -282,9 +282,9 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel, onR
       // Units of one model sit under one merged cell, which groups them without adding rows.
       columns: [
         { text: 'Model', field: 'model', width: 118, mergeCells: true, sum: 'count', summaryRenderer: () => 'Fully booked' },
-        { text: 'Unit', field: 'name', width: 92 },
+        { text: 'Unit', field: 'name', width: 104 },
       ],
-      mergeCellsFeature: true,
+      mergeCellsFeature: { sortedOnly: false },
       // Under each day, what the shop has run out of, from confirmed bookings and unavailable units.
       summaryFeature: {
         renderer({ startDate, endDate }: any) {

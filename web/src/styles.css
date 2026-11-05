@@ -296,7 +296,7 @@ code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; b
 }
 .b-sch-event.kind-rejected { background: var(--surface) !important; border: 1.5px dashed var(--muted) !important; color: var(--muted) !important; font-weight: 500; }
 .b-sch-event.kind-booking.lit-up { outline: 2px solid var(--conflict); outline-offset: 1px; }
-.replay-note { position: absolute; left: 218px; right: 12px; bottom: 34px; z-index: 12; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 5px 10px; background: var(--primary); color: #fff; border-radius: var(--radius-control); font-size: 12px; line-height: 17px; box-shadow: 0 2px 8px rgba(20, 24, 30, 0.2); }
+.replay-note { position: absolute; left: 230px; right: 12px; bottom: 34px; z-index: 12; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 5px 10px; background: var(--primary); color: #fff; border-radius: var(--radius-control); font-size: 12px; line-height: 17px; box-shadow: 0 2px 8px rgba(20, 24, 30, 0.2); }
 .replay-note button.link { flex: none; color: #fff; text-decoration-color: rgba(255, 255, 255, 0.6); }
 .pruned-plan { display: block; width: 100%; height: auto; padding: 1px 4px; margin-left: -4px; border: none; border-radius: 4px; background: none; color: inherit; font-size: inherit; line-height: inherit; text-align: left; white-space: normal; }
 .pruned-plan:hover:not(:disabled) { background: var(--active); color: var(--text); }
