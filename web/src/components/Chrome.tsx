@@ -153,7 +153,7 @@ export function TopBar({ owner, shopNow, onFastForward, phoneOpen, onPhone, wait
           +4 h
         </button>
         <button className={`phone-toggle ${!phoneOpen && waitingOn.length ? 'waiting' : ''}`} aria-pressed={phoneOpen} onClick={onPhone}>
-          {phoneOpen ? 'Hide customer phone' : waitingOn.length ? `Customer phone · ${waitingOn[0]!.name} has an offer` : 'Customer phone'}
+          {phoneOpen ? 'Hide phone' : waitingOn.length ? `Phone · ${waitingOn[0]!.name} has an offer` : 'Customer phone'}
         </button>
       </div>
     </header>
