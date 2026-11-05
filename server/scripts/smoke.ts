@@ -51,6 +51,11 @@ let owner: Owner | undefined;
 
 console.log(`Checking ${base}`);
 
+await step('the demo app is at /demo/', async () => {
+  const page = await api('GET', '/demo/');
+  must(page.status === 200 && page.text.includes('<title>MakeRoom</title>') && /assets\/[^"]+\.js/.test(page.text), `page answered ${page.status}`);
+});
+
 await step('page and frontend code load', async () => {
   const page = await api('GET', '/');
   must(page.status === 200 && page.text.includes('<title>MakeRoom</title>'), `page answered ${page.status}`);

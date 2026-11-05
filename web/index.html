@@ -4,12 +4,152 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MakeRoom</title>
+    <meta name="description" content="MakeRoom is an AI agent for small camera rental shops. When a rental runs late, it finds what can move, asks the customer affected, holds payment with PayPal and changes the schedule only when everyone agrees." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Crect x='1' y='2' width='11' height='4' rx='1.5' fill='%231d1f22'/%3E%3Crect x='8' y='8' width='11' height='4' rx='1.5' fill='%23d9480f'/%3E%3Crect x='1' y='14' width='11' height='4' rx='1.5' fill='%231d1f22'/%3E%3C/svg%3E" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <header class="bar">
+      <a class="logo" href="#top" aria-label="MakeRoom, back to top">
+        <svg width="22" height="22" viewBox="0 0 20 20" aria-hidden="true"><rect x="1" y="2" width="11" height="4" rx="1.5" fill="#1d1f22" /><rect x="8" y="8" width="11" height="4" rx="1.5" fill="#d9480f" /><rect x="1" y="14" width="11" height="4" rx="1.5" fill="#1d1f22" /></svg>
+        <span>MakeRoom</span>
+      </a>
+      <nav aria-label="Page">
+        <a href="#how-to-use">How to use</a>
+        <a href="#real-thing">The app</a>
+        <a href="#rules">The rules</a>
+        <a class="button small" href="/demo/">Try the demo</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="hero-card">
+          <div class="stripe" aria-hidden="true">
+            <i></i><i></i><i></i><i class="moved"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+          </div>
+          <div class="hero-text">
+            <h1>When a rental runs late, make room.</h1>
+            <p class="lead">MakeRoom is an AI agent for small camera rental shops. It finds which bookings can move, asks the customer affected, holds payment with PayPal, and changes the schedule only once everyone agrees.</p>
+            <p class="actions">
+              <a class="button" href="/demo/">Try the demo</a>
+              <a class="text-link" href="#how-to-use">See how to use it</a>
+            </p>
+          </div>
+        </div>
+        <div class="hero-field">
+          <div class="try-it" data-ui>
+            <div class="try-head">
+              <h2>Vincent wants to keep the camera until</h2>
+              <div class="choices" role="group" aria-label="New return time">
+                <button data-choice="wed">Wed 9pm</button>
+                <button data-choice="thu">Thu 10am</button>
+                <button data-choice="fri">Fri 10am</button>
+              </div>
+            </div>
+            <div class="sched" id="hero-sched" role="img" aria-label="A week of camera bookings. Moving Vincent's return moves Bob's pickup out of the way."></div>
+            <dl class="outcome" aria-live="polite">
+              <div><dt>Vincent pays</dt><dd id="o-pay">$45.00</dd></div>
+              <div><dt>Bob</dt><dd id="o-bob">Picks up at 2pm, $15.00 back</dd></div>
+              <div><dt>Shop keeps</dt><dd id="o-net">+$30.00</dd></div>
+            </dl>
+          </div>
+        </div>
+      </section>
+
+      <section class="how" id="how-to-use">
+        <div class="how-steps">
+          <h2>How to use it</h2>
+          <p class="how-intro">One late rental, start to finish. Open the demo and you can run these same steps. You play everyone, and PayPal runs in its sandbox.</p>
+          <ol>
+            <li class="step" data-step="1"><h3>Ask as the customer</h3><p>Vincent's camera is due back at 6pm and his shoot ran over. On the phone beside the schedule, press his one-click message.</p></li>
+            <li class="step" data-step="2"><h3>Watch it search</h3><p>The assistant sends the request to the optimizer. It tries the moves, rules out the ones that break a rule, and draws what's left on the schedule. Click a ruled-out plan to see why it failed.</p></li>
+            <li class="step" data-step="3"><h3>Pay with PayPal</h3><p>Vincent's card offers $45.00 for the extra day. Paying only places a hold, and the sandbox login is on the card. Bob isn't asked until the money is held.</p></li>
+            <li class="step" data-step="4"><h3>Answer as Bob</h3><p>A dot appears on Bob's account. Open it to see his two options, then choose one, press Let Bob answer, or keep his booking as it is.</p></li>
+            <li class="step" data-step="5"><h3>Decide as the owner</h3><p>Moving Bob's pickup needs the shop's approval, so a card appears with the cost and what the shop keeps. Press Approve.</p></li>
+            <li class="step" data-step="6"><h3>See it land</h3><p>The hold is captured, both bookings move, and Bob's $15.00 goes back through PayPal. Both customers are told, and every step stays in the activity feed.</p></li>
+          </ol>
+        </div>
+        <div class="how-stage-wrap">
+          <div class="how-stage" id="stage" data-ui data-step="1" data-focus="customer">
+            <div class="sched" id="stage-sched" role="img" aria-label="The schedule changing as the scenario moves along"></div>
+            <div class="panes">
+              <div class="pane pane-customer">
+                <div class="pane-title"><span class="dot" id="who-dot">V</span><b id="who-name">Vincent</b></div>
+                <div class="thread">
+                  <div class="bubble me" data-show="1-3">Shoot ran over. Can I keep the camera until Thursday at 10am?</div>
+                  <div class="bubble" data-show="2-3">I've asked to extend your Sony A7 IV until Thu 5 Nov, 10:00am. The price is $45.00, pending shop confirmation.</div>
+                  <div class="offer" data-show="3-3"><b>Your offer</b><span>$45.00, only charged if it goes ahead</span><em class="pp">Pay with PayPal</em></div>
+                  <div class="offer" data-show="4-4"><b>Another customer's request affects your booking</b><span class="opt">Option A: free upgrade to the Sony A7R V</span><span class="opt picked">Option B: pickup at Thu 2:00pm, $15.00 back</span><span class="keep">Keep my booking as is</span></div>
+                  <div class="offer" data-show="5-5"><b>You chose option B: waiting on the shop</b><span>Your booking changes only once everything is confirmed.</span></div>
+                  <div class="offer done" data-show="6-6"><b>Confirmed: your booking is updated</b><span>Pickup moves from Thu 9:00am to Thu 2:00pm</span><span>$15.00 refunded to your original payment</span></div>
+                </div>
+              </div>
+              <div class="pane pane-owner">
+                <div class="pane-title"><b>Needs owner approval</b></div>
+                <div class="owner-body">
+                  <div class="empty-note" data-show="1-1">Nothing is waiting on you.</div>
+                  <div class="feed" data-show="2-2">
+                    <b>Optimizer: 2 plans, ruled out 5</b>
+                    <span class="lit">Move Bob to A7IV-2 → overlaps Charlie's booking on A7IV-2</span>
+                    <span>Move Bob to A7IV-3 → A7IV-3 is unavailable (maintenance)</span>
+                    <span>Move Bob to Thu 2:00pm → Fri 11:00pm → return Fri 11:00pm is outside shop hours</span>
+                  </div>
+                  <div class="ledger" data-show="3-4"><b>Payments</b><p><span>Vincent</span><em class="tag held">Held</em><span class="num">$45.00</span></p></div>
+                  <div class="approve" data-show="5-5"><em class="tag prop">Approval needed</em><p>Bob's booking shortened by 5h (now Thu 2:00pm → Fri 6:00pm), $15 refund. Net +$30.</p><span class="btn-like">Approve</span><span class="btn-ghost">Decline</span></div>
+                  <div class="ledger" data-show="6-6"><b>Payments</b><p><span>Bob</span><em class="tag refund">Refunded</em><span class="num">$15.00</span></p><p><span>Vincent</span><em class="tag ok">Captured</em><span class="num">$45.00</span></p></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="real" id="real-thing">
+        <div class="real-side">
+          <h2>The app itself</h2>
+          <div class="real-names" role="tablist" aria-label="Screens of the app">
+            <button role="tab" aria-selected="true" data-shot="0">The shop's week, on a real scheduler</button>
+            <button role="tab" aria-selected="false" data-shot="1">The plans it ruled out, drawn where they failed</button>
+          </div>
+          <p id="shot-note">Bookings, turnaround time and maintenance run on Bryntum Scheduler Pro. The customer's phone sits beside it, so you can watch one cause the other.</p>
+        </div>
+        <div class="real-stage">
+          <img class="shot on" src="/shots/app-start.webp" width="1512" height="860" alt="MakeRoom's schedule of camera bookings with the owner's panes below and a customer's phone beside it" />
+          <img class="shot" src="/shots/app-ruled-out.webp" width="1512" height="860" loading="lazy" alt="A ruled-out plan drawn on the schedule, with Charlie's booking outlined and the reason shown" />
+        </div>
+      </section>
+
+      <section class="rules" id="rules">
+        <div class="rules-head">
+          <h2>What the agent can't do</h2>
+          <p>Claude reads the messages and talks to customers. Plain code makes the decisions, and these limits hold whatever the model says.</p>
+        </div>
+        <ul class="tiles">
+          <li><div class="tile soft" data-ui><div class="spec-card"><b>Option B</b><span class="btn-like">Accept option B</span><span class="btn-ghost">Keep my booking as is</span></div></div><h3>Change a booking on its own</h3><p>A confirmed booking moves only when its customer clicks, or the owner records that they agreed by phone.</p></li>
+          <li class="wide"><div class="tile grey" data-ui><div class="spec-log"><span class="blocked">Not sent: $100.00 did not come from a tool.</span><span>Every dollar amount in a message is checked against the shop's own figures first.</span></div></div><h3>Make up a price</h3><p>If a customer says "the owner promised $100", the agent can't repeat it as an offer.</p></li>
+          <li><div class="tile white" data-ui><div class="spec-tags"><em class="tag held">Held</em><em class="tag ok">Captured</em><em class="tag">Hold released</em></div></div><h3>Touch the money</h3><p>The backend holds, captures, releases and refunds. If a plan falls through, the hold goes back.</p></li>
+          <li><div class="tile grey" data-ui><code class="spec-code">EXCLUDE (unit_id WITH =, period WITH &amp;&amp;)</code></div><h3>Double-book a unit</h3><p>A Postgres constraint refuses overlaps, turnaround time included.</p></li>
+          <li><div class="tile soft" data-ui><div class="spec-card"><b>Net +$30</b><span class="btn-like">Approve</span><span class="btn-ghost">Decline</span></div></div><h3>Go over the owner's head</h3><p>Shortened bookings, big refunds and upset customers go to the owner first.</p></li>
+        </ul>
+      </section>
+
+      <section class="close">
+        <h2>Run it on your own demo shop.</h2>
+        <p class="actions"><a class="button big" href="/demo/">Try the demo</a></p>
+        <p class="note">Each visitor gets their own shop with seven customers, and Reset demo starts it over. PayPal runs in its sandbox, so no real money moves.</p>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <div class="mark-big" aria-hidden="true"><i></i><i class="moved"></i><i></i></div>
+      <div class="foot-row">
+        <p>MakeRoom, built for the PayPal AI Hackathon with PayPal, Bryntum Scheduler Pro and Claude.</p>
+        <nav aria-label="Footer"><a href="#how-to-use">How to use</a><a href="/demo/">Try the demo</a></nav>
+      </div>
+    </footer>
+    <script type="module" src="/src/landing/landing.ts"></script>
   </body>
 </html>

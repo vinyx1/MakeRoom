@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
@@ -5,5 +6,7 @@ import { defineConfig } from 'vite';
 // stream same-origin, as they are in production, where the server serves this build.
 export default defineConfig({
   plugins: [react()],
+  // Two pages: the landing page at /, and the app at /demo/.
+  build: { rollupOptions: { input: { main: resolve(import.meta.dirname, 'index.html'), demo: resolve(import.meta.dirname, 'demo/index.html') } } },
   server: { proxy: { '/api': { target: 'http://127.0.0.1:3000', changeOrigin: false } } },
 });

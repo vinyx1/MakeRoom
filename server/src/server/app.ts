@@ -114,7 +114,7 @@ export function buildApp(opts: AppOptions) {
   const app = Fastify({ logger: opts.logger ?? false, forceCloseConnections: true, trustProxy: opts.trustedProxies ? (_addr: string, hop: number) => hop < opts.trustedProxies! : false });
   const limiter = createRateLimiter();
   app.register(cookie);
-  if (opts.webRoot) app.register(fastifyStatic, { root: opts.webRoot });
+  if (opts.webRoot) app.register(fastifyStatic, { root: opts.webRoot, redirect: true }); // /demo → /demo/
   app.decorateRequest('shop', null as unknown as Shop);
 
   // Every /api route except config acts on the visitor's own shop, seeded on first visit.
