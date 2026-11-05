@@ -286,6 +286,7 @@ code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; b
 .b-sch-resource-time-range { --b-primary: #5a6068; --b-resource-time-range-background: repeating-linear-gradient(135deg, #eef0f2 0 5px, #f7f8f9 5px 10px); color: var(--muted); background: repeating-linear-gradient(135deg, #e7e9ec 0 5px, #f3f4f6 5px 10px) !important; }
 .b-sch-resource-time-range .b-sch-event-content { color: var(--muted) !important; font-weight: 500; }
 .b-sch-event { border-radius: 4px !important; }
+.schedule .b-grid-row.b-hover .b-grid-cell, .schedule .b-grid-row.b-selected .b-grid-cell, .schedule .b-grid-row.b-hover, .schedule .b-grid-row.b-selected { background-color: var(--brand-soft) !important; }
 .b-sch-event.kind-booking { background: var(--booked-soft) !important; border: none !important; border-left: 3px solid var(--booked) !important; color: var(--booked-ink) !important; font-weight: 500; }
 .b-sch-event.kind-booking.picked-up { background: var(--booked) !important; color: #fff !important; }
 .b-sch-event.kind-booking.overdue { background: repeating-linear-gradient(135deg, var(--booked) 0 6px, #3f6191 6px 12px) !important; color: #fff !important; border-left-color: #e0a100 !important; }
