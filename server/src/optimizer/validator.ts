@@ -190,7 +190,8 @@ function overlapViolations(idx: Index, changes: ProposedChange[]): Violation[] {
         let a = onUnit[i]!, b = onUnit[j]!;
         if (!a.changed && !b.changed) continue;
         if (!overlaps(occupancy(a.p), occupancy(b.p))) continue;
-        if (!a.changed) [a, b] = [b, a];
+        // Name the booking being run into: with two changes, the later one is the move that hit the earlier one.
+        if (!a.changed || b.changed) [a, b] = [b, a];
         out.push({
           rule: 'overlap',
           bookingId: a.bookingId,

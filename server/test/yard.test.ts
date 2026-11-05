@@ -61,6 +61,10 @@ describe('the yard', () => {
     const [rev, ...others] = await load.revisions(p.id);
     expect(others).toEqual([]);
     expect(rev!.needsOwner).toBe(false);
+    // The feed names who a move would run into, never the customer being moved.
+    const feed = await db.select().from(s.activityLog).where(and(eq(s.activityLog.shopId, d.shop.id), eq(s.activityLog.kind, 'optimizer_run')));
+    const messages = feed.flatMap((row) => ((row.payload as { pruned: { message: string }[] }).pruned).map((x) => x.message));
+    expect(messages).toContain("Move Delgado Paving to S66-1 → overlaps Harbor Concrete's booking on S66-1");
     expect(rev!.quote.chargeCents).toBe(64_000);
 
     const done = await affectedAccept(db, gateway, d.shop.id, { proposalId: p.id, customerId: delgado.customerId, revisionId: rev!.id });
