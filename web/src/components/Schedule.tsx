@@ -9,7 +9,7 @@
 // coming back from a drag are in Bryntum's converted form; `TimeZoneHelper.fromTimeZone` turns them back into
 // real instants before they go to the server.
 
-import { EventModel, StringHelper, TimeZoneHelper } from '@bryntum/schedulerpro';
+import { DateHelper, EventModel, StringHelper, TimeZoneHelper } from '@bryntum/schedulerpro';
 import { BryntumSchedulerPro, BryntumSchedulerProProjectModel } from '@bryntum/schedulerpro-react';
 import { DateTime } from 'luxon';
 import { useEffect, useMemo, useRef } from 'react';
@@ -280,7 +280,14 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel, onR
     () => ({
       startDate: view.start,
       endDate: view.end,
-      viewPreset: 'dayAndWeek',
+      // Plain dates over the days ("Nov 9 – 15", "Mon 9") instead of Bryntum's week numbers.
+      viewPreset: {
+        base: 'dayAndWeek',
+        headers: [
+          { unit: 'week', renderer: (start: Date, end: Date) => `${DateHelper.format(start, 'MMM D')} – ${DateHelper.format(DateHelper.add(end, -1, 'day'), start.getMonth() === DateHelper.add(end, -1, 'day').getMonth() ? 'D' : 'MMM D')}` },
+          { unit: 'day', dateFormat: 'ddd D' },
+        ],
+      },
       weekStartDay: 1, // Monday, like the demo week
       autoAdjustTimeAxis: false,
       // Drags and resizes land on whole hours, so an owner edit doesn't miss shop hours by a few minutes.
