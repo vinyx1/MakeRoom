@@ -336,7 +336,7 @@ function FeedLine({ a, owner, rejected, onRejected }: { a: Activity; owner: Owne
     case 'customer_message':
       return line('cust', <>{name(p.customerId)}: “{p.text}”</>);
     case 'agent_step':
-      return line('agent', <>Assistant ({name(p.customerId)}) → {p.tool}{p.ok ? '' : p.tool === 'send_message' && p.code === 'INVALID_STATE' ? ' held back: the offer has moved on' : ` failed: ${p.code}`}</>);
+      return line('agent', <>Assistant ({name(p.customerId)}) → <code>{p.tool}</code>{p.ok ? '' : p.tool === 'send_message' && p.code === 'INVALID_STATE' ? ' held back: the offer has moved on' : ` failed: ${p.code}`}</>);
     case 'agent_turn':
       return line('dim', <>Turn for {name(p.customerId)}: {(p.ms / 1000).toFixed(1)}s, ${Number(p.costUsd).toFixed(3)}{p.fallback ? ` · ${p.fallback}` : ''}</>);
     case 'agent_message_blocked':

@@ -48,6 +48,9 @@ export function OwnerMessages({ owner, openId, onOpen, typing, onOutcome, onChan
   };
   const rows = [...owner.customers].sort((a, b) => latestAt(b.id) - latestAt(a.id) || a.name.localeCompare(b.name));
   const unreadTotal = rows.filter((c) => fromCustomer(c.id) > (seen[c.id] ?? 0)).length;
+  // Customers who haven't written or been written to share one line, so the list is the conversations that exist.
+  const talking = rows.filter((c) => messagesOf(c.id).length > 0 || typing(c.id) || threadOf(c.id)?.handedOffAt);
+  const quiet = rows.filter((c) => !talking.includes(c));
 
   return (
     <section className="pane threads">
@@ -56,7 +59,8 @@ export function OwnerMessages({ owner, openId, onOpen, typing, onOutcome, onChan
         <span className={`count ${unreadTotal ? 'hot' : ''}`}>{unreadTotal ? `${unreadTotal} new` : ''}</span>
       </header>
       <ul className="thread-list">
-        {rows.map((c) => {
+        {talking.length === 0 && <li className="thread-note-empty">No conversations yet. They appear here as customers write in.</li>}
+        {talking.map((c) => {
           const last = messagesOf(c.id).filter(sentToCustomer).at(-1);
           const unread = fromCustomer(c.id) > (seen[c.id] ?? 0);
           return (
@@ -76,6 +80,19 @@ export function OwnerMessages({ owner, openId, onOpen, typing, onOutcome, onChan
             </li>
           );
         })}
+        {quiet.length > 0 && (
+          <li className="quiet">
+            <span className="quiet-label">No messages yet</span>
+            <span className="quiet-names">
+              {quiet.map((c) => (
+                <button key={c.id} className="quiet-name" onClick={() => onOpen(c.id)} title={`Open ${c.name}'s thread`}>
+                  <Avatar name={c.name} />
+                  {c.name}
+                </button>
+              ))}
+            </span>
+          </li>
+        )}
       </ul>
     </section>
   );

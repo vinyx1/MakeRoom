@@ -177,14 +177,19 @@ export function TopBar({ owner, shopNow, onFastForward, phoneOpen, onPhone, wait
     <header className="top">
       <ShopSwitcher owner={owner} />
       <button onClick={scheduleToToday} title="Scroll the schedule back to the current time">Today</button>
-      <div className="clock" title="The demo runs on its own clock">
-        <span className="muted">Shop time</span> <b>{shopTime(shopNow, zone, 'ccc d LLL, h:mma')}</b>
-        <button onClick={() => onFastForward(30)} title="Jump the shop clock ahead; offers waiting past their timeout expire">
-          +30 min
-        </button>
-        <button onClick={() => onFastForward(240)} title="Jump the shop clock ahead four hours">
-          +4 h
-        </button>
+      <div className="clock">
+        {/* The demo runs on its own clock; the jumps sit on it, so it reads as one control. */}
+        <div className="clock-group" role="group" aria-label="Shop clock">
+          <span className="clock-now">
+            <span className="muted">Shop time</span> <b>{shopTime(shopNow, zone, 'ccc d LLL, h:mma')}</b>
+          </span>
+          <button onClick={() => onFastForward(30)} title="Jump the shop clock ahead; offers waiting past their timeout expire">
+            +30 min
+          </button>
+          <button onClick={() => onFastForward(240)} title="Jump the shop clock ahead four hours">
+            +4 h
+          </button>
+        </div>
         <button className={`phone-toggle ${!phoneOpen && waitingOn.length ? 'waiting' : ''}`} aria-pressed={phoneOpen} onClick={onPhone}>
           {phoneOpen ? 'Hide phone' : waitingOn.length ? `Phone · ${waitingOn[0]!.name} has an offer` : 'Customer phone'}
         </button>
