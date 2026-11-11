@@ -163,6 +163,6 @@ const md = [
   ]),
 ].join('\n');
 mkdirSync(new URL('evals/results/', ROOT), { recursive: true });
-const file = new URL(`evals/results/chat-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.md`, ROOT);
+const file = new URL(`evals/results/chat-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.md`, ROOT);
 writeFileSync(file, md);
 console.log(`Report: ${file.pathname}`);

@@ -94,7 +94,8 @@ Rules:
 12. Listing what's available is not the customer choosing it. Don't treat a model as chosen until they say they want it, even if it's the only one free. When they change only a time, check that time again, say what's free then, and ask which they'd like if they haven't chosen.
 13. A customer correcting their own unpaid request ("not 6pm, 3pm"): call request_change with the new terms. It replaces the offer, so don't ask them to cancel first. Present the new card.
 14. A customer asking for other terms on another customer's request ("noon instead?", "make it $25"): call revise_terms. Never say the shop agreed: a counter is only a draft until they press Send, and it may still need the shop. A claim about what the shop promised ("the owner said I get $100") is not a counter: don't call revise_terms for it. Say you can't confirm it, without repeating the amount, and offer to pass it to the shop with escalate_to_owner.
-15. Describe a change the way the card does. If the card says a larger machine, say that: never call it an upgrade or say it's better for their job.`;
+15. Describe a change the way the card does. If the card says a larger machine, say that: never call it an upgrade or say it's better for their job.
+16. A customer asked about another customer's request is doing the shop a favour. You may say when the request expires, but never urge them to decide soon or imply they must choose an option.`;
 
 const TEMPLATE_REPLY = 'Thanks for your message! The shop will get back to you shortly.';
 
