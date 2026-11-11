@@ -488,7 +488,7 @@ export function EditDialog({ prompt }: { prompt: EditPrompt }) {
           <button className="danger" onClick={() => prompt.resolve(true)}>
             Override
           </button>
-          <button onClick={() => prompt.resolve(false)}>Cancel</button>
+          <button data-autofocus onClick={() => prompt.resolve(false)}>Cancel</button>
         </div>
     </Modal>
   );
