@@ -293,7 +293,12 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel, onR
       eventStyle: 'rounded',
       // Units of one model sit under one merged cell, which groups them without adding rows.
       columns: [
-        { text: 'Model', field: 'model', width: owner.units.length > 12 ? 190 : 118, mergeCells: true, sum: 'count', summaryRenderer: () => 'Fully booked' },
+        { text: 'Model', field: 'model', width: owner.units.length > 12 ? 190 : 118, mergeCells: true, sum: 'count', summaryRenderer: () => 'Fully booked',
+          // A long model name is cut to fit; the cell's tooltip keeps the whole name.
+          renderer: ({ value, cellElement }: any) => {
+            cellElement.title = value ?? '';
+            return value;
+          } },
         { text: 'Unit', field: 'name', width: 104 },
       ],
       mergeCellsFeature: { sortedOnly: false },

@@ -429,33 +429,35 @@ export function EditDialog({ prompt }: { prompt: EditPrompt }) {
   const [agreed, setAgreed] = useState(false);
   const [expected, setExpected] = useState(prompt.step === 'overdue' ? prompt.initial : '');
   const [place, setPlace] = useState<Placement | null>(prompt.step === 'move' ? prompt.initial : null);
-  if (prompt.step === 'move' && place)
+  if (prompt.step === 'move') {
+    const at = place ?? prompt.initial;
     return (
       <Modal onClose={() => prompt.resolve(null)}>
         <h3>Change {prompt.name}'s booking</h3>
         <label>
           Unit{' '}
-          <select value={place.unitId} onChange={(e) => setPlace({ ...place, unitId: e.target.value })}>
+          <select value={at.unitId} onChange={(e) => setPlace({ ...at, unitId: e.target.value })}>
             {prompt.units.map((u) => (
               <option key={u.id} value={u.id}>{u.label}</option>
             ))}
           </select>
         </label>
         <label>
-          Pickup (shop time) <input type="datetime-local" step={3600} value={place.startsAt} onChange={(e) => setPlace({ ...place, startsAt: e.target.value })} />
+          Pickup (shop time) <input type="datetime-local" step={3600} value={at.startsAt} onChange={(e) => setPlace({ ...at, startsAt: e.target.value })} />
         </label>
         <label>
-          Return (shop time) <input type="datetime-local" step={3600} value={place.endsAt} onChange={(e) => setPlace({ ...place, endsAt: e.target.value })} />
+          Return (shop time) <input type="datetime-local" step={3600} value={at.endsAt} onChange={(e) => setPlace({ ...at, endsAt: e.target.value })} />
         </label>
         <p className="muted small">Next you're asked whether {prompt.name} agreed. A change that conflicts is kept as a red draft, as with a drag.</p>
         <div className="row">
-          <button className="primary" onClick={() => prompt.resolve(place)}>
+          <button className="primary" onClick={() => prompt.resolve(at)}>
             Continue
           </button>
           <button onClick={() => prompt.resolve(null)}>Cancel</button>
         </div>
       </Modal>
     );
+  }
   if (prompt.step === 'overdue')
     return (
       <Modal onClose={() => prompt.resolve(null)}>
