@@ -49,7 +49,9 @@ export async function ownerView(tx: Tx, shopId: string) {
       demo: {
         shops: SCENARIOS.map((id) => ({ id, label: PROFILES[id].label, tagline: PROFILES[id].tagline })),
         defaultCustomer: profileOf(shop!.scenario).defaultCustomer,
-        suggestions: profileOf(shop!.scenario).suggestions,
+        suggestions: Object.fromEntries(
+          Object.entries(profileOf(shop!.scenario).suggestions).map(([name, text]) => [name, storyDays(text, shop!.scenario, snapshot.now, snapshot.shop.timezone)]),
+        ),
       },
       now: snapshot.now,
       timezone: snapshot.shop.timezone,

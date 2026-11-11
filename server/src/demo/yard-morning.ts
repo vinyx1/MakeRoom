@@ -1,9 +1,10 @@
-// Monday morning at the yard: four problems already in progress when the visitor arrives. Nothing here is staged: each
+// The story's Monday morning (today) at the yard: four problems already in progress when the visitor arrives. Nothing here is staged: each
 // goes through the same flow as a customer's chat or an owner's drag, with real sandbox holds. The chat lines are what
 // those customers said before the visitor arrived, and the agent's replies quote the proposal's own numbers.
 
 import { and, eq, inArray } from 'drizzle-orm';
 import { conversationOf } from '../agent/turn.ts';
+import { storyDays } from '../db/scenarios.ts';
 import type { Db } from '../db/client.ts';
 import * as s from '../db/schema.ts';
 import type { YardShop } from '../db/seed-yard.ts';
@@ -23,7 +24,7 @@ export async function openYardMorning(db: Db, gateway: PaymentGateway, d: YardSh
     const [shop] = await db.select().from(s.shops).where(eq(s.shops.id, shopId));
     const at = new Date(Date.now() + shop!.clockOffsetMs);
     const conversation = await conversationOf(db, shopId, customerId, at);
-    await db.insert(s.messages).values({ shopId, conversationId: conversation.id, author, body, at });
+    await db.insert(s.messages).values({ shopId, conversationId: conversation.id, author, body: storyDays(body, 'yard', at, d.shop.timezone), at });
   };
 
   /** A contractor asked for more time in chat, accepted the offer and placed the hold. */
@@ -60,20 +61,20 @@ export async function openYardMorning(db: Db, gateway: PaymentGateway, d: YardSh
   // Order matters: each request's claims are in place before the next is planned, as they would be on the day.
   await attempt('over_limit', () =>
     extendAndHold('Redwood Utilities', 'U35-1', { day: 'Tue', hour: 17 },
-      "Trench flooded over the weekend, we lost two days. Can we keep the U35 until Tuesday 5pm?",
-      (charge) => `Tuesday 5pm would be ${charge} for the extra day, and your hold is in place. Another customer has that machine from Tuesday morning, so the fix needs the shop's sign-off. I'll update you as soon as they've looked at it.`),
+      "Trench flooded over the weekend, we lost two days. Can we keep the U35 until {Tue} 5pm?",
+      (charge) => `{Tue} 5pm would be ${charge} for the extra day, and your hold is in place. Another customer has that machine from {Tue} morning, so the fix needs the shop's sign-off. I'll update you as soon as they've looked at it.`),
   );
 
   await attempt('rain_delay', () =>
     extendAndHold('Harbor Concrete', 'S66-1', { day: 'Wed', hour: 10 },
-      'Rain pushed our pour. We need the skid steer until Wednesday 10am.',
-      (charge) => `Wednesday 10am would be ${charge} for the extra time, and your hold is in place. Another customer has that machine booked, so I'm checking a rearrangement with them. Nothing is charged until it's settled.`),
+      'Rain pushed our pour. We need the skid steer until {Wed} 10am.',
+      (charge) => `{Wed} 10am would be ${charge} for the extra time, and your hold is in place. Another customer has that machine booked, so I'm checking a rearrangement with them. Nothing is charged until it's settled.`),
   );
 
   await attempt('last_telehandler', () =>
     extendAndHold('Pacific Steel', 'JCB507-1', { day: 'Tue', hour: 15 },
-      "Steel delivery slipped because of the storm. Can we hold the JCB until Tuesday 3pm?",
-      (charge) => `Tuesday 3pm would be ${charge} for the extra day, and your hold is in place. Another customer is booked on it from Tuesday morning, so I'm asking them about taking a different machine. Nothing is charged until they answer.`),
+      "Steel delivery slipped because of the storm. Can we hold the JCB until {Tue} 3pm?",
+      (charge) => `{Tue} 3pm would be ${charge} for the extra day, and your hold is in place. Another customer is booked on it from {Tue} morning, so I'm asking them about taking a different machine. Nothing is charged until they answer.`),
   );
 
   // The one that came in by phone: the owner dragged it, then asked the assistant to resolve it.

@@ -1,4 +1,4 @@
-// The equipment yard: 18 machines, 13 contractors, 25 bookings. "Now" is Monday 6:30am after a rainy weekend, so jobs
+// The equipment yard: 18 machines, 13 contractors, 25 bookings. "Now" is the story's Monday 6:30am (today) after a rainy weekend, so jobs
 // have slipped and their machines are due back into bookings that are already paid for. The opening problems themselves
 // are started through the real proposal flow (src/demo/yard-morning.ts); this file is only the schedule they land on.
 //
