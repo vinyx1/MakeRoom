@@ -53,7 +53,7 @@ html, body, #root { margin: 0; height: 100%; background: var(--frame); }
 h1, h2, h3, h4, p { margin: 0; }
 
 button { font: inherit; height: 28px; padding: 0 10px; border: 1px solid var(--control); border-radius: var(--radius-control); background: var(--surface); color: var(--text); cursor: pointer; white-space: nowrap; box-shadow: 0 1px 0 rgb(20 24 30 / 0.04); }
-button.link, button:disabled { box-shadow: none; }
+button.link, button:disabled, .nav-btn, .shop-switch-button, .shop-menu button, .phone-account, .phone-close, .thread-row, .pruned-plan, .toast-close { box-shadow: none; }
 button:hover:not(:disabled) { background: var(--raised); }
 button:active:not(:disabled) { background: var(--active); }
 button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
