@@ -8,6 +8,7 @@
     "dev:test-card": "DEV_TEST_CARD=1 node --watch src/server/main.ts",
     "try": "node scripts/try.ts",
     "smoke": "node scripts/smoke.ts",
+    "eval:chat": "node scripts/chat-eval.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node src/db/migrate.ts",
     "db:studio": "drizzle-kit studio",
