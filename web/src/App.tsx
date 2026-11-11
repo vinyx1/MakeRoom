@@ -6,7 +6,7 @@ import { PayPalProvider } from '@paypal/react-paypal-js/sdk-v6';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { type Config, type Outcome, type OwnerView, type RejectedPlan, api } from './api';
 import { CustomerPhone } from './components/CustomerPhone';
-import { EditDialog, type EditPrompt, EquipmentDrawer, Help, Mark, Sidebar, type Toast, Toasts, TopBar } from './components/Chrome';
+import { EditDialog, type EditPrompt, EquipmentDrawer, type Placement, Help, Mark, Sidebar, type Toast, Toasts, TopBar } from './components/Chrome';
 import { OwnerMessages } from './components/OwnerMessages';
 import { OwnerPanel } from './components/OwnerPanel';
 import { type EditRequest, Schedule } from './components/Schedule';
@@ -263,6 +263,25 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
     [onOutcome, toast],
   );
 
+  // Change times or unit from the booking's menu: the drag's edit, entered as values, then the same checks as a drag.
+  const onMove = useCallback(
+    async ({ bookingId, name, version }: { bookingId: string; name: string; version: number }) => {
+      const booking = owner.bookings.find((b) => b.id === bookingId);
+      if (!booking?.unitId) return;
+      const zone = owner.shop.timezone;
+      const local = (iso: string) => DateTime.fromISO(iso, { zone }).toFormat("yyyy-LL-dd'T'HH:mm");
+      const units = owner.units.map((u) => ({ id: u.id, label: `${u.label} (${owner.models.find((m) => m.id === u.modelId)?.name ?? ''})` }));
+      const placed = await new Promise<Placement | null>((resolve) =>
+        setPrompt({ step: 'move', name, units, initial: { unitId: booking.unitId!, startsAt: local(booking.startsAt), endsAt: local(booking.endsAt) }, resolve }),
+      );
+      setPrompt(null);
+      if (!placed) return;
+      const instant = (s: string) => DateTime.fromISO(s, { zone }).toJSDate();
+      await onEdit({ bookingId, name, unitId: placed.unitId, startsAt: instant(placed.startsAt), endsAt: instant(placed.endsAt), version });
+    },
+    [owner, onEdit],
+  );
+
   // Mark overdue: ask when the customer now expects to bring it back (shop time), then re-plan around it.
   const onMarkOverdue = useCallback(
     async (bookingId: string) => {
@@ -306,7 +325,7 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
         }}
       />
       <main className={`sheet ${owner.units.length > 12 ? 'dense' : ''}`}>
-      <Schedule owner={owner} shopNow={shop.shopNow!} onEdit={onEdit} onResolveDraft={onResolveDraft} onCancel={onCancelBooking} onReturned={onReturned} onMarkOverdue={onMarkOverdue} rejected={rejected} onClearRejected={() => setRejected(null)} />
+      <Schedule owner={owner} shopNow={shop.shopNow!} onEdit={onEdit} onResolveDraft={onResolveDraft} onCancel={onCancelBooking} onReturned={onReturned} onMarkOverdue={onMarkOverdue} onMove={onMove} rejected={rejected} onClearRejected={() => setRejected(null)} />
       <div className="bottom">
         <OwnerPanel owner={owner} activity={shop.activity} onOutcome={onOutcome} onOpenChat={setOwnerThread} rejected={rejected} onRejected={setRejected} onResolveDraft={onResolveDraft} onMarkOverdue={onMarkOverdue} />
         <OwnerMessages

@@ -44,6 +44,8 @@ type Props = {
   onCancel: (booking: { bookingId: string; name: string; version: number; status: string }) => void;
   onReturned: (bookingId: string) => void;
   onMarkOverdue: (bookingId: string) => void;
+  /** The keyboard and single-click route to the same edit a drag makes. */
+  onMove: (booking: { bookingId: string; name: string; version: number }) => void;
   rejected: RejectedPlan | null;
   onClearRejected: () => void;
 };
@@ -87,7 +89,7 @@ export function fullyBooked(owner: OwnerView, start: Date, end: Date): string[] 
   });
 }
 
-export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel, onReturned, onMarkOverdue, rejected, onClearRejected }: Props) {
+export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel, onReturned, onMarkOverdue, onMove, rejected, onClearRejected }: Props) {
   const project = useRef<BryntumSchedulerProProjectModel>(null);
   const tz = owner.shop.timezone;
   const nameOf = (id: string | null) => owner.customers.find((c) => c.id === id)?.name ?? 'Customer';
@@ -261,8 +263,8 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel, onR
   }, [tz]);
 
   // Bryntum keeps the config from the first render, so its handlers read the latest props from here.
-  const latest = useRef({ onEdit, onResolveDraft, onCancel, onReturned, onMarkOverdue, tz, owner });
-  latest.current = { onEdit, onResolveDraft, onCancel, onReturned, onMarkOverdue, tz, owner };
+  const latest = useRef({ onEdit, onResolveDraft, onCancel, onReturned, onMarkOverdue, onMove, tz, owner });
+  latest.current = { onEdit, onResolveDraft, onCancel, onReturned, onMarkOverdue, onMove, tz, owner };
   const submit = (record: any, resourceId: string, start: Date, end: Date, finalize: (ok: boolean) => void) => {
     if (record.kind !== 'booking') return finalize(false);
     const real = (d: Date) => TimeZoneHelper.fromTimeZone(d, latest.current.tz);
@@ -341,6 +343,10 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel, onR
             if (eventRecord.dueBack)
               items.markOverdue = { text: eventRecord.overdue ? 'Update expected return…' : 'Mark overdue…', icon: 'fa fa-clock', weight: 110, onItem: () => latest.current.onMarkOverdue(eventRecord.bookingId) };
           } else {
+            items.moveBooking = {
+              text: 'Change times or unit…', icon: 'fa fa-pen', weight: 90,
+              onItem: () => latest.current.onMove({ bookingId: eventRecord.bookingId, name: eventRecord.name, version: eventRecord.version }),
+            };
             items.cancelBooking = {
               text: 'Delete booking…', icon: 'fa fa-trash', weight: 100,
               onItem: () => latest.current.onCancel({ bookingId: eventRecord.bookingId, name: eventRecord.name, version: eventRecord.version, status: eventRecord.status }),
