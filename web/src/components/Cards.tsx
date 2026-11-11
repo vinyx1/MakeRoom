@@ -70,11 +70,6 @@ function RequesterCard({ card, customerId, config, onOutcome }: CardProps) {
             otherwise the hold is released automatically.
           </div>
           <PayPalCheckout card={card} customerId={customerId} onOutcome={onOutcome} disabled={busy} />
-          {config.sandboxBuyer && (
-            <div className="sandbox-login">
-              PayPal sandbox buyer: <code>{config.sandboxBuyer.email}</code> / <code>{config.sandboxBuyer.password}</code>
-            </div>
-          )}
           {config.testCardEnabled && (
             <div>
               <button className="link" disabled={busy} onClick={payWithTestCard}>

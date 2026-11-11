@@ -371,8 +371,8 @@ export function Help({ owner, onClose }: { owner: OwnerView; onClose: () => void
     <Modal className="help" onClose={onClose} dismissOnBackdrop>
         <h3 tabIndex={-1} data-autofocus>How to demo</h3>
         <p className="muted small">
-          You play everyone: the owner (Needs owner approval and Owner's Messages) and one customer at a time, on the phone at the side. Switch accounts along the top of the phone; a dot marks anyone with an offer to answer. Payments use the PayPal sandbox; the
-          buyer login is shown on each payment card. Reset demo starts over any time.
+          You play everyone: the owner (Needs owner approval and Owner's Messages) and one customer at a time, on the phone at the side. Switch accounts along the top of the phone; a dot marks anyone with an offer to answer. Payments run in the PayPal sandbox,
+          so no real money moves: log in to PayPal with the sandbox buyer account from the project page. Reset demo starts over any time.
         </p>
         <h4>1 · The extension</h4>
         <ol>

@@ -94,7 +94,7 @@ Judges may try the live deployment, often several at once and alone. These are b
 - **Role switcher.** One judge plays the owner, Vincent and Bob: two owner panes under the schedule (Needs owner approval with the activity feed, Owner's Messages with a thread per customer), and a customer phone that slides in beside them, with accounts along its top, a dot and a prompt when someone else has an offer to answer.
 - **Scripted customers.** A **Let Bob answer** button on an affected customer's card has them answer it (`POST /api/proposals/:id/scripted-answer`, Plan B when there are two), so a judge acting as the requester sees the negotiation play out. The `auto_reply_customers` setting still answers by itself for the terminal tester; it's off by default and has no control in the UI.
 - **Fast-forward.** A demo-clock button that jumps ahead, driving the injectable clock, so timeouts and expiry are visible in seconds.
-- **PayPal sandbox credentials** shown beside the PayPal button.
+- **PayPal sandbox credentials** are given on the Devpost page, not shown in the app (removed from the payment card 2026-11-11). `GET /api/config` still returns them.
 - **Live activity feed.** Stream agent steps over SSE while a tool loop runs, so a 10–30s turn never looks frozen.
 - **Usage cap per session** on agent turns, to bound API cost on a public URL.
 - **Tricky-prompt eval set** in `evals/chat-prompts.md`: ~25 messages a judge might type (vague dates like "next weekend", "make it free", gear the shop doesn't carry, two changes in one message, jailbreak attempts, off-topic). Run it every few days and fix the agent's replies.

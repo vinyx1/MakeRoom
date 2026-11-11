@@ -306,7 +306,6 @@ code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 0.9231r
 .paypal.disabled { pointer-events: none; opacity: 0.6; }
 .hold-note { font-size: 0.9231rem; line-height: 1.417; background: var(--raised); border-radius: var(--radius-control); padding: 6px 8px; margin: 2px 0 8px; }
 .card-actions { display: flex; gap: 14px; margin-top: 8px; font-size: 0.9231rem; }
-.sandbox-login { font-size: 0.9231rem; color: var(--muted); margin: 4px 0 6px; overflow-wrap: anywhere; }
 
 /* Schedule: bookings, ghosts (pending plans) and red drafts. Bryntum keeps its own theme around them;
    only the marks that carry a meaning here are recoloured, so amber and orange stay reserved. */
