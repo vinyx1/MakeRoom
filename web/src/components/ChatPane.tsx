@@ -16,6 +16,8 @@ type Props = {
   zone: string;
   tick: number;
   typing: boolean;
+  /** The assistant's finished steps in this turn, shown while it works so a long turn never looks frozen. */
+  steps?: string[];
   /** Other customers with a card waiting on them: with one chat on screen, this is how the visitor finds them. */
   waitingOn: Customer[];
   onOutcome: (o: Outcome) => void;
@@ -26,7 +28,7 @@ type Props = {
 /** One click to start, for a customer with no message of their own in this shop's demo. */
 const TRY_ANYONE = 'When is my booking?';
 
-export function ChatPane({ customerId, customers, onCustomer, config, zone, tick, typing, waitingOn, onOutcome, suggestions }: Props) {
+export function ChatPane({ customerId, customers, onCustomer, config, zone, tick, typing, steps = [], waitingOn, onOutcome, suggestions }: Props) {
   const [view, setView] = useState<CustomerView | null>(null);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -128,7 +130,20 @@ export function ChatPane({ customerId, customers, onCustomer, config, zone, tick
               <StatusCard status={r} customerId={customerId} onOutcome={onOutcome} />
             </div>
           ))}
-        {typing && <div className="typing">Assistant is replying…</div>}
+        {typing && (
+          <div className="typing" aria-live="polite">
+            {steps.length ? (
+              <ol className="steps">
+                {steps.map((s, i) => (
+                  <li key={i}>{s}</li>
+                ))}
+                <li className="now">Working…</li>
+              </ol>
+            ) : (
+              'Assistant is replying…'
+            )}
+          </div>
+        )}
       </div>
 
       {view?.handedOff && (

@@ -207,7 +207,7 @@ function PendingRequest({ proposal: p, owner, onOutcome }: { proposal: OwnerView
         {!late && <b>{usd(rev.quote.chargeCents)}</b>}
       </div>
       {rev.quote.discountCents > 0 && <div className="muted small">{usd(rev.quote.discountCents)} off</div>}
-      {!late && !free && p.state !== 'DRAFT' && <div style={{ margin: '3px 0' }}><span className="tag held">{p.state === 'CAPTURING' ? 'Capturing' : 'PayPal hold'}</span></div>}
+      {!late && !free && <div style={{ margin: '3px 0' }}><span className={`tag ${p.state === 'DRAFT' ? '' : 'held'}`}>{p.state === 'DRAFT' ? 'Not paid yet' : p.state === 'CAPTURING' ? 'Capturing' : 'PayPal hold'}</span></div>}
       <div className="muted small">
         {late ? (p.state === 'CAPTURING' ? 'being confirmed' : 'waiting on you or the next customer') : p.state === 'DRAFT' && free ? 'waiting for the customer to accept' : (STATE[p.state] ?? p.state.toLowerCase())}
       </div>

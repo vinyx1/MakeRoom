@@ -80,6 +80,31 @@ export function isTyping(activity: Activity[], customerId: string) {
   return !lastTurn || lastTurn.seq < lastTrigger.seq;
 }
 
+const STEP: Record<string, string> = {
+  get_my_bookings: 'Looked up the bookings',
+  get_my_proposals: 'Looked up open requests',
+  search_inventory: 'Searched the equipment',
+  check_availability: 'Checked the schedule',
+  get_fact: 'Checked an equipment fact',
+  get_policy: 'Read the shop policy',
+  preview_change: 'Ran the optimizer',
+  request_change: 'Planned the change',
+  revise_terms: 'Revised the offer',
+  present_offer: 'Prepared the offer',
+  ask_owner_fact: 'Asked the shop',
+  escalate_to_owner: 'Asked the shop',
+  send_message: 'Sent a message',
+};
+
+/** The tools the assistant has finished in its current turn for this customer, oldest first, in plain words. */
+export function agentSteps(activity: Activity[], customerId: string): string[] {
+  if (!isTyping(activity, customerId)) return [];
+  const lastTurn = activity.find((a) => a.kind === 'agent_turn' && a.payload?.customerId === customerId);
+  const steps = activity.filter((a) => a.kind === 'agent_step' && a.payload?.customerId === customerId && (!lastTurn || a.seq > lastTurn.seq));
+  const words = steps.reverse().map((a) => STEP[a.payload.tool as string] ?? 'Working');
+  return words.filter((w, i) => w !== words[i - 1]);
+}
+
 export const shopTime = (iso: string | Date, zone: string, format = 'ccc h:mma') =>
   DateTime.fromJSDate(typeof iso === 'string' ? new Date(iso) : iso, { zone })
     .setLocale('en-US')

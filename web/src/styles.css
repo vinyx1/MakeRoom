@@ -192,6 +192,9 @@ code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 0.75rem
 .empty p { margin-bottom: 8px; }
 .try { height: auto; min-height: 28px; padding: 5px 10px; text-align: left; white-space: normal; line-height: 1.308; }
 .typing { color: var(--muted); font-size: 0.75rem; padding-left: 32px; }
+.typing .steps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.typing .steps li::before { content: '✓'; display: inline-block; width: 14px; color: var(--ok); }
+.typing .steps li.now::before { content: '•'; color: var(--proposal); }
 .handoff { padding: 8px var(--gutter); background: var(--held-soft); color: var(--held); font-size: 0.75rem; border-top: 1px solid var(--rule); display: flex; gap: 8px; justify-content: space-between; align-items: center; flex: none; }
 .handoff button.link { color: var(--held); }
 .composer { border-top: 1px solid var(--rule); padding: 8px var(--gutter); background: var(--surface); flex: none; }

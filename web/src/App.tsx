@@ -10,7 +10,7 @@ import { EditDialog, type EditPrompt, EquipmentDrawer, type Placement, Help, Mar
 import { OwnerMessages } from './components/OwnerMessages';
 import { OwnerPanel } from './components/OwnerPanel';
 import { type EditRequest, Schedule } from './components/Schedule';
-import { isTyping, shopTime, usd, useShop } from './live';
+import { agentSteps, isTyping, shopTime, usd, useShop } from './live';
 
 export function App() {
   const [config, setConfig] = useState<Config | null>(null);
@@ -350,6 +350,7 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
         zone={owner.shop.timezone}
         tick={shop.tick}
         typing={isTyping(shop.activity, playing)}
+        steps={agentSteps(shop.activity, playing)}
         role={roleIn(owner, playing)}
         waitingOn={waitingOn(owner, playing)}
         onOutcome={onOutcome}
