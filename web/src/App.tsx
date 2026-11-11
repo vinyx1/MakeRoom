@@ -135,6 +135,7 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
   // A ruled-out plan from the feed, drawn on the schedule while it's selected.
   const [rejected, setRejected] = useState<RejectedPlan | null>(null);
   const [equipment, setEquipment] = useState(false);
+  const closeEquipment = useCallback(() => setEquipment(false), []);
   const [help, setHelp] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [prompt, setPrompt] = useState<EditPrompt | null>(null);
@@ -149,8 +150,9 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
   const toast = useCallback((t: Omit<Toast, 'id'>) => {
     const id = ++nextToast.current;
     setToasts((all) => [...all, { ...t, id }]);
-    window.setTimeout(() => setToasts((all) => all.filter((x) => x.id !== id)), t.kind === 'ok' ? 3500 : 7000);
+    if (t.kind === 'ok') window.setTimeout(() => dismissToast(id), 3500);
   }, []);
+  const dismissToast = useCallback((id: number) => setToasts((all) => all.filter((x) => x.id !== id)), []);
   const onOutcome = useCallback((o: Outcome) => {
     toast(describe(o));
     void shop.refresh();
@@ -333,10 +335,10 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
         waitingOn={waitingOn(owner, playing)}
         onOutcome={onOutcome}
       />
-      {equipment && <EquipmentDrawer owner={owner} onClose={() => setEquipment(false)} />}
+      {equipment && <EquipmentDrawer owner={owner} onClose={closeEquipment} />}
       {help && <Help scenario={owner.shop.scenario} onClose={() => setHelp(false)} />}
       {prompt && <EditDialog prompt={prompt} />}
-      <Toasts toasts={toasts} />
+      <Toasts toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

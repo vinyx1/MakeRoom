@@ -253,11 +253,25 @@ export function EquipmentDrawer({ owner, onClose }: { owner: OwnerView; onClose:
   const zone = owner.shop.timezone;
   const unitLabel = (id: string | null) => owner.units.find((u) => u.id === id)?.label;
   const modelName = (id: string | null) => owner.models.find((m) => m.id === id)?.name;
+  // Not modal (the schedule stays usable beside it), but Escape closes it and focus goes back to where it was.
+  const close = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const before = document.activeElement as HTMLElement | null;
+    close.current?.focus();
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('keydown', esc);
+      before?.focus?.();
+    };
+  }, [onClose]);
   return (
     <aside className="drawer" role="dialog" aria-label="Equipment">
       <header className="pane-head">
         <span className="pane-title">Equipment</span>
-        <button className="link" onClick={onClose}>
+        <button className="link" ref={close} onClick={onClose}>
           Close
         </button>
       </header>
@@ -378,12 +392,18 @@ export function Help({ scenario, onClose }: { scenario: string; onClose: () => v
 
 export type Toast = { id: number; kind: 'ok' | 'warn' | 'error'; text: string };
 
-export function Toasts({ toasts }: { toasts: Toast[] }) {
+/** Confirmations fade on their own; warnings and errors stay until dismissed, so nothing that went wrong slips by unread. */
+export function Toasts({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: number) => void }) {
   return (
-    <div className="toasts" aria-live="polite">
+    <div className="toasts" role="status">
       {toasts.map((t) => (
         <div className={`toast ${t.kind}`} key={t.id}>
-          {t.text}
+          <span>{t.text}</span>
+          {t.kind !== 'ok' && (
+            <button className="toast-close" onClick={() => onDismiss(t.id)} aria-label="Dismiss">
+              ×
+            </button>
+          )}
         </div>
       ))}
     </div>
