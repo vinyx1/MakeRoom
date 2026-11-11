@@ -312,17 +312,32 @@ export function EquipmentDrawer({ owner, onClose }: { owner: OwnerView; onClose:
   );
 }
 
-function YardHelp({ onClose }: { onClose: () => void }) {
+type StoryDay = 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri';
+
+/**
+ * A day of the demo story as its real weekday ("Thu", or with 'cccc' "Thursday"). The seeds put the story's today (the
+ * camera shop's Wednesday, the yard's Monday) on the real today, so the walkthrough follows whatever day it is.
+ */
+function storyDay(owner: OwnerView, day: StoryDay, format = 'ccc') {
+  const today = owner.shop.scenario === 'yard' ? 1 : 3;
+  const n = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5 }[day];
+  const offset = n - today;
+  if (format === 'cccc' && offset === 1) return 'tomorrow';
+  return DateTime.fromISO(owner.shop.now, { zone: owner.shop.timezone }).plus({ days: offset }).toFormat(format);
+}
+
+function YardHelp({ owner, onClose }: { owner: OwnerView; onClose: () => void }) {
+  const day = (d: StoryDay) => storyDay(owner, d, 'cccc');
   return (
     <Modal className="help" onClose={onClose} dismissOnBackdrop>
-        <h3 tabIndex={-1} data-autofocus>A rainy Monday at the yard</h3>
+        <h3 tabIndex={-1} data-autofocus>A rainy morning at the yard</h3>
         <p className="muted small">
           It's 6:30am after a wet weekend. The same engine as the camera shop, with four problems already open at once. Each holds what it needs, so they can't step on each other. Handle them in any order. A dot on the phone marks anyone with an offer to answer.
         </p>
         <h4>The rain delay</h4>
         <ol>
-          <li>Harbor needs their skid steer until Wednesday, which runs into Northside's booking. Harbor's hold is already placed.</li>
-          <li>On the phone, open Delgado Paving: they're asked to take a track loader on Tuesday, at no extra charge.</li>
+          <li>Harbor needs their skid steer until {day('Wed')}, which runs into Northside's booking. Harbor's hold is already placed.</li>
+          <li>On the phone, open Delgado Paving: they're asked to take a track loader {day('Tue')}, at no extra charge.</li>
           <li>When they accept, Northside moves to Delgado's skid steer. It's the same model, so they only get a notice.</li>
         </ol>
         <h4>Over the assistant's limit</h4>
@@ -349,8 +364,9 @@ function YardHelp({ onClose }: { onClose: () => void }) {
   );
 }
 
-export function Help({ scenario, onClose }: { scenario: string; onClose: () => void }) {
-  if (scenario === 'yard') return <YardHelp onClose={onClose} />;
+export function Help({ owner, onClose }: { owner: OwnerView; onClose: () => void }) {
+  if (owner.shop.scenario === 'yard') return <YardHelp owner={owner} onClose={onClose} />;
+  const day = (d: StoryDay) => storyDay(owner, d);
   return (
     <Modal className="help" onClose={onClose} dismissOnBackdrop>
         <h3 tabIndex={-1} data-autofocus>How to demo</h3>
@@ -360,29 +376,29 @@ export function Help({ scenario, onClose }: { scenario: string; onClose: () => v
         </p>
         <h4>1 · The extension</h4>
         <ol>
-          <li>As Vincent: “Shoot ran over. Can I keep the camera until Thursday at 10am?”</li>
+          <li>As Vincent: “{owner.shop.demo.suggestions.Vincent}”</li>
           <li>Pay on his card with PayPal. The schedule shows the plan as ghosts.</li>
           <li>On Bob's card, press “Let Bob answer” and he takes option B (2pm, $15 back). Or choose for him with the card's own buttons.</li>
           <li>As the owner: Approve. The payment is captured, both bookings move, and Bob is refunded.</li>
         </ol>
         <h4>2 · The owner drags, the assistant asks</h4>
         <ol>
-          <li>Drag the end of Dana's RS3 booking to Fri 9am and tick “Dana agreed by phone”. It turns into a red draft.</li>
+          <li>Drag the end of Dana's RS3 booking to {day('Fri')} 9am and tick “Dana agreed by phone”. It turns into a red draft.</li>
           <li>Resolve with agent. The owner card asks whether the Crane 4 balances Eve's rig: answer Yes and Approve, then Save as fact.</li>
           <li>As Dana: pay. As Eve: accept the Crane 4. Check Equipment: the fact is now “yes”.</li>
         </ol>
         <h4>3 · The race</h4>
         <ol>
           <li>Do 1 until Vincent has paid.</li>
-          <li>Drag Bob's pickup to Thu 2pm, tick “Bob agreed by phone”. The warning names Vincent's pending request: Override.</li>
+          <li>Drag Bob's pickup to {day('Thu')} 2pm, tick “Bob agreed by phone”. The warning names Vincent's pending request: Override.</li>
           <li>Vincent's request is cancelled, his hold released, and he gets a fresh offer that now fits.</li>
         </ol>
         <h4>Cancelling a booking</h4>
         <p className="muted small">Click a booking on the schedule and choose Delete booking, or select it and press Delete. It asks you to confirm the customer agreed by phone, then refunds everything they paid. For a rental that's out, the same click offers Mark returned.</p>
         <h4>4 · A late return</h4>
         <ol>
-          <li>The demo starts at Wed 5:30pm, 30 minutes before Vincent's camera is due back. Press +30 min and it shows under Needs owner approval as “Due back”.</li>
-          <li>Mark overdue, expected back Thu 10am. That runs into Bob's pickup, so the plans come to you first: Approve one.</li>
+          <li>The demo starts at 5:30pm today, 30 minutes before Vincent's camera is due back. Press +30 min and it shows under Needs owner approval as “Due back”.</li>
+          <li>Mark overdue, expected back {day('Thu')} 10am. That runs into Bob's pickup, so the plans come to you first: Approve one.</li>
           <li>As Bob: accept it, or keep the booking (then you're alerted to sort it out). Mark returned when he's back.</li>
         </ol>
         <p className="muted small">

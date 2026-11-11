@@ -356,7 +356,7 @@ function Shop({ config, shop }: { config: Config; shop: ReturnType<typeof useSho
         onOutcome={onOutcome}
       />
       {equipment && <EquipmentDrawer owner={owner} onClose={closeEquipment} />}
-      {help && <Help scenario={owner.shop.scenario} onClose={() => setHelp(false)} />}
+      {help && <Help owner={owner} onClose={() => setHelp(false)} />}
       {prompt && <EditDialog prompt={prompt} />}
       <Toasts toasts={toasts} onDismiss={dismissToast} />
     </div>
