@@ -1,7 +1,7 @@
 // The page's frame: the sidebar, the top bar with the shop clock, the equipment drawer, help, and toasts.
 
 import { DateTime } from 'luxon';
-import { useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { type Customer, type OwnerView, api } from '../api';
 import { scheduleToToday } from '../highlight';
 import { shopTime, usd } from '../live';
@@ -24,6 +24,39 @@ export function Avatar({ name }: { name: string }) {
     <span className="avatar" style={{ background: `hsl(${hue} 38% 88%)`, color: `hsl(${hue} 45% 26%)` }} aria-hidden="true">
       {name.slice(0, 1).toUpperCase()}
     </span>
+  );
+}
+
+/**
+ * A native modal dialog: focus moves inside and returns to where it was on close, the page behind is inert, and
+ * Escape calls onClose. Focus starts on `[data-autofocus]` if there is one, else on the first control.
+ */
+export function Modal({ className = '', onClose, dismissOnBackdrop = false, children }: { className?: string; onClose: () => void; dismissOnBackdrop?: boolean; children: ReactNode }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = ref.current!;
+    const before = document.activeElement as HTMLElement | null;
+    dialog.showModal();
+    dialog.querySelector<HTMLElement>('[data-autofocus]')?.focus();
+    return () => {
+      dialog.close();
+      before?.focus?.();
+    };
+  }, []);
+  return (
+    <dialog
+      ref={ref}
+      className="modal-dialog"
+      onCancel={(e) => {
+        e.preventDefault();
+        onClose();
+      }}
+      onClick={(e) => {
+        if (dismissOnBackdrop && e.target === ref.current) onClose();
+      }}
+    >
+      <div className={`modal ${className}`}>{children}</div>
+    </dialog>
   );
 }
 
@@ -262,9 +295,8 @@ export function EquipmentDrawer({ owner, onClose }: { owner: OwnerView; onClose:
 
 function YardHelp({ onClose }: { onClose: () => void }) {
   return (
-    <div className="modal-back" onClick={onClose}>
-      <div className="modal help" onClick={(e) => e.stopPropagation()}>
-        <h3>A rainy Monday at the yard</h3>
+    <Modal className="help" onClose={onClose} dismissOnBackdrop>
+        <h3 tabIndex={-1} data-autofocus>A rainy Monday at the yard</h3>
         <p className="muted small">
           It's 6:30am after a wet weekend. The same engine as the camera shop, with four problems already open at once. Each holds what it needs, so they can't step on each other. Handle them in any order. A dot on the phone marks anyone with an offer to answer.
         </p>
@@ -294,17 +326,15 @@ function YardHelp({ onClose }: { onClose: () => void }) {
         <button className="primary" onClick={onClose}>
           Got it
         </button>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
 export function Help({ scenario, onClose }: { scenario: string; onClose: () => void }) {
   if (scenario === 'yard') return <YardHelp onClose={onClose} />;
   return (
-    <div className="modal-back" onClick={onClose}>
-      <div className="modal help" onClick={(e) => e.stopPropagation()}>
-        <h3>How to demo</h3>
+    <Modal className="help" onClose={onClose} dismissOnBackdrop>
+        <h3 tabIndex={-1} data-autofocus>How to demo</h3>
         <p className="muted small">
           You play everyone: the owner (Needs owner approval and Owner's Messages) and one customer at a time, on the phone at the side. Switch accounts along the top of the phone; a dot marks anyone with an offer to answer. Payments use the PayPal sandbox; the
           buyer login is shown on each payment card. Reset demo starts over any time.
@@ -342,8 +372,7 @@ export function Help({ scenario, onClose }: { scenario: string; onClose: () => v
         <button className="primary" onClick={onClose}>
           Got it
         </button>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -377,8 +406,7 @@ export function EditDialog({ prompt }: { prompt: EditPrompt }) {
   const [expected, setExpected] = useState(prompt.step === 'overdue' ? prompt.initial : '');
   if (prompt.step === 'overdue')
     return (
-      <div className="modal-back">
-        <div className="modal">
+      <Modal onClose={() => prompt.resolve(null)}>
           <h3>{prompt.name} is late returning</h3>
           <p>{prompt.summary}</p>
           <label>
@@ -394,13 +422,11 @@ export function EditDialog({ prompt }: { prompt: EditPrompt }) {
             </button>
             <button onClick={() => prompt.resolve(null)}>Cancel</button>
           </div>
-        </div>
-      </div>
+      </Modal>
     );
   if (prompt.step === 'cancel')
     return (
-      <div className="modal-back">
-        <div className="modal">
+      <Modal onClose={() => prompt.resolve(false)}>
           <h3>Cancel {prompt.name}'s booking?</h3>
           <p>{prompt.summary}</p>
           <p><b>{prompt.refund}</b> goes back to {prompt.name}'s original payment: everything they paid for this booking.</p>
@@ -414,13 +440,11 @@ export function EditDialog({ prompt }: { prompt: EditPrompt }) {
             </button>
             <button onClick={() => prompt.resolve(false)}>Keep booking</button>
           </div>
-        </div>
-      </div>
+      </Modal>
     );
   if (prompt.step === 'agree')
     return (
-      <div className="modal-back">
-        <div className="modal">
+      <Modal onClose={() => prompt.resolve(false)}>
           <h3>Did {prompt.name} agree to this change?</h3>
           <p>{prompt.summary}</p>
           <p className="muted small">
@@ -433,13 +457,11 @@ export function EditDialog({ prompt }: { prompt: EditPrompt }) {
             </button>
             <button onClick={() => prompt.resolve(false)}>Cancel</button>
           </div>
-        </div>
-      </div>
+      </Modal>
     );
   if (prompt.step === 'confirm')
     return (
-      <div className="modal-back">
-        <div className="modal">
+      <Modal onClose={() => prompt.resolve(null)}>
           <h3>Change {prompt.name}'s booking?</h3>
           <p>{prompt.summary}</p>
           <label>
@@ -452,12 +474,10 @@ export function EditDialog({ prompt }: { prompt: EditPrompt }) {
             </button>
             <button onClick={() => prompt.resolve(null)}>Cancel</button>
           </div>
-        </div>
-      </div>
+      </Modal>
     );
   return (
-    <div className="modal-back">
-      <div className="modal">
+    <Modal onClose={() => prompt.resolve(false)}>
         <h3>{prompt.name}'s booking is part of a pending request</h3>
         <p>
           {prompt.requesters.join(', ')}'s request depends on it. Overriding cancels that request and releases their payment hold; they'll be
@@ -470,7 +490,6 @@ export function EditDialog({ prompt }: { prompt: EditPrompt }) {
           </button>
           <button onClick={() => prompt.resolve(false)}>Cancel</button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
