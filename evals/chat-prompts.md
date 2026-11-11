@@ -2,7 +2,7 @@
 
 Free-form messages a judge might type, with what a good reply does. `evals/judge-scenarios.md` tests behaviour (state, money, approvals); this file tests what the assistant **says** and that the backend state stays right while it says it.
 
-Run against a local server started with `npm run dev:test-card` in `server/`, then `npm run eval:chat` (all rows) or `npm run eval:chat -- A2 C4` (some). Each row gets a fresh demo shop (now = Wed 5:30pm). The report lands in `evals/results/`. Costs about 2–4 cents of agent turns per row on Sonnet.
+Run against a local server started with `npm run dev:test-card` in `server/`, then `npm run eval:chat` (all rows) or `npm run eval:chat -- A2 C4` (some). Each row gets a fresh demo shop (now = 5:30pm today, the story's Wednesday). The report lands in `evals/results/`. Costs about 2–4 cents of agent turns per row on Sonnet.
 
 **Setup** is what happens before the messages:
 

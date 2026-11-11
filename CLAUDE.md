@@ -26,7 +26,11 @@ Planning → spikes. Bryntum spike done: all 9 questions pass; read `spikes/bryn
 
 ## The second shop
 
-The camera shop stays the story and the spec. The chevron on the shop name opens **Ridgeline Equipment Rental** (`server/src/db/seed-yard.ts`), the same engine under realistic load: 18 machines, 13 contractors, 25 bookings, Monday 6:30am after a rainy weekend, with four problems open on arrival (`server/src/demo/yard-morning.ts`). They go through the real flow with real sandbox holds. `shops.scenario` says which shop a row is; each session has one shop per scenario, chosen by the `makeroom_scenario` cookie, never the URL. Differences between shops live in `server/src/db/scenarios.ts` and the seed. The yard's schedule is arranged so each problem has one honest answer: a time changed there can change the plans, and `server/test/yard.test.ts` pins them. Not modelled: machine breakdowns (Scenario 4), delivery trucks (haul time is the buffer), multi-machine jobs, weekly rates.
+The camera shop stays the story and the spec. The chevron on the shop name opens **Ridgeline Equipment Rental** (`server/src/db/seed-yard.ts`), the same engine under realistic load: 18 machines, 13 contractors, 25 bookings, the story's Monday 6:30am after a rainy weekend, with four problems open on arrival (`server/src/demo/yard-morning.ts`). They go through the real flow with real sandbox holds. `shops.scenario` says which shop a row is; each session has one shop per scenario, chosen by the `makeroom_scenario` cookie, never the URL. Differences between shops live in `server/src/db/scenarios.ts` and the seed. The yard's schedule is arranged so each problem has one honest answer: a time changed there can change the plans, and `server/test/yard.test.ts` pins them. Not modelled: machine breakdowns (Scenario 4), delivery trucks (haul time is the buffer), multi-machine jobs, weekly rates.
+
+## Demo days
+
+Both seeds put the story's "today" on the real today in the shop's zone (America/Los_Angeles): the camera shop opens at 5:30pm today (the story's Wednesday), the yard at 6:30am today (its Monday). Seeds name days by their place in the story (`t({ day: 'Thu' })` is tomorrow in the camera shop). Text that names a story day uses `{Thu}` placeholders and `storyDays` (`server/src/db/scenarios.ts`) on the server, `storyDay` (`web/src/components/Chrome.tsx`) in the help; tests compute weekday names the same way, never a fixed "Thu".
 
 ## Vocabulary
 
