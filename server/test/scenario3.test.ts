@@ -31,7 +31,7 @@ type Seeded = Awaited<ReturnType<typeof seedShop>>;
 
 function at(d: Seeded, day: 'Wed' | 'Thu' | 'Fri', hour: number) {
   const days = { Wed: 2, Thu: 3, Fri: 4 }[day];
-  return DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).startOf('week').plus({ days }).set({ hour }).toJSDate();
+  return DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).startOf('day').minus({ days: 2 }).plus({ days }).set({ hour }).toJSDate();
 }
 
 async function setup() {

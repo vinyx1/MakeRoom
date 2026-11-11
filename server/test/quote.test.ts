@@ -24,7 +24,7 @@ function demo(policy: Partial<Snapshot['shop']['policy']> = {}) {
 
 function at(d: DemoShop, day: 'Thu' | 'Fri', hour: number) {
   const days = { Thu: 3, Fri: 4 }[day];
-  return DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).startOf('week').plus({ days }).set({ hour }).toJSDate();
+  return DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).startOf('day').minus({ days: 2 }).plus({ days }).set({ hour }).toJSDate();
 }
 
 const plans = (r: OptimizeResult): Plan[] => (r.status === 'fits' || r.status === 'needs_other_changes' ? r.plans : []);

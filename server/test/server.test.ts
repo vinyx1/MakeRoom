@@ -56,7 +56,7 @@ async function owner(v: ReturnType<typeof visitor>) {
   const customer = (name: string) => view.customers.find((c) => c.name === name)!.id;
   const booking = (name: string) => view.bookings.find((b) => b.customerId === customer(name))!;
   const at = (day: 'Thu' | 'Fri', hour: number) =>
-    DateTime.fromISO(view.shop.now, { zone: view.shop.timezone }).startOf('week').plus({ days: day === 'Thu' ? 3 : 4 }).set({ hour }).toUTC().toISO()!;
+    DateTime.fromISO(view.shop.now, { zone: view.shop.timezone }).startOf('day').minus({ days: 2 }).plus({ days: day === 'Thu' ? 3 : 4 }).set({ hour }).toUTC().toISO()!;
   return { view, customer, booking, at };
 }
 

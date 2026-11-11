@@ -31,7 +31,7 @@ async function shop() {
 }
 
 function at(d: Seeded, day: 'Thu' | 'Fri', hour: number) {
-  return DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).startOf('week').plus({ days: day === 'Thu' ? 3 : 4 }).set({ hour }).toJSDate();
+  return DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).startOf('day').minus({ days: 2 }).plus({ days: day === 'Thu' ? 3 : 4 }).set({ hour }).toJSDate();
 }
 
 /** The tools for one customer, called directly as the model would. */
@@ -254,7 +254,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('live agent: Scenario 1 through 
     const vincent = d.customer('Vincent').id, bob = d.customer('Bob').id;
 
     // Step 1: Vincent types; the agent files the request, posts his card and quotes $45.
-    const { turn } = await agent.customerMessage(d.shop.id, vincent, 'Shoot ran over. Can I keep the camera until Thursday at 10am?');
+    const { turn } = await agent.customerMessage(d.shop.id, vincent, 'Shoot ran over. Can I keep the camera until tomorrow at 10am?');
     const r1 = (await turn)!;
     expect(r1.error).toBeNull();
     expect(r1.toolCalls.map((c) => c.name)).toEqual(expect.arrayContaining(['request_change', 'present_offer', 'send_message']));

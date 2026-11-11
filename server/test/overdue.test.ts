@@ -21,7 +21,7 @@ afterAll(() => pool.end());
 type Seeded = Awaited<ReturnType<typeof seedShop>>;
 
 function at(d: Seeded, day: 'Wed' | 'Thu', hour: number) {
-  return DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).startOf('week').plus({ days: day === 'Wed' ? 2 : 3 }).set({ hour }).toJSDate();
+  return DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).startOf('day').minus({ days: 2 }).plus({ days: day === 'Wed' ? 2 : 3 }).set({ hour }).toJSDate();
 }
 
 async function shop() {

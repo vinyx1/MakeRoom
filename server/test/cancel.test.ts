@@ -28,7 +28,7 @@ async function shop(gateway: PaymentGateway = fakeGateway()) {
 }
 
 function at(d: Seeded, day: 'Thu' | 'Fri', hour: number) {
-  return DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).startOf('week').plus({ days: day === 'Thu' ? 3 : 4 }).set({ hour }).toJSDate();
+  return DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).startOf('day').minus({ days: 2 }).plus({ days: day === 'Thu' ? 3 : 4 }).set({ hour }).toJSDate();
 }
 
 const booking = async (id: string) => (await db.select().from(s.bookings).where(eq(s.bookings.id, id)))[0]!;

@@ -41,7 +41,7 @@ function snapshotOf(d: DemoShop, extra: Partial<Snapshot> = {}): Snapshot {
 /** Shop-local time in the demo week, e.g. at('Thu', 10). */
 function at(d: DemoShop, day: 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat' | 'Sun', hour: number) {
   const days = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 }[day];
-  return DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).startOf('week').plus({ days }).set({ hour }).toJSDate();
+  return DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).startOf('day').minus({ days: 2 }).plus({ days }).set({ hour }).toJSDate();
 }
 
 const plansOf = (r: OptimizeResult) => {

@@ -4,7 +4,7 @@
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import type { Tx } from '../db/client.ts';
 import { loadSnapshot } from '../db/load-snapshot.ts';
-import { PROFILES, SCENARIOS, profileOf } from '../db/scenarios.ts';
+import { PROFILES, SCENARIOS, profileOf, storyDays } from '../db/scenarios.ts';
 import * as s from '../db/schema.ts';
 import { indexSnapshot } from '../optimizer/snapshot.ts';
 import { lastUndoableEdit } from '../owner/edit-booking.ts';

@@ -26,7 +26,7 @@ type Seeded = Awaited<ReturnType<typeof seedShop>>;
 const templates: AgentConfig = { client: null, model: 'none', effort: 'low', turnCap: 60 };
 
 function at(d: Seeded, day: 'Thu' | 'Fri', hour: number) {
-  return DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).startOf('week').plus({ days: day === 'Thu' ? 3 : 4 }).set({ hour }).toJSDate();
+  return DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).startOf('day').minus({ days: 2 }).plus({ days: day === 'Thu' ? 3 : 4 }).set({ hour }).toJSDate();
 }
 
 async function shop() {
