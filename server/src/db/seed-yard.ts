@@ -17,7 +17,8 @@ type Day = keyof typeof WEEKDAY;
 export type YardTime = { week?: -1 | 0 | 1; day: Day; hour: number };
 
 export function yardShopData({ sessionKey, realNow = new Date(), creatorIpHash = null }: { sessionKey: string; realNow?: Date; creatorIpHash?: string | null }) {
-  const monday = DateTime.fromJSDate(realNow, { zone: TIMEZONE }).startOf('week');
+  // The story's Monday is today, so the morning unfolds on today's date whatever day it is.
+  const monday = DateTime.fromJSDate(realNow, { zone: TIMEZONE }).startOf('day');
   const t = ({ week = 0, day, hour }: YardTime) => monday.plus({ weeks: week, days: WEEKDAY[day] - 1 }).set({ hour }).toJSDate();
   const now = new Date(t({ day: 'Mon', hour: 6 }).getTime() + 30 * 60_000);
   const policy = {

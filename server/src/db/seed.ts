@@ -1,6 +1,8 @@
 // The shared seed from `demo script.md`. Every visitor's shop starts here.
-// Days are relative to the demo week (the current Mon–Sun in the shop's time zone), and the shop clock
-// is offset so that "now" is Wednesday 5:30pm, 30 minutes before Vincent's rental is due back.
+// Days are named by their place in the story, whose "Wednesday" is today in the shop's time zone: whatever day a
+// visitor comes, the story unfolds on today's date. The shop clock is offset so that "now" is today 5:30pm (the
+// story's Wed 5:30pm), 30 minutes before Vincent's rental is due back. Text that names a story day uses
+// `storyDays` (scenarios.ts) to say the real weekday.
 //
 // `demoShopData` builds the rows as plain data (the optimizer tests use it without a database);
 // `seedShop` inserts them.
@@ -22,9 +24,9 @@ export const DEMO_TIMEZONE = 'America/Los_Angeles';
 type DemoTime = { week?: 0 | 1; day: 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat' | 'Sun'; hour: number };
 const WEEKDAY = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
 
-/** Monday 00:00 of the demo week, in the shop's zone. */
+/** Midnight of the story's Monday, in the shop's zone: two days before today, so the story's Wednesday is today. */
 export const demoWeekStart = (realNow: Date, tz = DEMO_TIMEZONE) =>
-  DateTime.fromJSDate(realNow, { zone: tz }).startOf('week');
+  DateTime.fromJSDate(realNow, { zone: tz }).startOf('day').minus({ days: 2 });
 
 export type DemoShop = ReturnType<typeof demoShopData>;
 
