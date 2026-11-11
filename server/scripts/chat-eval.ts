@@ -72,8 +72,7 @@ async function setUp(v: Visitor, row: Row) {
   const booking = owner.bookings.find((b: any) => b.customerId === vincent);
   const zone = owner.shop.timezone;
   const thursday10 = DateTime.fromISO(booking.endsAt, { zone }).plus({ days: 1 }).set({ hour: 10, minute: 0 });
-  const r = await v.api('POST', '/api/requests', { customerId: vincent, request: { kind: 'extend', bookingId: booking.id, newEndsAt: thursday10.toISO() } });
-  if (!r.proposalId && r.status !== 'offered') throw new Error(`setup request: ${JSON.stringify(r)}`);
+  await v.api('POST', '/api/requests', { customerId: vincent, request: { kind: 'extend', bookingId: booking.id, newEndsAt: thursday10.toISO() } });
   await v.settle();
   if (row.setup === 'held') {
     const view = await v.api('GET', `/api/customers/${vincent}`);
@@ -116,8 +115,10 @@ async function run(row: Row): Promise<Result> {
       if (a.seq <= before) continue;
       if (a.kind === 'agent_step') out.tools.push(`${a.payload.tool}${a.payload.ok ? '' : ` ✗ ${a.payload.code}`}`);
       else if (a.kind === 'agent_turn' && a.payload.customerId === me.id)
-        out.notes.push(`turn: ${a.payload.outcome ?? ''} ${a.payload.ms ? `${(a.payload.ms / 1000).toFixed(1)}s` : ''} ${a.payload.costUsd ? `$${Number(a.payload.costUsd).toFixed(3)}` : ''}${a.payload.lintBlocked ? ` lint blocked ${a.payload.lintBlocked}` : ''}`.trim());
-      else if (['escalation_opened', 'fact_question', 'handoff', 'request_created', 'proposal_cancelled'].includes(a.kind)) out.notes.push(a.kind);
+        out.notes.push(
+          `turn ${(a.payload.ms / 1000).toFixed(1)}s $${Number(a.payload.costUsd).toFixed(3)}${a.payload.nudged ? ' nudged' : ''}${a.payload.fallback ? ` fallback: ${a.payload.fallback}` : ''}${a.payload.error ? ` error: ${a.payload.error}` : ''}`,
+        );
+      else if (['agent_message_blocked', 'fact_question', 'proposal_created', 'request_corrected', 'proposal_ended'].includes(a.kind)) out.notes.push(`${a.kind}${a.kind === 'agent_message_blocked' ? `: ${JSON.stringify(a.payload).slice(0, 160)}` : ''}`);
     }
   } catch (e) {
     out.error = (e as Error).message;
