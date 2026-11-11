@@ -20,6 +20,10 @@ afterAll(() => pool.end());
 
 type Seeded = Awaited<ReturnType<typeof seedShop>>;
 
+/** A story day's real weekday as the cards print it ("Thu"): the story's Wednesday is today (see src/db/seed.ts). */
+const storyDay = (d: { now: Date; shop: { timezone: string } }, day: 'Wed' | 'Thu' | 'Fri') =>
+  DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).plus({ days: { Wed: 0, Thu: 1, Fri: 2 }[day] }).toFormat('ccc');
+
 function at(d: Seeded, day: 'Wed' | 'Thu', hour: number) {
   return DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).startOf('day').minus({ days: 2 }).plus({ days: day === 'Wed' ? 2 : 3 }).set({ hour }).toJSDate();
 }
@@ -69,7 +73,7 @@ describe('overdue returns', () => {
     expect((await load.booking(vincent.id)).overdueMarkedAt).not.toBeNull();
     const reviews = await load.escalations(d, 'plan_review');
     expect(reviews).toHaveLength(2);
-    expect(reviews[0]!.summary).toMatch(/^Vincent is overdue, expected back Thu 10:00am \(no charge to them\)/);
+    expect(reviews[0]!.summary).toMatch(new RegExp(`^Vincent is overdue, expected back ${storyDay(d, 'Thu')} 10:00am \\(no charge to them\\)`));
     // Nothing reaches Bob until the owner approves a plan.
     expect((await db.transaction((tx) => customerView(tx, d.shop.id, bob.customerId)))!.cards).toEqual([]);
 

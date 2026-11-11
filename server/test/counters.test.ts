@@ -23,6 +23,10 @@ afterAll(() => pool.end());
 
 type Seeded = Awaited<ReturnType<typeof seedShop>>;
 
+/** A story day's real weekday as the cards print it ("Thu"): the story's Wednesday is today (see src/db/seed.ts). */
+const storyDay = (d: { now: Date; shop: { timezone: string } }, day: 'Wed' | 'Thu' | 'Fri') =>
+  DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).plus({ days: { Wed: 0, Thu: 1, Fri: 2 }[day] }).toFormat('ccc');
+
 function at(d: Seeded, day: 'Wed' | 'Thu' | 'Fri', hour: number) {
   const days = { Wed: 2, Thu: 3, Fri: 4 }[day];
   return DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).startOf('day').minus({ days: 2 }).plus({ days }).set({ hour }).toJSDate();
@@ -137,7 +141,7 @@ describe('an affected customer counters', () => {
     const cards = await cardsOf(d, bob);
     expect(cards.map((c) => c.role).sort()).toEqual(['affected', 'counter']);
     const card = cards.find((c) => c.role === 'counter')!;
-    expect(card.options[0]!.lines.join(' ')).toMatch(/Pickup moves from Thu 9:00am to Thu 3:00pm.*\$25\.00 refunded/);
+    expect(card.options[0]!.lines.join(' ')).toMatch(new RegExp(`Pickup moves from ${storyDay(d, 'Thu')} 9:00am to ${storyDay(d, 'Thu')} 3:00pm.*\\$25\\.00 refunded`));
     expect(card.options[0]!.needsShop).toBe(true);
     expect(await cardsOf(d, vincent)).toEqual([]);
     const reviews = () => db.select().from(s.escalations).where(and(eq(s.escalations.proposalId, proposalId), eq(s.escalations.status, 'open')));

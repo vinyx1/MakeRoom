@@ -30,6 +30,10 @@ async function shop() {
   return { d, gateway };
 }
 
+/** A story day's real weekday as the cards print it ("Thu"): the story's Wednesday is today (see src/db/seed.ts). */
+const storyDay = (d: { now: Date; shop: { timezone: string } }, day: 'Wed' | 'Thu' | 'Fri') =>
+  DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).plus({ days: { Wed: 0, Thu: 1, Fri: 2 }[day] }).toFormat('ccc');
+
 function at(d: Seeded, day: 'Thu' | 'Fri', hour: number) {
   return DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).startOf('day').minus({ days: 2 }).plus({ days: day === 'Thu' ? 3 : 4 }).set({ hour }).toJSDate();
 }
@@ -89,7 +93,7 @@ describe('tools', () => {
     const thu10 = DateTime.fromJSDate(at(d, 'Thu', 10), { zone: d.shop.timezone }).toFormat("yyyy-LL-dd'T'HH:mm");
     const r = await call('request_change', { booking_id: bk, change: { type: 'extend', new_end: thu10 } });
     expect(r.ok).toBe(true);
-    expect(r.offer).toMatchObject({ price: '$45.00', price_status: 'offered', option: null, needs_shop_confirmation: false, terms: ['Keep the Sony A7 IV until Thu 10:00am', expect.stringContaining('$45.00'), expect.stringContaining('Held on your PayPal account first')] });
+    expect(r.offer).toMatchObject({ price: '$45.00', price_status: 'offered', option: null, needs_shop_confirmation: false, terms: [`Keep the Sony A7 IV until ${storyDay(d, 'Thu')} 10:00am`, expect.stringContaining('$45.00'), expect.stringContaining('Held on your PayPal account first')] });
     expect(r.another_customer_must_agree).toBe(true);
     expect(r.hint).toContain(r.offer.revision_id);
 
@@ -104,7 +108,7 @@ describe('tools', () => {
     const bk = (await call('get_my_bookings', {})).bookings[0].booking_id;
     const thu3am = DateTime.fromJSDate(at(d, 'Thu', 3), { zone: d.shop.timezone }).toFormat("yyyy-LL-dd'T'HH:mm");
     const r = await call('request_change', { booking_id: bk, change: { type: 'extend', new_end: thu3am } });
-    expect(r).toMatchObject({ ok: false, code: 'OUTSIDE_SHOP_HOURS', nearest: { earlier: { display: expect.stringMatching(/^Wed .*9:00pm$/) }, later: { display: expect.stringMatching(/^Thu .*9:00am$/) } } });
+    expect(r).toMatchObject({ ok: false, code: 'OUTSIDE_SHOP_HOURS', nearest: { earlier: { display: expect.stringMatching(new RegExp(`^${storyDay(d, 'Wed')} .*9:00pm$`)) }, later: { display: expect.stringMatching(new RegExp(`^${storyDay(d, 'Thu')} .*9:00am$`)) } } });
   });
 
   it('the money lint blocks amounts that came from the customer, not a tool', async () => {

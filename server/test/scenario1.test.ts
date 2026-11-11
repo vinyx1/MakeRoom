@@ -20,6 +20,10 @@ afterAll(() => pool.end());
 
 type Seeded = Awaited<ReturnType<typeof seedShop>>;
 
+/** A story day's real weekday as the cards print it ("Thu"): the story's Wednesday is today (see src/db/seed.ts). */
+const storyDay = (d: { now: Date; shop: { timezone: string } }, day: 'Wed' | 'Thu' | 'Fri') =>
+  DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).plus({ days: { Wed: 0, Thu: 1, Fri: 2 }[day] }).toFormat('ccc');
+
 function at(d: Seeded, day: 'Wed' | 'Thu' | 'Fri', hour: number) {
   const days = { Wed: 2, Thu: 3, Fri: 4 }[day];
   return DateTime.fromJSDate(d.now, { zone: d.shop.timezone }).startOf('day').minus({ days: 2 }).plus({ days }).set({ hour }).toJSDate();
@@ -89,7 +93,7 @@ describe('Scenario 1: the extension, Plan B (the demo path)', () => {
     const bobPicks = await affectedAccept(db, gateway, d.shop.id, { proposalId: offered.proposal.id, customerId: bob.customerId, revisionId: optionB!.id });
     expect(bobPicks).toEqual({ status: 'awaiting_approvals', waitingOn: ['owner'] });
     const [card] = await db.select().from(s.escalations).where(and(eq(s.escalations.proposalId, offered.proposal.id), eq(s.escalations.kind, 'approval')));
-    expect(card!.summary).toBe("Bob's booking shortened by 5h (now Thu 2:00pm → Fri 6:00pm), $15 refund. Net +$30.");
+    expect(card!.summary).toBe(`Bob's booking shortened by 5h (now ${storyDay(d, 'Thu')} 2:00pm → ${storyDay(d, 'Fri')} 6:00pm), $15 refund. Net +$30.`);
 
     // Steps 6–7: the owner approves; capture, revalidate, commit, refund.
     const done = await ownerDecision(db, gateway, d.shop.id, { proposalId: offered.proposal.id, revisionId: optionB!.id, decision: 'approve' });

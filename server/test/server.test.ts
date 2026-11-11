@@ -57,7 +57,9 @@ async function owner(v: ReturnType<typeof visitor>) {
   const booking = (name: string) => view.bookings.find((b) => b.customerId === customer(name))!;
   const at = (day: 'Thu' | 'Fri', hour: number) =>
     DateTime.fromISO(view.shop.now, { zone: view.shop.timezone }).startOf('day').minus({ days: 2 }).plus({ days: day === 'Thu' ? 3 : 4 }).set({ hour }).toUTC().toISO()!;
-  return { view, customer, booking, at };
+  // A story day's real weekday as the cards print it ("Thu"): the story's Wednesday is today (see src/db/seed.ts).
+  const day = (label: 'Thu' | 'Fri') => DateTime.fromISO(view.shop.now, { zone: view.shop.timezone }).plus({ days: label === 'Thu' ? 1 : 2 }).toFormat('ccc');
+  return { view, customer, booking, at, day };
 }
 
 describe('sessions', () => {
@@ -100,7 +102,7 @@ describe('sessions', () => {
 describe('Scenario 1 over HTTP', () => {
   it('runs from Vincent’s request to commit, with cards rendered by the backend', async () => {
     const v = visitor();
-    const { customer, booking, at } = await owner(v);
+    const { customer, booking, at, day } = await owner(v);
     const [vincent, bob] = [customer('Vincent'), customer('Bob')];
 
     const offered = await v.post('/api/requests', { customerId: vincent, request: { kind: 'extend', bookingId: booking('Vincent').id, newEndsAt: at('Thu', 10) } });
@@ -114,7 +116,7 @@ describe('Scenario 1 over HTTP', () => {
         proposalId, role: 'requester', chargeCents: 4500, heldCents: 0, expiresAt: expect.any(String),
         options: [{
           revisionId: expect.any(String), option: null, needsShop: false, isAlternative: false,
-          lines: ['Keep the Sony A7 IV until Thu 10:00am', '$45.00, only charged if it goes ahead', expect.stringContaining('Held on your PayPal account first')],
+          lines: [`Keep the Sony A7 IV until ${day('Thu')} 10:00am`, '$45.00, only charged if it goes ahead', expect.stringContaining('Held on your PayPal account first')],
         }],
       },
     ]);
@@ -127,14 +129,14 @@ describe('Scenario 1 over HTTP', () => {
     const bobCard = (await v.get(`/api/customers/${bob}`)).body.cards[0];
     expect(bobCard.role).toBe('affected');
     expect(bobCard.options.map((o: { option: string; lines: string[]; needsShop: boolean }) => [o.option, o.lines, o.needsShop])).toEqual([
-      ['A', ['Free upgrade to the Sony A7R V, same times (Thu 9:00am → Fri 6:00pm)'], false],
-      ['B', ['Pickup moves from Thu 9:00am to Thu 2:00pm', '$15.00 refunded to your original payment'], true],
+      ['A', [`Free upgrade to the Sony A7R V, same times (${day('Thu')} 9:00am → ${day('Fri')} 6:00pm)`], false],
+      ['B', [`Pickup moves from ${day('Thu')} 9:00am to ${day('Thu')} 2:00pm`, '$15.00 refunded to your original payment'], true],
     ]);
 
     const planB = bobCard.options[1].revisionId;
     expect((await v.post(`/api/proposals/${proposalId}/revisions/${planB}/accept`, { customerId: bob })).body).toEqual({ status: 'awaiting_approvals', waitingOn: ['owner'] });
     const { view } = await owner(v);
-    expect(view.escalations.map((e) => e.summary)).toEqual(["Bob's booking shortened by 5h (now Thu 2:00pm → Fri 6:00pm), $15 refund. Net +$30."]);
+    expect(view.escalations.map((e) => e.summary)).toEqual([`Bob's booking shortened by 5h (now ${day('Thu')} 2:00pm → ${day('Fri')} 6:00pm), $15 refund. Net +$30.`]);
 
     const done = await v.post(`/api/proposals/${proposalId}/revisions/${planB}/owner`, { decision: 'approve' });
     expect(done.body.status).toBe('committed');
@@ -148,7 +150,7 @@ describe('Scenario 1 over HTTP', () => {
 describe('Scenario 6 over HTTP', () => {
   it('warns on a claimed booking, and the override cancels Vincent’s request', async () => {
     const v = visitor();
-    const { customer, booking, at } = await owner(v);
+    const { customer, booking, at, day } = await owner(v);
     const offered = await v.post('/api/requests', { customerId: customer('Vincent'), request: { kind: 'extend', bookingId: booking('Vincent').id, newEndsAt: at('Thu', 10) } });
     const proposalId = offered.body.proposal.id;
     await v.post(`/api/proposals/${proposalId}/order`, { customerId: customer('Vincent') });
@@ -167,7 +169,7 @@ describe('Scenario 6 over HTTP', () => {
 describe('judge-mode controls', () => {
   it('fast-forward expires a waiting request and voids its hold', async () => {
     const v = visitor();
-    const { customer, booking, at } = await owner(v);
+    const { customer, booking, at, day } = await owner(v);
     const offered = await v.post('/api/requests', { customerId: customer('Vincent'), request: { kind: 'extend', bookingId: booking('Vincent').id, newEndsAt: at('Thu', 10) } });
     await v.post(`/api/proposals/${offered.body.proposal.id}/order`, { customerId: customer('Vincent') });
     await v.post(`/api/proposals/${offered.body.proposal.id}/accept`, { customerId: customer('Vincent') });
@@ -203,7 +205,7 @@ describe('judge-mode controls', () => {
 describe('live activity feed (SSE)', () => {
   it('streams the shop’s activity from a given point, then new events as they happen', async () => {
     const v = visitor();
-    const { customer, booking, at } = await owner(v);
+    const { customer, booking, at, day } = await owner(v);
     const address = await app.listen({ port: 0, host: '127.0.0.1' });
     const controller = new AbortController();
     const res = await fetch(`${address}/api/events?after=0`, { headers: { cookie: `${SESSION_COOKIE}=${v.token}` }, signal: controller.signal });
@@ -311,7 +313,7 @@ describe('protecting the public URL', () => {
 
   it('cleans up shops unseen for 48 hours, voiding holds first, and keeps recent ones', async () => {
     const v = visitor();
-    const { customer, booking, at } = await owner(v);
+    const { customer, booking, at, day } = await owner(v);
     const offered = await v.post('/api/requests', { customerId: customer('Vincent'), request: { kind: 'extend', bookingId: booking('Vincent').id, newEndsAt: at('Thu', 10) } });
     await v.post(`/api/proposals/${offered.body.proposal.id}/order`, { customerId: customer('Vincent') });
     await v.post(`/api/proposals/${offered.body.proposal.id}/accept`, { customerId: customer('Vincent') });
