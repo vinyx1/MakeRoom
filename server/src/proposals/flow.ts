@@ -210,7 +210,12 @@ function chooseOptions(plans: Plan[]): Plan[] {
   };
   const same = plans.filter((p) => requesterTerms(p) === requesterTerms(plans[0]!));
   const inEnvelope = same.filter((p) => !p.envelopeTrips.length);
-  return (inEnvelope.length ? inEnvelope : same).slice(0, 2).sort((a, b) => Number(a.needsOwner) - Number(b.needsOwner));
+  const candidates = inEnvelope.length ? inEnvelope : same;
+  // When the best plan needs nobody's answer (only same-model swaps, which the shop just tells people about), it is the
+  // only option. A second one would differ only in which unit, and with no one to ask, nobody would ever pick between them.
+  const best = candidates[0]!;
+  if (!best.needsOwner && best.changes.every((c) => c.isRequester || !c.requiresApproval)) return [best];
+  return candidates.slice(0, 2).sort((a, b) => Number(a.needsOwner) - Number(b.needsOwner));
 }
 
 const planSummary = (p: Plan) => ({
