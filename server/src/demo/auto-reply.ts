@@ -28,7 +28,15 @@ export async function scriptedAnswer(db: Db, gateway: PaymentGateway, offer: { s
     ));
   // A pick leaves its sibling option pending, so without this the script would pick that one too.
   if (mine.some((m) => m.approval.status === 'approved')) return null;
-  const options = mine.filter((m) => m.approval.status === 'pending').map((m) => m.revision).sort((a, b) => (a.optionLabel ?? '').localeCompare(b.optionLabel ?? ''));
+  // Only options on their card: a plan outside the envelope reaches a customer once the owner has approved it.
+  const ownerOk = new Set((await db
+    .select({ id: s.approvals.revisionId })
+    .from(s.approvals)
+    .where(and(eq(s.approvals.proposalId, offer.proposalId), eq(s.approvals.role, 'owner'), eq(s.approvals.status, 'approved')))).map((a) => a.id));
+  const options = mine
+    .filter((m) => m.approval.status === 'pending' && (!m.revision.envelopeTrips.length || ownerOk.has(m.revision.id)))
+    .map((m) => m.revision)
+    .sort((a, b) => (a.optionLabel ?? '').localeCompare(b.optionLabel ?? ''));
   const choice = options.find((r) => r.optionLabel === 'B') ?? options[0];
   if (!choice) return null;
 
