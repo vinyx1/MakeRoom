@@ -1,5 +1,28 @@
 # MakeRoom
 
+## How Bryntum is used
+
+[Bryntum Scheduler Pro](https://bryntum.com/products/schedulerpro/) is the owner's live view of the shop, and its scheduling engine is a second opinion on every plan the optimizer proposes. The server stays the source of truth and never trusts the browser, so Bryntum never moves a real booking.
+
+**The schedule** (`web/src/components/Schedule.tsx`)
+- **Turnaround buffers** after each rental (event buffers) and **maintenance windows** (resource time ranges), shown in the shop's time zone whatever the browser's.
+- **Ghost bookings** for every plan the assistant has proposed, so the owner sees the change before anyone agrees.
+- **Red drafts** for owner edits that conflict, each with a **Resolve with agent** button.
+- **Drag and resize held for the server:** an edit waits (async finalize) until the backend answers, then applies, becomes a draft, or is refused.
+- **Ruled-out plans drawn on the schedule:** click one in the activity feed to see where it fails, with the booking it overlaps lit up.
+- **A booking menu** (change times, delete, mark returned, mark overdue), a "Fully booked" summary row per day, and an Unassigned row.
+- Every booking is `manuallyScheduled`, so the engine never repositions it.
+
+**The scheduling engine** (`web/src/engine.ts`, shown by `web/src/components/EngineNote.tsx`)
+- A separate, hidden Scheduler Pro project is built from the same bookings: each unit's bookings are chained with **finish-to-start dependencies** (the turnaround buffer inside each task), inside a **shop-hours calendar**, with **start-no-earlier-than constraints** and maintenance as fixed tasks.
+- **Verify a plan:** if the engine has to move anything to make a plan's schedule hold, the plan has an overlap, a missed turnaround, a pickup outside shop hours or a booking in maintenance. The owner sees "Bryntum engine agrees" or "disagrees" on each card.
+- **Solve the cascade:** apply only the late customer's extension and let the engine propagate it, to see which bookings it alone would slide and to when. For the main demo that is Bob's pickup to 2pm, the same answer as the optimizer's Plan B.
+- It is read-only: built, committed, read and destroyed inside one call, never sent to the server and never drawn as a booking.
+
+Bryntum is used under its free trial, installed from public npm (no Bryntum code is in this repo), so the trial watermark shows on the schedule.
+
+## About
+
 **When a rental runs late, make room.** MakeRoom is an AI agent for small rental shops. A customer asks to keep a rental longer, and MakeRoom finds which bookings can move, asks the customer affected, holds the late customer's payment with PayPal, and changes the schedule only once everyone agrees.
 
 Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
