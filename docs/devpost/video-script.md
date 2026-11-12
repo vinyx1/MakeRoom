@@ -1,5 +1,5 @@
 1.  Every rental shop eventually gets the same scenario: A customer's schedule goes late and they want to keep the item they rented. But the next customer booked it weeks ago. The owner ends up on the phone, juggling schedules, refunds and who pays what.
-2. This is MakeRoom. An AI agent that handles that whole conversation. The entire thing is the owner's dashboard. On the right, I added a customer's phone and I can simulate being all the . I'm playing everyone, so I can pretend to be the customers. 
+2. This is MakeRoom. An AI agent that handles that whole conversation. The entire thing is the owner's dashboard. On the right, I added a customer's phone and I can simulate being all the clients.
 3.  This is a fake scenario for a small camera rental business. Here, Vincent's camera is due back at six. He asks to keep it until tomorrow morning. Claude reads the message and calls tools to look at the schedule, but the search itself is plain code, not AI.
 4.   It found two ways to make room, and ruled out five more. Click any ruled-out plan and it shows exactly where it failed. A different unit was under maintenance. Another one overlapped a booking.
 5.   Let's say Vincent pays with PayPal, but that only places a hold. Nothing is actually charged, its there so the customer can't just back out when the schedule has already changed. 
