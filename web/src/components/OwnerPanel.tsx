@@ -254,7 +254,6 @@ function OwnerCard({ escalation: e, owner, onOutcome, onOpenChat }: { escalation
     <div className="ocard" {...pointsAtRequest(e.proposalId)}>
       <div className="ocard-kind"><span className={`tag ${TAG[e.kind] ?? ''}`}>{LABEL[e.kind] ?? e.kind}</span></div>
       <div>{summary}</div>
-      {proposal && e.revisionId && <EngineNote owner={owner} proposal={proposal} revisionId={e.revisionId} />}
       {questions.length > 0 && (
         <div className="fact-q">
           <div className="fact-q-text">Needs a fact: {question ?? questions.map((f) => `${f.label ?? f.key}?`).join(' ')}</div>
@@ -300,6 +299,8 @@ function OwnerCard({ escalation: e, owner, onOutcome, onOpenChat }: { escalation
           <button onClick={() => onOpenChat(customerOfThread)}>Open the chat</button>
         )}
       </div>
+      {/* After the buttons: the decision stays at the top of the card, with the engine's second opinion under it. */}
+      {proposal && e.revisionId && <EngineNote owner={owner} proposal={proposal} revisionId={e.revisionId} />}
     </div>
   );
 }
