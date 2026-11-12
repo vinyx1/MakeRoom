@@ -391,8 +391,7 @@ code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 0.9231r
 }
 
 /* What Bryntum's scheduling engine makes of a request (EngineNote): a quiet second opinion on the owner's cards. */
-.engine-note { margin: 8px 0 4px; padding: 6px 8px; border-left: 2px solid var(--control); background: var(--raised); border-radius: 0 var(--radius-control) var(--radius-control) 0; font-size: 0.9231rem; line-height: 1.4; }
-.engine-title { font-weight: 600; margin-bottom: 2px; }
+.engine-note { margin: 6px 0 2px; padding: 4px 8px; border-left: 2px solid var(--control); background: var(--raised); border-radius: 0 var(--radius-control) var(--radius-control) 0; font-size: 0.9231rem; line-height: 1.4; }
 .engine-line { margin: 2px 0; font-size: 0.9231rem; color: var(--muted); }
 .engine-ok b { color: var(--ok); }
 .engine-no b { color: var(--conflict); }

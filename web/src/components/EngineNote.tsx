@@ -52,19 +52,16 @@ export function EngineNote({ owner, proposal, revisionId, compact = false }: { o
     );
   }
   return (
-    <div className="engine-note">
-      <div className="engine-title">Bryntum scheduling engine</div>
+    <div className="engine-note" title="Bryntum Scheduler Pro's scheduling engine lays out the schedule as this plan would leave it, in a hidden project of its own: each unit's bookings chained with their turnaround, inside shop hours, around maintenance. It never touches a real booking. The optimizer also tries other units and models.">
       {result.plans.map((p) => (
         <div key={p.label} className={p.pushes.length ? 'engine-no' : 'engine-ok'}>
-          <b>{p.pushes.length ? 'Disagrees' : 'Agrees'}</b>
+          <b>Bryntum engine {p.pushes.length ? 'disagrees' : 'agrees'}</b>
           {result.plans.length > 1 && <> on {p.label}</>}
-          {p.pushes.length === 0 ? ': no overlaps, every turnaround kept, pickups within shop hours.' : `: ${p.pushes.map(describe).join('; ')}.`}
+          {p.pushes.length === 0 ? ': no overlaps, turnarounds kept, pickups within shop hours.' : `: ${p.pushes.map(describe).join('; ')}.`}
         </div>
       ))}
       {result.cascade.length > 0 && (
-        <div className="engine-cascade">
-          On its own, the engine would just slide {result.cascade.map((p) => `${p.name} from ${when(p.planned)} to ${when(p.engine)}`).join(', ')}. The optimizer also tries other units and models.
-        </div>
+        <div className="engine-cascade">Alone, it would slide {result.cascade.map((p) => `${p.name} from ${when(p.planned)} to ${when(p.engine)}`).join(', ')}.</div>
       )}
     </div>
   );
