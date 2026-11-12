@@ -6,7 +6,7 @@ Record the screen and the voiceover separately, then match them in the edit. Cli
 
 Screen: The thumbnail or landing page: "When a rental runs late, make room."
 
-Say: Every rental shop has the same bad evening. A customer's schedule goes late and they want to keep the item they rented. But the next customer booked it weeks ago. The owner ends up on the phone, juggling schedules, refunds and who pays what.
+Say: Every rental shop eventually gets the same scenario: A customer's schedule goes late and they want to keep the item they rented. But the next customer booked it weeks ago. The owner ends up on the phone, juggling schedules, refunds and who pays what.
 
 ## 0:15
 
