@@ -347,7 +347,7 @@ export function Schedule({ owner, shopNow, onEdit, onResolveDraft, onCancel, onR
       // Bryntum's own items stay off, so the schedule never changes a booking by itself.
       eventMenuFeature: {
         triggerEvent: 'click',
-        items: { editEvent: false, cutEvent: false, copyEvent: false, deleteEvent: false, unassignEvent: false, splitEvent: false, renameSegment: false },
+        items: { editEvent: false, cutEvent: false, copyEvent: false, deleteEvent: false, unassignEvent: false, splitEvent: false, renameSegment: false, eventColor: false },
         processItems({ eventRecord, items }: any) {
           if (eventRecord.kind !== 'booking') return false;
           if (eventRecord.status === 'picked_up') {

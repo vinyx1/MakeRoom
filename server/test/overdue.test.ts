@@ -9,6 +9,7 @@ import { DateTime } from 'luxon';
 import { afterAll, describe, expect, it } from 'vitest';
 import { createDb } from '../src/db/client.ts';
 import * as s from '../src/db/schema.ts';
+import { scriptedAnswer } from '../src/demo/auto-reply.ts';
 import { seedShop } from '../src/db/seed.ts';
 import { seedPrepayments } from '../src/payments/prepay.ts';
 import { affectedAccept, affectedRefuse, markOverdue, markReturned, ownerDecision } from '../src/proposals/flow.ts';
@@ -89,6 +90,18 @@ describe('overdue returns', () => {
     expect([vincentAfter.endsAt, vincentAfter.priceCents, vincentAfter.status]).toEqual([at(d, 'Thu', 10), vincent.priceCents, 'picked_up']);
     expect(bobAfter.unitId).toBe(d.unit('A7RV-1').id);
     expect(gateway.calls.slice(before)).toEqual([]); // no one charged, and an upgrade refunds nothing
+  });
+
+  it('the scripted customer (Let Bob answer) takes the plan the owner approved, not one still waiting on the shop', async () => {
+    const { d, gateway } = await shop();
+    const bob = d.bookingOf('Bob');
+    const r = await vincentOverdue(d, gateway);
+    // Both plans need the owner and he approves only the 2pm one. Bob's card shows just that option.
+    const planA = r.revisions.find((x) => x.optionLabel === 'A')!;
+    await ownerDecision(db, gateway, d.shop.id, { proposalId: r.proposal.id, revisionId: planA.id, decision: 'approve' });
+    const answered = await scriptedAnswer(db, gateway, { shopId: d.shop.id, customerId: bob.customerId, proposalId: r.proposal.id });
+    expect(answered).toMatchObject({ status: 'committed' });
+    expect((await load.booking(bob.id)).startsAt).toEqual(at(d, 'Thu', 14));
   });
 
   it('when Bob and then Charlie keep their bookings, the request ends and the owner is alerted', async () => {
