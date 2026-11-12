@@ -6,7 +6,5 @@
 6.  Now Bob is asked. The agent tells him why, that his booking is confirmed, and that he's free to say no. He can take a free upgrade, a later pickup with a refund, or keep his booking as it is. Only a click on this card counts as a yes. Typing "ok" doesn't.
 7.   Moving Bob's pickup shortens a confirmed booking, so it goes to the owner first. And here, Bryntum's scheduling engine independently checks the plan: no overlaps, turnarounds kept, shop hours respected. Left alone, it would slide Bob to two o'clock, the same answer the optimizer found. I approve.
 8.  Now it commits. Vincent's hold is captured, both bookings change in one transaction, and Bob's fifteen dollars goes back through PayPal. Everything the agent did is in the feed.
-
-Say: And the agent can't be talked into anything. It can't make up a price, record an approval or touch money. Claude proposes, and code decides.
-
-Say: MakeRoom: when a rental runs late, make room. Try it with the PayPal sandbox. No real money moves.
+9.  And the agent can't be talked into anything. It can't make up a price, record an approval or touch money. Claude proposes, and code decides.
+10.  MakeRoom: when a rental runs late, make room. Try it with the PayPal sandbox. No real money moves.
