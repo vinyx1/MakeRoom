@@ -73,14 +73,15 @@ await step('config: PayPal set, test card off', async () => {
   must(json.environment === 'sandbox', `PayPal environment is ${json.environment}`);
 });
 
-const seeded = await step('new visitor gets a shop at Wed 5:30pm', async () => {
+const seeded = await step('new visitor gets a shop at 5:30pm today', async () => {
   const res = await api('GET', '/api/owner');
   must(res.status === 200, `answered ${res.status}: ${res.text.slice(0, 200)}`);
   must(/HttpOnly/i.test(res.set ?? '') && /Secure/i.test(res.set ?? ''), 'session cookie is not Secure and HttpOnly');
   owner = res.json as Owner;
   must(owner.bookings.length === 7, `${owner.bookings.length} bookings`);
   const now = DateTime.fromISO(owner.shop.now, { zone: owner.shop.timezone });
-  must(now.weekday === 3 && now.hour === 17, `the clock says ${now.toFormat('ccc h:mma')}`);
+  // The story's Wednesday is today (see src/db/seed.ts), 5:30pm in the shop's time zone.
+  must(now.hasSame(DateTime.now().setZone(owner.shop.timezone), 'day') && now.hour === 17, `the clock says ${now.toFormat('ccc h:mma')}, not 5:30pm today`);
 });
 
 if (seeded && owner) {
