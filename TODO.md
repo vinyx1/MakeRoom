@@ -63,6 +63,12 @@ The abuse protections in P0 item 2 (the global spend cap, the per-IP shop limit,
 23. **Host settings:** `NODE_ENV=production`, HTTPS only, installs from the lockfile with `npm ci` (versions are already pinned exactly).
 24. **Optional extras:** security headers (`@fastify/helmet`, with a content security policy that allows PayPal and the Bryntum assets), and a rate limit on chat messages and payment routes per session.
 
+## Known limitations (checked 2026-11-12)
+
+- **Pricing across a clock change.** A rental is billed per started 24 hours of elapsed time (`src/pricing.ts`), so one that spans a fall-back hour (25 hours for a one-day rental) is charged an extra day. The demo window (Nov 12 on) is clear of it; the next clock changes are 2027-03-14 and 2027-11-07. Fix: count days on the shop-local calendar. Five tests that compare elapsed hours fail only on the days around 2026-11-01; the rest are unaffected.
+- **Equal plans.** When two plans tie on every ranking rule, the last tie-break is the plan key, which includes unit ids (random per shop), so different demo shops can pick different, equally good plans (`optimizer.ts`, `planKey`). Scenario 1 has no tie.
+- **Untested by hand:** the real PayPal popup on the live site, Safari, the Railway per-IP limit.
+
 ## Not doing
 
 From `CLAUDE.md` "Out of scope": a multi-business marketplace, shipping, damage claims, late fees, real auth, multi-item kits, and Bryntum's engine moving real bookings.
