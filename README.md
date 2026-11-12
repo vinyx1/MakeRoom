@@ -13,7 +13,7 @@
 - **A booking menu** (change times, delete, mark returned, mark overdue), a "Fully booked" summary row per day, and an Unassigned row.
 - Every booking is `manuallyScheduled`, so the engine never repositions it.
 
-**The scheduling engine** (`web/src/engine.ts`, shown by `web/src/components/EngineNote.tsx`)
+**The scheduling engine** (`web/src/engine.ts`, shown by `web/src/components/EngineNote.tsx`). Essentially, I combined my own optimizer with Bryntum's built in engine. 
 - A separate, hidden Scheduler Pro project is built from the same bookings: each unit's bookings are chained with **finish-to-start dependencies** (the turnaround buffer inside each task), inside a **shop-hours calendar**, with **start-no-earlier-than constraints** and maintenance as fixed tasks.
 - **Verify a plan:** if the engine has to move anything to make a plan's schedule hold, the plan has an overlap, a missed turnaround, a pickup outside shop hours or a booking in maintenance. The owner sees "Bryntum engine agrees" or "disagrees" on each card.
 - **Solve the cascade:** apply only the late customer's extension and let the engine propagate it, to see which bookings it alone would slide and to when. For the main demo that is Bob's pickup to 2pm, the same answer as the optimizer's Plan B.
