@@ -5,7 +5,7 @@ export async function mk(variant: string, startIso: string, endIso: string) {
   const shop = { recurrentStartDate: 'at 9:00', recurrentEndDate: 'at 21:00', recurrentDatesTimeZone: TZ, isWorking: true };
   const maint = { startDate: '2026-11-11T17:00:00Z', endDate: '2026-11-14T05:00:00Z', isWorking: false };
   const calendars: any[] = [{ id: 'shop', name: 'shop', unspecifiedTimeIsWorking: false, intervals: [shop] }];
-  const events: any = { id: 'e1', name: 'E', startDate: startIso, endDate: endIso };
+  const events: any = { id: 'e1', name: 'E', startDate: startIso, endDate: endIso, constraintType: 'startnoearlierthan', constraintDate: startIso };
   if (variant === 'combinedEventCal') {
     calendars.push({ id: 'unit', name: 'unit', unspecifiedTimeIsWorking: false, intervals: [shop, maint] });
     events.calendar = 'unit';
