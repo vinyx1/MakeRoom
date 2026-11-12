@@ -1,18 +1,11 @@
-Say: Every rental shop eventually gets the same scenario: A customer's schedule goes late and they want to keep the item they rented. But the next customer booked it weeks ago. The owner ends up on the phone, juggling schedules, refunds and who pays what.
-
-Say: This is MakeRoom. An AI agent that handles that whole conversation. On the left, the owner's schedule, running on Bryntum Scheduler Pro. On the right, a customer's phone. I'm playing everyone: the owner, the late customer, and the next customer.
-
-Say: This is a fake scenario for a small camera rental business. Here, Vincent's camera is due back at six. He asks to keep it until tomorrow morning. Claude reads the message and calls tools to look at the schedule, but the search itself is plain code, not AI.
-
-Say: It found two ways to make room, and ruled out five more. Click any ruled-out plan and it shows exactly where it failed. A different unit was under maintenance. Another one overlapped a booking.
-
-Say: Vincent pays with PayPal, but that only places a hold. Nothing is charged. The hold comes first so the next customer is only asked to change their plans for a request that's ready to go ahead.
-
-Say: Now Bob is asked. The agent tells him why, that his booking is confirmed, and that he's free to say no. He can take a free upgrade, a later pickup with a refund, or keep his booking as it is. Only a click on this card counts as a yes. Typing "ok" doesn't.
-
-Say: Moving Bob's pickup shortens a confirmed booking, so it goes to the owner first. And here, Bryntum's scheduling engine independently checks the plan: no overlaps, turnarounds kept, shop hours respected. Left alone, it would slide Bob to two o'clock, the same answer the optimizer found. I approve.
-
-Say: Now it commits. Vincent's hold is captured, both bookings change in one transaction, and Bob's fifteen dollars goes back through PayPal. Everything the agent did is in the feed.
+1.  Every rental shop eventually gets the same scenario: A customer's schedule goes late and they want to keep the item they rented. But the next customer booked it weeks ago. The owner ends up on the phone, juggling schedules, refunds and who pays what.
+2. This is MakeRoom. An AI agent that handles that whole conversation. On the left, the owner's schedule, running on Bryntum Scheduler Pro. On the right, a customer's phone. I'm playing everyone: the owner, the late customer, and the next customer.
+3.  This is a fake scenario for a small camera rental business. Here, Vincent's camera is due back at six. He asks to keep it until tomorrow morning. Claude reads the message and calls tools to look at the schedule, but the search itself is plain code, not AI.
+4.   It found two ways to make room, and ruled out five more. Click any ruled-out plan and it shows exactly where it failed. A different unit was under maintenance. Another one overlapped a booking.
+5.   Vincent pays with PayPal, but that only places a hold. Nothing is charged. The hold comes first so the next customer is only asked to change their plans for a request that's ready to go ahead.
+6.  Now Bob is asked. The agent tells him why, that his booking is confirmed, and that he's free to say no. He can take a free upgrade, a later pickup with a refund, or keep his booking as it is. Only a click on this card counts as a yes. Typing "ok" doesn't.
+7.   Moving Bob's pickup shortens a confirmed booking, so it goes to the owner first. And here, Bryntum's scheduling engine independently checks the plan: no overlaps, turnarounds kept, shop hours respected. Left alone, it would slide Bob to two o'clock, the same answer the optimizer found. I approve.
+8.  Now it commits. Vincent's hold is captured, both bookings change in one transaction, and Bob's fifteen dollars goes back through PayPal. Everything the agent did is in the feed.
 
 Say: And the agent can't be talked into anything. It can't make up a price, record an approval or touch money. Claude proposes, and code decides.
 
