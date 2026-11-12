@@ -86,11 +86,11 @@ async function schedule(owner: OwnerView, tasks: Task[], floor: (t: Task) => Dat
   const project = new ProjectModel({
     timeZone: tz,
     calendar: SHOP,
-    calendarsData: calendars as unknown as CalendarModel[],
-    resourcesData: units.map((id) => ({ id, name: unitLabel(owner, id) })) as never,
-    eventsData: events as never,
-    assignmentsData: assignments as never,
-    dependenciesData: dependencies as never,
+    calendars: calendars as unknown as CalendarModel[],
+    resources: units.map((id) => ({ id, name: unitLabel(owner, id) })) as never,
+    events: events as never,
+    assignments: assignments as never,
+    dependencies: dependencies as never,
   });
   try {
     await project.commitAsync();
