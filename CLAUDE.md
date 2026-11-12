@@ -77,6 +77,10 @@ Money, booking-state and condition triggers are checked by the backend; the judg
 
 Bryntum must do real work, not just display a calendar: event buffers for turnaround, resource time ranges for unavailability (bookings are `manuallyScheduled`, so Bryntum never moves them), ghost/preview events for proposals (applied and rolled back via state tracking), red drafts for owner edits that conflict, and a **Resolve with agent** action on each conflict. The backend stays the source of truth; Bryntum syncs from it. Set `manuallyScheduled: true` in the one function that maps bookings to Bryntum events, and in dev mode log loudly if a Bryntum event's times ever differ from the server's.
 
+### The scheduling engine as a second opinion (built 2026-11-12)
+
+Bookings on the visible schedule stay `manuallyScheduled`, so its engine never moves one. Separately, `web/src/engine.ts` gives Scheduler Pro's **scheduling engine** a hidden `ProjectModel` of its own, built from the same bookings, and asks it two things (shown by `web/src/components/EngineNote.tsx` on the owner's approval cards and pending requests): `verifyPlan` lays each plan's schedule out as a chain of tasks per unit (finish-to-start dependencies, the turnaround buffer inside each task, a shop-hours calendar, maintenance as a fixed task) and flags anything the engine has to move, so an overlap, a missed turnaround, a pickup outside shop hours or a booking in maintenance shows as "disagrees"; `solveCascade` applies only the requester's extension and reports which later bookings the engine alone would slide, and to when (for Scenario 1: Bob to Thu 2pm, the same time as Plan B). It is read-only: built, committed, read and destroyed inside one call, never sent to the server, never drawn as a booking. The optimizer and every server rule are unchanged. Tried and dropped: per-unit calendars for maintenance (Scheduler Pro doesn't move a start out of a non-working interval the way it does for shop hours).
+
 ### If time permits (after Scenario 1 works)
 
 Optional Bryntum depth, all read-only views over backend data, behind a toggle, dropped if unreliable. None of it may change a booking or turn the engine on for real bookings.
@@ -84,7 +88,7 @@ Optional Bryntum depth, all read-only views over backend data, behind a toggle, 
 - **Play rejected alternatives on the schedule** (built): clicking a pruned alternative in the feed draws it on the schedule, read-only, and lights up the booking it overlaps. The optimizer logs each one's placement, rules and conflicts.
 - **Resource utilization view** under the schedule (native Scheduler Pro widget): per-unit load and revenue, before and after a plan.
 - **Planned vs actual** for extensions and late returns, instead of hand-made ghost styling.
-- **Engine what-if:** a separate read-only scheduler instance where the Scheduler Pro engine computes load or conflicts for a proposed plan; the backend keeps the final say.
+- **Engine what-if** (done, see above): a separate read-only project where the Scheduler Pro engine checks a proposed plan; the backend keeps the final say.
 
 ## Judge mode
 

@@ -29,7 +29,7 @@ The rule from `CLAUDE.md` still holds: the video scenarios must run reliably bef
    - **Read-only Bryntum depth, if time allows** (see `CLAUDE.md` "If time permits"), in this order:
      1. ~~**Play rejected alternatives on the schedule**~~ done 2026-11-05: clicking a ruled-out plan in the feed draws it, lights up the booking it overlaps and states why. Also added an availability row and merged model cells.
      2. **Resource utilization view** under the schedule: per-unit load before and after a plan.
-     3. **Engine what-if:** a separate read-only scheduler instance that computes conflicts for a proposed plan. This one carries the most risk. The engine must never touch real bookings (invariant: the backend decides).
+     3. ~~**Engine what-if**~~ done 2026-11-12 (see `CLAUDE.md` "The scheduling engine as a second opinion"): a hidden read-only project checks every plan and shows what the engine alone would do. Not built: engine-computed utilization, or drawing the engine's layout on the schedule.
 9. ~~**Counter-offers: `revise_terms`**~~ done 2026-11-03 (judge B1, B2, B4): infeasible → nearest time; a counter is a draft with Send and Discard; beyond limits → the owner; the 3-revision cap. A requester correcting an unpaid offer now replaces it. Not built: changing terms after paying the hold, owner editing a refund (B3).
 10. ~~**Agent speed perception**~~ done 2026-11-10: the chat lists the assistant's finished steps while it works (`agentSteps` in `web/src/live.ts`). Was (half a day). Sonnet turns take several seconds. Show the agent's tool steps live in the chat ("checking the schedule…") rather than only in the feed.
 

@@ -25,7 +25,7 @@ export function EngineNote({ owner, proposal, revisionId, compact = false }: { o
     void (async () => {
       try {
         const plans = [];
-        for (const r of revisions) plans.push({ label: r.optionLabel ? `Plan ${r.optionLabel}` : 'The plan', pushes: await verifyPlan(owner, r) });
+        for (const r of revisions) plans.push({ label: r.optionLabel ? `Plan ${r.optionLabel}` : 'the plan', pushes: await verifyPlan(owner, r) });
         const cascade = await solveCascade(owner, proposal);
         if (current) setResult({ plans, cascade });
       } catch (e) {

@@ -379,7 +379,7 @@ export function Help({ owner, onClose }: { owner: OwnerView; onClose: () => void
           <li>As Vincent: “{owner.shop.demo.suggestions.Vincent}”</li>
           <li>Pay on his card with PayPal. The schedule shows the plan as ghosts.</li>
           <li>On Bob's card, press “Let Bob answer” and he takes option B (2pm, $15 back). Or choose for him with the card's own buttons.</li>
-          <li>As the owner: Approve. The payment is captured, both bookings move, and Bob is refunded.</li>
+          <li>As the owner: Approve (the card also shows what Bryntum's scheduling engine makes of the plan). The payment is captured, both bookings move, and Bob is refunded.</li>
         </ol>
         <h4>2 · The owner drags, the assistant asks</h4>
         <ol>
