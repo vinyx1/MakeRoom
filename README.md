@@ -4,7 +4,7 @@
 
 Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
 
-- **Live demo:** make-room-for-it.up.railway.app (the app is at `/demo/`)
+- **Live demo:** https://make-room-for-it.up.railway.app (the app is at `/demo/`)
 - **Payments run in the PayPal sandbox.** No real money moves. The sandbox buyer login for the PayPal popup is on the Devpost submission page.
 
 ## What it does
