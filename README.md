@@ -36,7 +36,7 @@ TypeScript throughout. React and Vite, Bryntum Scheduler Pro (free trial from pu
 
 ## Run it locally
 
-You need Node 24, Docker, a PayPal **sandbox** app (developer.paypal.com, Apps & Credentials, Sandbox), and an Anthropic API key.
+You need Node 24, Docker, and a PayPal **sandbox** app (developer.paypal.com, Apps & Credentials, Sandbox). The server won't start without its `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET`. An Anthropic API key is optional: without `ANTHROPIC_API_KEY` the assistant sends a fixed template reply instead of using Claude. `PAYPAL_SANDBOX_BUYER_EMAIL` and `_PASSWORD` are only used to show the buyer login to your testers.
 
 ```bash
 docker compose up -d                  # Postgres
