@@ -8,7 +8,8 @@ import { shopTime } from '../live';
 
 type Result = { plans: { label: string; pushes: EnginePush[] }[]; cascade: EnginePush[] };
 
-export function EngineNote({ owner, proposal, revisionId }: { owner: OwnerView; proposal: Proposal; revisionId?: string | null }) {
+/** `compact` is one line, for a list of requests; the owner's approval card gets the full note. */
+export function EngineNote({ owner, proposal, revisionId, compact = false }: { owner: OwnerView; proposal: Proposal; revisionId?: string | null; compact?: boolean }) {
   const [result, setResult] = useState<Result | null>(null);
   // Recompute only when something the engine is given has changed, not on every refresh of the owner view.
   const signature = JSON.stringify([
@@ -42,6 +43,14 @@ export function EngineNote({ owner, proposal, revisionId }: { owner: OwnerView; 
   const when = (d: Date) => shopTime(d, zone);
   const describe = (p: EnginePush) => (p.maintenance ? `it runs into ${p.name}` : `${p.name}'s ${p.unit} pickup would have to move from ${when(p.planned)} to ${when(p.engine)}`);
 
+  if (compact) {
+    const bad = result.plans.filter((p) => p.pushes.length);
+    return (
+      <div className={`engine-line ${bad.length ? 'engine-no' : 'engine-ok'}`}>
+        Bryntum engine: <b>{bad.length ? 'disagrees' : 'agrees'}</b> {bad.length ? `on ${bad.map((p) => p.label).join(' and ')}` : `with ${result.plans.map((p) => p.label).join(' and ')}`}
+      </div>
+    );
+  }
   return (
     <div className="engine-note">
       <div className="engine-title">Bryntum scheduling engine</div>

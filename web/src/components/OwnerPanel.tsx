@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { type Activity, type Escalation, type Fact, type Outcome, type OwnerView, type RejectedPlan, api } from '../api';
 import { pointsAtRequest } from '../highlight';
+import { EngineNote } from './EngineNote';
 import { shopTime, usd } from '../live';
 
 type Props = {
@@ -211,6 +212,7 @@ function PendingRequest({ proposal: p, owner, onOutcome }: { proposal: OwnerView
       <div className="muted small">
         {late ? (p.state === 'CAPTURING' ? 'being confirmed' : 'waiting on you or the next customer') : p.state === 'DRAFT' && free ? 'waiting for the customer to accept' : (STATE[p.state] ?? p.state.toLowerCase())}
       </div>
+      {!late && <EngineNote owner={owner} proposal={p} compact />}
       {p.state === 'DRAFT' && p.requesterCustomerId && !free && !editing && (
         <button className="link" onClick={() => { setDollars((rev.quote.chargeCents / 100).toFixed(2)); setEditing(true); }}>
           Adjust price
@@ -232,6 +234,7 @@ function OwnerCard({ escalation: e, owner, onOutcome, onOpenChat }: { escalation
   const [answers, setAnswers] = useState<Record<string, 'yes' | 'no'>>({});
   const [busy, setBusy] = useState(false);
   const revision = owner.proposals.flatMap((p) => p.revisions).find((r) => r.id === e.revisionId);
+  const proposal = owner.proposals.find((p) => p.id === e.proposalId);
   const questions: Fact[] = (revision?.factDependencies ?? []).map((id) => owner.facts.find((f) => f.id === id)!).filter((f) => f && f.value !== 'yes');
   const customerOfThread = owner.conversations.find((c) => c.id === e.conversationId)?.customerId;
   const act = async (fn: () => Promise<Outcome>) => {
@@ -251,6 +254,7 @@ function OwnerCard({ escalation: e, owner, onOutcome, onOpenChat }: { escalation
     <div className="ocard" {...pointsAtRequest(e.proposalId)}>
       <div className="ocard-kind"><span className={`tag ${TAG[e.kind] ?? ''}`}>{LABEL[e.kind] ?? e.kind}</span></div>
       <div>{summary}</div>
+      {proposal && e.revisionId && <EngineNote owner={owner} proposal={proposal} revisionId={e.revisionId} />}
       {questions.length > 0 && (
         <div className="fact-q">
           <div className="fact-q-text">Needs a fact: {question ?? questions.map((f) => `${f.label ?? f.key}?`).join(' ')}</div>
