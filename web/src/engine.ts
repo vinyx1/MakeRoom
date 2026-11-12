@@ -54,7 +54,6 @@ function tasksFor(owner: OwnerView, changes: Revision['changes']): Task[] {
 async function schedule(owner: OwnerView, tasks: Task[], floor: (t: Task) => Date): Promise<Map<string, Date>> {
   const tz = owner.shop.timezone;
   const [opens, closes] = [owner.shop.opensAt.slice(0, 5).replace(/^0/, ''), owner.shop.closesAt.slice(0, 5).replace(/^0/, '')];
-  const toTz = (d: Date) => TimeZoneHelper.toTimeZone(d, tz);
 
   // Shop hours for everything; each unit's maintenance is time its own calendar treats as closed.
   const calendars = [
@@ -93,10 +92,9 @@ async function schedule(owner: OwnerView, tasks: Task[], floor: (t: Task) => Dat
     await project.commitAsync();
     const out = new Map<string, Date>();
     for (const t of tasks) {
-      const record = project.eventStore.getById(t.id) as { startDate: Date } | null;
+      const record = project.eventStore.getById(t.id) as unknown as { startDate: Date } | null;
       if (record) out.set(t.id, TimeZoneHelper.fromTimeZone(record.startDate, tz));
     }
-    void toTz;
     return out;
   } finally {
     project.destroy();
