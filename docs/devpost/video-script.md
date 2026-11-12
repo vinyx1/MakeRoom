@@ -8,27 +8,12 @@ Screen: The thumbnail or landing page: "When a rental runs late, make room."
 
 Say: Every rental shop eventually gets the same scenario: A customer's schedule goes late and they want to keep the item they rented. But the next customer booked it weeks ago. The owner ends up on the phone, juggling schedules, refunds and who pays what.
 
-## 0:15
-
-Screen: Cut to the demo. Pan over the Bryntum schedule, then the phone on the right.
-
 Say: This is MakeRoom. An AI agent that handles that whole conversation. On the left, the owner's schedule, running on Bryntum Scheduler Pro. On the right, a customer's phone. I'm playing everyone: the owner, the late customer, and the next customer.
 
-## 0:30
-
-Screen: On Vincent's phone, tap the one-click message ("Shoot ran over. Can I keep the camera until tomorrow at 10am?"). Show the live steps ("Ran the optimizer…").
 
 Say: This is a fake scenario for a small camera rental business. Here, Vincent's camera is due back at six. He asks to keep it until tomorrow morning. Claude reads the message and calls tools to look at the schedule, but the search itself is plain code, not AI.
 
-## 0:50
-
-Screen: Ghost bars appear on the schedule. In the owner's feed, click one ruled-out plan so it draws on the schedule.
-
 Say: It found two ways to make room, and ruled out five more. Click any ruled-out plan and it shows exactly where it failed. A different unit was under maintenance. Another one overlapped a booking.
-
-## 1:10
-
-Screen: On Vincent's card, press the PayPal button and log in to the sandbox. Zoom on "Nothing is charged yet".
 
 Say: Vincent pays with PayPal, but that only places a hold. Nothing is charged. The hold comes first so the next customer is only asked to change their plans for a request that's ready to go ahead.
 
