@@ -98,7 +98,17 @@ function RequesterCard({ card, customerId, config, onOutcome }: CardProps) {
 function PayPalCheckout({ card, customerId, onOutcome, disabled }: { card: CustomerCard; customerId: string; onOutcome: (o: Outcome) => void; disabled: boolean }) {
   const { loadingStatus, error } = usePayPal();
   if (loadingStatus === INSTANCE_LOADING_STATE.PENDING) return <div className="muted small">Loading PayPal…</div>;
-  if (loadingStatus === INSTANCE_LOADING_STATE.REJECTED) return <div className="error small">PayPal failed to load: {error?.message}</div>;
+  if (loadingStatus === INSTANCE_LOADING_STATE.REJECTED) {
+    // The SDK's hidden "pixel" iframe is on ad-blocker filter lists; when it's blocked the SDK reports "No ack for postMessage: pixelReady".
+    const blocked = /pixel|postMessage/i.test(error?.message ?? '');
+    return (
+      <div className="error small">
+        {blocked
+          ? 'PayPal is being blocked by an ad blocker or privacy extension. Allow this site in it, then reload the page.'
+          : `PayPal failed to load: ${error?.message ?? 'unknown error'}. Reload the page to try again.`}
+      </div>
+    );
+  }
   return (
     <div className={`paypal ${disabled ? 'disabled' : ''}`}>
       <PayPalOneTimePaymentButton
